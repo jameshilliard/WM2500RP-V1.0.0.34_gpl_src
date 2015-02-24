@@ -1,0 +1,11 @@
+--- linux-2.6.36.4.org/Makefile	2012-11-19 13:52:28.868170559 -0500
++++ linux-2.6.36.4.new/Makefile	2012-11-19 13:52:37.588163714 -0500
+@@ -188,7 +188,7 @@
+ # Default value for CROSS_COMPILE is not to prefix executables
+ # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
+ export KBUILD_BUILDHOST := $(SUBARCH)
+-ARCH		?= mips
++ARCH		?= arm
+ CROSS_COMPILE	?= $(CONFIG_CROSS_COMPILE:"%"=%)
+ 
+ # Architecture as present in compile.h

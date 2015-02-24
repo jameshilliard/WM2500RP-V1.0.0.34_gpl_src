@@ -1,0 +1,92 @@
+<% cfg_set("ca_finish", "1") %>
+<% cfg_set("configured", "1") %>
+
+<% http_header("style/form.css", "/funcs.js", "wlan.js") %>
+<% mobile_body_header("mobile_ca_connect_rightpage.htm", "ca_connect_retry") %>
+
+<% cfg_set("refresh_page", "client_setting") %>
+<% save_timestamp("ca_connect_retry", "ca_connect_cancel") %>
+<script>
+function loadvalue()
+{}
+var ts='<% cfg_get("ca_connect_retry") %>';
+var mobile_tag="<% cfg_get("mobile_tag") %>";
+var gui_region="<% cfg_get("GUI_Region") %>";
+
+var dns_hijack="<% cfg_get("dns_hijack") %>";
+var setup_wizard_tag="<% cfg_get("setup_wizard_tag") %>";
+
+var sta_list = "<% cat_file("/tmp/check_link") %>";
+var link_status="<% cat_file("/tmp/link_status" %>";
+var ca_finishs="<% cfg_get("ca_finishs") %>";
+function close_window()
+{
+	if(ca_finishs == 1)
+		msg_close();	
+}
+function ca_connect_retry()
+{
+	var browser=eval ( '"' + top.location + '"' );
+	document.forms[0].submit_flag.value="ca_connect_retry";
+
+	if  ( "<% cfg_get("lan_dhcp") %>" == "1" )
+	{
+		judge_browser(document.forms[0],browser);
+	}
+	document.forms[0].submit();
+}
+
+function ca_connect_continue()
+{
+    var cf = document.forms[0];
+	cf.submit_flag.value="ca_connect_cancel";
+	cf.action="/apply.cgi?/mobile_wait_for_searching.htm timestamp="+ts;
+	
+    document.forms[0].submit();
+}
+
+</script>
+<style type="text/css">
+H1 {
+	FONT-WEIGHT: bold; FONT-SIZE: 36px; BACKGROUND: white; COLOR: #9d98ff; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+TD {
+	FONT-SIZE: 30px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+.mobile_button{ height: 44px; color: #f2f2f2; font-family: Arial; font-weight: Bold; font-size: 28px; background-color: transparent; border: none; cursor: pointer; padding-bottom: 4px;width:198px; background: url(../test_2x.gif) no-repeat;}
+.mobile_cancel_button{ height: 44px; color: #f2f2f2; font-family: Arial; font-weight: Bold; font-size: 28px; background-color: transparent; border: none; cursor: pointer; padding-bottom: 4px;width:268px; background: url(../image/button/cancel_2x.gif) no-repeat;}
+</style>
+<input type="hidden" name="submit_flag" value="">
+<input type="hidden" name="related_region" value="">
+<input type="hidden" name="refresh_url">
+<input type="hidden" name="refresh_page">
+<input type="hidden" name="time_stamp_dni" value="">
+<input type="hidden" name="time_stamp_retry" value="1">
+<input type="hidden" name="ca_finish">
+<input type="hidden" name="dns_hijack">
+
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+	<TR>
+	<TD colSpan=3><H1>$ca_connect_uncomplete_head</H1></TD></TR>
+	<br>
+	<TR><td colspan=3><img src=/liteblue.gif width=100% height=12></td></TR>
+		<TR><td colspan=3>
+		<script>document.write("$ca_connect_uncomplete_1 $ca_connect_uncomplete_2 $ca_connect_uncomplete_3 $ca_connect_uncomplete_4 $ca_connect_uncomplete_5")</script>			    
+		</td></TR>		
+	<TR><td colspan=3><img src=/liteblue.gif width=100% height=12></td></TR>
+	<tr>
+	<td>
+		<input name="cancel" class="mobile_cancel_bt" align="left" type="button" value="$cancel_mark"  onClick="ca_connect_continue();"/>
+	</td>
+	<td>
+		<input name="next" class="mobile_short_common_bt" align="right" type="button" value="$finish" onClick="msg_close();"/>
+	</td>
+	<td>
+		<input name="again" class="mobile_short_common_bt" align="right" type="button" value="$retry_mark" onClick="ca_connect_retry();"/>
+	</td>
+	</tr>
+	</table> 
+
+</form>
+</body>
+</html>

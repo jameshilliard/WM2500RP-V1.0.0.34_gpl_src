@@ -1,0 +1,109 @@
+diff -Nur linux-2.6.31.old//arch/mips/atheros/gpio.c linux-2.6.31/arch/mips/atheros/gpio.c
+--- linux-2.6.31.old//arch/mips/atheros/gpio.c	2013-03-01 06:38:28.257115519 -0500
++++ linux-2.6.31/arch/mips/atheros/gpio.c	2013-03-01 08:06:29.547114881 -0500
+@@ -162,6 +162,10 @@
+ static struct proc_dir_entry *disable_wps = NULL; /* WPS is disabled? write into: 1 => disable, 0 => enable */
+ static struct proc_dir_entry *usb5v_en = NULL;
+ static struct proc_dir_entry *all_led = NULL;
++static struct proc_dir_entry *button_test = NULL;
++static int reset_count=0;
++static int wps_count=0;
++static int wireless_count=0;
+ static int diswps = 0;  /* 0 => WPS is enabled, 1 => WPS is disabled */
+ static int diswps_blink_count = 0; /* max value: 50, blinking 5 seconds */
+ 
+@@ -867,6 +871,25 @@
+ 	return count;
+ }
+ #endif
++
++static int button_test_read (char *page, char **start, off_t off,
++                                int count, int *eof, void *data)
++{
++       return sprintf(page, "%d:%d:%d\n", reset_count, wps_count, wireless_count);
++}
++static int button_test_write (struct file *file, const char *buf,
++                                unsigned long count, void *data)
++{
++       if (strncmp(buf, "reset", 5) == 0) {
++               reset_count = 0;
++               wps_count = 0;
++               wireless_count = 0;
++       }
++
++       return count;
++
++}
++
+ static int all_led_read (char *page, char **start, off_t off,
+                                int count, int *eof, void *data)
+ {
+@@ -969,8 +992,13 @@
+         static int pushbut_s = 0;
+         static int wlan_count = 0;
+ 
++	static int reset_push = 0;
++	static int wps_push = 0;
++	static int wlan_push = 0;
++
+         /* AR9380 GPIO3: WIRELESS ON/OFF(Input Pin / Active LOW) */
+         if (!ath_gpio_in_val(WLAN_BUTTON_GPIO)) {
++		wlan_push = 1;
+                 wlan_count++;
+                 /* [Bug 24969]According to NTGR's requirement, it should only trigger enabling or
+                  * disabling the wireless radio after the WLAN switch button is pressed and held
+@@ -989,9 +1017,14 @@
+                 if (wifibut_s) {
+                         wifibut_s = 0;
+                 }
++		if(wlan_push){
++			wireless_count++;
++			wlan_push = 0;
++		}
+         }
+         /* AR9344 GPIO16: JUMPSTART (Input Pin / Active LOW) */
+         if (!ath_gpio_in_val(WPS_BUTTON_GPIO)) {
++		wps_push = 1;
+                 if (!pushbut_s) {
+                         pushbut_s = 1;
+                         pushbut = push;
+@@ -1009,10 +1042,15 @@
+                 if (pushbut_s) {
+                         pushbut_s = 0;
+                 }
++		if(wps_push){
++			wps_count++;
++			wps_push = 0;
++		}
+         }
+ 
+         /* AR9380 GPIO10: RESET SWITCH (Input Pin/Active LOW) */
+         if (!ath_gpio_in_val(RESET_BUTTON_GPIO)) {
++		reset_push = 1;
+                 rstbut_count++;
+                 /* turn off POWER LED, turn on STATUS LED (amber), set timer, blinking STATUS LED */
+                 if (!staled_s) {
+@@ -1034,6 +1072,10 @@
+                         staled_s = 0;
+                 }
+                 rstbut_count = 0;
++		if(reset_push){
++			reset_count++;
++			reset_push = 0;
++		}
+         }
+ 
+         OS_SET_TIMER(&os_butdet_t, POLL_INTERVAL);
+@@ -1256,6 +1298,12 @@
+ 	all_led->write_proc = all_led_write;
+ 	all_led->read_proc = all_led_read;
+ 
++	button_test = create_proc_entry ("button_test", 0644, simple_config_entry);
++	if (!button_test)
++		return -ENOENT;
++	button_test->write_proc = button_test_write;
++	button_test->read_proc = button_test_read;
++
+ 	/* disable ar9380 JTAG to use GPIO0~GPIO4 */
+ 	ar9380DisableJtag(0);
+ 

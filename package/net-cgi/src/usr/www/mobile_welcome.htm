@@ -1,0 +1,44 @@
+<% echo_set("1", "/proc/sys/net/ipv4/mobile_tag") %>
+<% cfg_set("mobile_tag", "1") %>
+<% cfg_set("refresh_url", "") %>
+<% cfg_set("setup_wizard_tag", "1") %>
+
+<% http_header("style/wizard.css", "/funcs.js") %>
+
+<script>
+var dns_hijack="<% cfg_get("dns_hijack") %>";
+var link_status="<% cat_file("/tmp/wl0_status") %>";
+var led_color="<% cfg_get("led_color") %>";
+var succ_conn_login="<% cfg_get("succ_conn_login") %>";
+var ca_finish_success="<% cfg_get("ca_finish_success") %>";
+var continue_ca_settings="<% cfg_get("continue_ca_settings") %>";
+<% cfg_set("continue_ca_settings", "") %>
+
+ if( ca_finish_success == "1" )
+        location.href="index.htm";
+
+	document.write('<FRAMESET rows=130,*>');
+	document.write('<FRAME name=topframe marginWidth=0 frameSpacing=0 marginHeight=0 src="mobile_ca_top.htm" frameBorder=0 noResize scrolling=no>');
+	if(link_status=="1" && dns_hijack=="0" && led_color != "1")
+		document.write('<FRAME name="IA_frame" marginWidth=0 marginHeight=0 src="mobile_ca_connect_success.htm" frameBorder=0>');
+    else if(link_status=="1" && dns_hijack=="0" && led_color == "1")
+		document.write('<FRAME name="IA_frame" marginWidth=0 marginHeight=0 src="mobile_ca_connect_uncomplete.htm" frameBorder=0>');
+    else
+    {
+        if(continue_ca_settings=="ap_settings")
+			document.write('<FRAME name="IA_frame" marginWidth=0 marginHeight=0 src="mobile_ca_ap_settings.htm" frameBorder=0>');
+        //else if(continue_ca_settings=="summery_show")
+			//document.write('<FRAME name="IA_frame" marginWidth=0 marginHeight=0 src="mobile_ca_summery.htm" frameBorder=0>');
+        else if(continue_ca_settings=="connect_status")
+			document.write('<FRAME name="IA_frame" marginWidth=0 marginHeight=0 src="mobile_ca_connect_rightpage.htm" frameBorder=0>');
+        else
+			document.write('<FRAME name="IA_frame" marginWidth=0 marginHeight=0 src="mobile_wait_for_searching.htm" frameBorder=0>');
+    }
+		document.write("</FRAMESET>");
+</script>
+<NOFRAMES>
+<BODY>
+<p>$alert_browser
+</BODY>
+</NOFRAMES>
+</html>

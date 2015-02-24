@@ -1,0 +1,363 @@
+#!/bin/sh
+#set -x
+old_lan_ifnames=`nvram get br0_ifnames`
+
+show_usage()
+{
+	echo "-------------------------"
+	echo "rpt-wlan start/stop/restart"
+	echo "-------------------------"
+}
+
+INFO()
+{
+	echo [rpt-wlan]: $* > /dev/console
+}
+
+secoff()
+{
+	nvram set wl$1_akm=
+	nvram set wl$1_wep=disabled
+}
+
+stop_services()
+{
+	[ `ps | grep [w]ps_monitor| wc -l` -ge 1 ] && killall wps_monitor
+	[ `ps | grep [w]apid|wc -l` -ge 1 ] && killall wapid
+	[ `ps | grep [n]as|wc -l` -ge 1 ] && killall nas
+	killall eapd
+	[ `ps | grep [u]pnp|wc -l` -ge 1 ] && killall upnp
+	killall lld2d
+	killall acsd
+	#stop_samba
+	/etc/init.d/net-lan stop
+	killall led-extender
+	killall led-extender.script
+	INFO -----services stop done------
+}
+
+stop_lan()
+{
+	ifconfig br0 down
+
+	for name in $old_lan_ifnames
+	do
+		if [ `echo $name | grep ^dpsta` ]; then
+			dp_uif=`nvram get dpsta_ifnames`
+			for dp_if in $dp_uif
+			do
+				wlconf $dp_if down
+				ifconfig $dp_if down
+			done
+		fi
+		wlconf $name down
+		ifconfig $name down
+		[ "x$name" = "xeth1" -o "x$name" = "xeth2" ] || brctl delif br0 $name
+		[ x`nvram get emf_enable` == "x1" ] && emf del iface br0 $name
+	done
+
+	wlconf dpsta down
+	ifconfig dpsta down
+	brctl delif br0 dpsta
+
+	#emf stop br0
+	#igs del bridge br0
+	#emf del bridge br0
+
+	vconfig rem vlan1
+	brctl delbr br0
+}
+
+wlan_stop()
+{
+	INFO ---repeater wireless script stop---
+	stop_services
+	sleep 1
+	stop_lan
+	nvram commit
+}
+
+unset_hwaddr()
+{
+	i=1
+	nvram unset wl0_hwaddr
+	nvram unset wl1_hwaddr
+
+	while [ $i -lt 16 ]
+	do
+		nvram unset wl0."$i"_hwaddr
+		nvram unset wl1."$i"_hwaddr
+		let i+=1
+	done
+}
+
+start_lan()
+{
+	ifconfig eth0 up
+	vconfig set_name_type VLAN_PLUS_VID_NO_PAD
+	vconfig add eth0 1
+	vconfig set_ingress_map vlan1 0 0
+	vconfig set_ingress_map vlan1 1 1
+	vconfig set_ingress_map vlan1 2 2
+	vconfig set_ingress_map vlan1 3 3
+	vconfig set_ingress_map vlan1 4 4
+	vconfig set_ingress_map vlan1 5 5
+	vconfig set_ingress_map vlan1 6 6
+	vconfig set_ingress_map vlan1 7 7
+	#ifconfig vlan1 up
+
+	# nvram unset all wlX.X_hwaddr. This will be re-set in wlconf
+	#unset_hwaddr
+
+	# LAN: br0
+	brctl addbr br0
+	brctl setfd br0 0
+	brctl stp br0 on
+	#brctl addif br0 vlan1
+
+	# WL
+	for name in $lan_ifnames
+	do
+		[ `echo $name | grep ^wl` ] && ifconfig $name hw ether `nvram get "$name"_hwaddr`
+		ifconfig $name up
+		ifconfig $name allmulti
+		wlconf $name up
+		if [ "x$name" = "xeth1" ]; then
+			ifconfig dpsta hw ether `nvram get et0macaddr`
+			brctl addif br0 dpsta
+			continue
+		fi
+		[ "x$name" = "xeth2" ] && continue
+		brctl addif br0 $name
+	done
+
+	ifconfig br0 hw ether `nvram get et0macaddr`
+	ifconfig br0 `nvram get lan_ipaddr`
+	ifconfig br0 up
+
+	# config dpsta
+	dpsta_config
+	ifconfig dpsta up
+}
+
+start_wps()
+{
+	[ `ps | grep [w]ps_monitor | wc -l` -gt 1 ] && killall wps_monitor
+	[ -f /tmp/wps_monitor.pid ] && rm /tmp/wps_monitor.pid
+
+	if [ x`nvram get wps_restart` == "x1" ]; then
+		nvram set wps_restart=0
+	else
+		nvram set wps_restart=0
+		nvram set wps_proc_status=0
+	fi
+
+	nvram set wps_sta_pin=00000000
+
+	/bin/wps_monitor&
+}
+
+start_services()
+{
+	/bin/eapd
+	nas
+	#wapid
+	start_wps
+	/usr/sbin/acsd
+}
+
+start_services2()
+{
+	/etc/init.d/net-lan start
+	switch_pwr
+	led-extender &
+}
+
+start_wl()
+{
+	for name in $lan_ifnames
+	do
+		sleep 1
+		wlconf $name start
+	done
+}
+
+led_reset()
+{
+	setled -n rpt1 -c red -s off
+	setled -n rpt2 -c red -s off
+	setled -n wps -c red -s off
+	setled -n usb -c red -s off
+	nvram set led_color=0
+	nvram set con_flag=0
+	nvram set dni_wlstats=0
+}
+
+wlan_start()
+{
+	INFO ---repeater wireless script start---
+	led_reset
+	start_lan
+	start_services
+	start_wl
+	nvram commit
+	# sleep wait connect to rootap
+	sleep 5
+	start_services2
+}
+
+restore_default()
+{
+	#lan_ifnames="vlan1 eth1 eth2"
+	#nvram set br0_ifnames="vlan1 eth1 eth2"
+	nvram set wl_country_code=US
+	nvram set wl0_country_code=US
+	nvram set wl1_country_code=US
+	nvram commit
+}
+
+# endis_wlif enable/dis wl0/wl1
+endis_wlif()
+{
+	[ -z "$1" -o -z "$2" ] && return
+	case $1 in
+		"enable")
+			nvram set $2_radio=1
+			nvram set $2_bss_enabled=1
+			;;
+		*)
+			nvram set $2_radio=0
+			nvram set $2_bss_enabled=0
+			;;
+	esac
+}
+
+
+#-----------------------------Main Start--------------------------
+
+# Set nvram value got from config. This is only for WiFi part.
+#CONF_FILE=/etc/cton.conf
+#if [ -f $CONF_FILE ]; then
+#	TO BE CONTINUED...
+#
+
+
+#[  -f /tmp/.rpt-wlan ] && exit || touch /tmp/.rpt-wlan
+[ -z "$old_lan_ifnames" ] && restore_default
+
+# rootap_mode should be set via UI.
+# 	2.4G    --------- channel < 36
+#	5G      --------- channel >=36
+#   unknow  --------- use manual config ssid 
+rootap_mode=`nvram get rootap_mode`
+
+rootap_mode="unknown"
+
+case $rootap_mode in
+	"5G")
+		lan_ifnames="vlan1 eth1 eth2"
+		endis_wlif enable wl1
+		nvram set wl1_mode=psr
+
+		endis_wlif disable wl0.1
+		nvram set wl0_vifs=
+		nvram set wl0_mode=ap
+		if [ "x`nvram get dni_2.4g_enabled`" == "x1" ]; then
+			endis_wlif enable wl0
+			nvram set wl0_ssid=`nvram get wl0.1_ssid`
+		else
+			endis_wlif disable wl0
+		fi
+
+		if [ "x`nvram get dni_5g_enabled`" == "x1" ]; then
+			endis_wlif enable wl1.1
+			nvram set wl1.1_mode=ap
+			nvram set wl1_vifs=wl1.1
+			lan_ifnames="$lan_ifnames wl1.1"
+		else
+			endis_wlif disable wl1.1
+		fi
+
+		;;
+	"unknown")
+		lan_ifnames="vlan1 eth1 eth2"
+		# value for 2.4G
+		endis_wlif enable wl0
+		nvram set wl0_mode=psr
+		if [ "x`nvram get dni_2.4g_enabled`" == "x1" ]; then
+			endis_wlif enable wl0.1
+			nvram set wl0_vifs=wl0.1
+			lan_ifnames="$lan_ifnames wl0.1"
+		else
+			endis_wlif disable wl0.1
+			nvram set wl0_vifs=
+		fi
+
+		# value for 5G
+		endis_wlif enable wl1
+		nvram set wl1_mode=psr
+		if [ "x`nvram get dni_5g_enabled`" == "x1" ]; then
+			endis_wlif enable wl1.1
+			nvram set wl1_vifs=wl1.1
+			lan_ifnames="$lan_ifnames wl1.1"
+		else
+			endis_wlif disable wl1.1
+			nvram set wl1_vifs=
+		fi
+
+		#nvram set wl1.1_ssid=`nvram get wl0.1_ssid`_5G
+		;;
+	*)
+		lan_ifnames="vlan1 eth1 eth2"
+		endis_wlif enable wl0
+		nvram set wl0_mode=psr
+
+		if [ "x`nvram get dni_2.4g_enabled`" == "x1" ]; then
+			endis_wlif enable wl0.1
+			nvram set wl0.1_mode=ap
+			nvram set wl0_vifs=wl0.1
+			lan_ifnames="$lan_ifnames wl0.1"
+		else
+			endis_wlif disable wl0.1
+			nvram set wl0_vifs=
+		fi
+
+		nvram set wl1_mode=ap
+		nvram set wl1_vifs=
+		endis_wlif disable wl1.1
+		if [ "x`nvram get dni_5g_enabled`" == "x1" ]; then
+			endis_wlif enable wl1
+			nvram set wl1_ssid=`nvram get wl1.1_ssid`_5g
+		else
+			endis_wlif disable wl1
+		fi
+
+		;;
+esac
+
+INFO "prepare $lan_ifnames"
+
+nvram set lan_ifnames="$lan_ifnames"		#lan_ifnames must be set, althought I don't know why !!!
+nvram set lan_ifname=br0					#but this can fix eapd can't start issue.
+nvram set br0_ifnames="$lan_ifnames"
+nvram set br0_ifname=br0
+nvram set acs_ifnames=""
+
+
+case $1 in
+	start)
+		wlan_start
+
+		;;
+	stop)
+		wlan_stop
+		;;
+	restart)
+		wlan_stop
+		sleep 1
+		wlan_start
+		;;
+	*)
+		show_usage
+		;;
+esac

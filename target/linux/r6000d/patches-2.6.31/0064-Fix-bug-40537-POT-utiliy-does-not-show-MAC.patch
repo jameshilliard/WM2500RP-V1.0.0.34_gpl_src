@@ -1,0 +1,11 @@
+diff -Nur linux-2.6.31.orig//lib/kobject_uevent.c linux-2.6.31/lib/kobject_uevent.c
+--- linux-2.6.31.orig//lib/kobject_uevent.c	2013-04-28 22:41:42.466071740 +0800
++++ linux-2.6.31/lib/kobject_uevent.c	2013-04-28 22:42:28.156071734 +0800
+@@ -30,6 +30,7 @@
+ static DEFINE_SPINLOCK(sequence_lock);
+ #if defined(CONFIG_NET)
+ static struct sock *uevent_sock;
++EXPORT_SYMBOL(uevent_sock);
+ #endif
+ 
+ /* the strings here must match the enum in include/linux/kobject.h */

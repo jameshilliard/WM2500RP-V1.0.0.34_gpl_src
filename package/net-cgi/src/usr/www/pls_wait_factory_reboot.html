@@ -1,0 +1,48 @@
+<HTML>
+<HEAD>
+<TITLE></TITLE>
+<LINK rel="stylesheet" href="style/form.css">
+<META http-equiv=content-type content='text/html; charset=<% lang_charset() %>'>
+<script type="text/javascript">
+var pchar = "||"; // progress char
+var maxchars = 60; 
+var delay_time = 2000; // msecs
+var charcount = 0; 
+
+function makeStr(strSize, fillChar)
+{
+	var temp = "";
+	for (i=0; i < strSize ; i ++)
+		temp = temp + fillChar;
+	return temp;
+}
+function updateProgress()
+{
+	var cf = document.forms[0];
+	if (charcount < maxchars)
+	{
+		charcount ++;
+		cf.progress.value = makeStr(charcount,pchar);
+		setTimeout("updateProgress()",delay_time);
+	}
+	else
+	{ 
+		parent.location.href="http://www.routerlogin.net";
+	}
+}
+</script>
+</HEAD>
+<BODY bgcolor="#ffffff" onLoad="updateProgress()">
+<FORM>
+<TABLE border="0" cellpadding="0" cellspacing="3" width="100%">
+<TR>
+	<TD align="left"><H1>$update_head</H1></TD>
+	<TD nowrap>
+	<input size="56" type="text" name="progress" class="rebootbar" value="">
+	</TD>
+</TR>
+<TR>
+	<TD colspan="2"><img src="/liteblue.gif" width=100% height="12"></TD>
+</TR>
+</BODY>
+</HTML>

@@ -1,0 +1,163 @@
+--- origin-linux-2.6.31/drivers/usb/storage/usb.c	2011-09-22 11:07:04.438439849 -0400
++++ linux-2.6.31/drivers/usb/storage/usb.c	2011-09-23 04:37:48.348479500 -0400
+@@ -69,6 +69,32 @@
+ #include "sierra_ms.h"
+ #include "option_ms.h"
+ 
++#ifdef CONFIG_SOFT_USB_LED_BLINK
++
++#include <linux/timer.h>
++#include <linux/semaphore.h>
++#define SPEED 8 /* the true timeout period will be HZ/SPEED */
++#define LOOPS 8 /* the number of led action: on----off-----on----off */
++/* Extern the export sysbol */
++
++extern void get_usbled_state(void);
++extern void ap_usb_led_on(void);
++extern void ap_usb_led_off(void);
++
++struct switch_phy_timer{
++        struct timer_list timer; /* timer */
++        struct semaphore sem; /* semaphore */
++        int timer_enable; /* timer is enable */
++        int led_state; /* previous led state, 1 = on; 0 = off */
++        int loops; /* the number of the led action : on ---off ---on --- */
++	int led_pre_state; /* the led state before blink */
++};
++
++/* Global pointer of struct switch_phy_timer */
++struct switch_phy_timer * gl_switch_timer;
++
++#endif
++
+ /* Some informational data */
+ MODULE_AUTHOR("Matthew Dharm <mdharm-usb@one-eyed-alien.net>");
+ MODULE_DESCRIPTION("USB Mass Storage driver for Linux");
+@@ -82,6 +108,96 @@
+ module_param_string(quirks, quirks, sizeof(quirks), S_IRUGO | S_IWUSR);
+ MODULE_PARM_DESC(quirks, "supplemental list of device IDs and their quirks");
+ 
++#ifdef CONFIG_SOFT_USB_LED_BLINK
++
++static void switch_usb_led(struct switch_phy_timer * switch_timer)
++{
++        if(switch_timer->led_state == 1)
++        {
++                switch_timer->led_state = 0;
++                ap_usb_led_off();
++        }
++        else
++        {
++                switch_timer->led_state = 1;
++                ap_usb_led_on();
++        }
++        return 0;
++}
++
++static int do_switch_usb_led_timer(unsigned long arg)
++{
++        struct switch_phy_timer *switch_timer = (struct switch_phy_timer *)arg;
++        switch_usb_led(switch_timer);
++        if(down_interruptible(&switch_timer->sem))
++               return -ERESTARTSYS;
++        if(switch_timer->loops){
++                /* enable the timer */
++		--(switch_timer->loops);
++                mod_timer(&switch_timer->timer,jiffies+HZ/SPEED);
++        }
++	else
++	{
++		/* if loop over ,turn on the usb led */
++		US_DEBUGP("loop over,turn usb led on\n");
++		ap_usb_led_on();
++	}
++        up(&switch_timer->sem);
++        return 0;
++}
++
++static int usb_led_blink()
++{
++        if(down_interruptible(&gl_switch_timer->sem))
++                return -ERESTARTSYS;
++        if(gl_switch_timer->timer_enable == 1)
++        {
++		/* if the timer is enable ,check the loop */
++                if(gl_switch_timer->loops <= 0)
++                {
++			US_DEBUGP("begin a new loop\n");
++                        mod_timer(&gl_switch_timer->timer,jiffies+HZ/SPEED);
++                        gl_switch_timer->loops = LOOPS;
++                }
++        }
++        else
++        {
++		/* first time usb led blink ,add the timer to the kernel */
++		US_DEBUGP(" init the timer\n");
++                gl_switch_timer->timer_enable = 1;
++                gl_switch_timer->led_state = 1;
++                gl_switch_timer->loops = LOOPS;
++                gl_switch_timer->timer.expires = jiffies + HZ/SPEED;
++                add_timer(&gl_switch_timer->timer);
++        }
++        up(&gl_switch_timer->sem);
++        return 0;
++}
++
++/* init the struct and the timer */
++static void usb_led_init()
++{
++        gl_switch_timer = kmalloc(sizeof(struct switch_phy_timer), GFP_KERNEL);
++        if(!gl_switch_timer)
++                return;
++        init_timer(&gl_switch_timer->timer);
++        gl_switch_timer->timer.data = (unsigned long)gl_switch_timer;
++        gl_switch_timer->timer.function = do_switch_usb_led_timer;
++        init_MUTEX(&gl_switch_timer->sem);
++        gl_switch_timer->timer_enable = 0;
++	printk(" USB led blink init...\n");
++}
++
++/* Free the memory allocated in usb_led_init() */
++static void usb_led_deinit()
++{
++        if(gl_switch_timer->timer_enable == 1)
++                del_timer(&gl_switch_timer->timer); /* delete the timer */
++        kfree(gl_switch_timer); /* free the global struct */
++        return 0;
++}
++
++#endif /* CONFIG_SOFT_USB_LED_BLINK */
+ 
+ /*
+  * The entries in this table correspond, line for line,
+@@ -265,7 +381,9 @@
+ 		US_DEBUGP("*** thread sleeping.\n");
+ 		if (wait_for_completion_interruptible(&us->cmnd_ready))
+ 			break;
+-
++#ifdef CONFIG_SOFT_USB_LED_BLINK
++		usb_led_blink();
++#endif
+ 		US_DEBUGP("*** thread awakened.\n");
+ 
+ 		/* lock the device pointers */
+@@ -1028,6 +1146,9 @@
+ 
+ 	printk(KERN_INFO "Initializing USB Mass Storage driver...\n");
+ 
++#ifdef CONFIG_SOFT_USB_LED_BLINK
++	usb_led_init();
++#endif
+ 	/* register the driver, return usb_register return code if error */
+ 	retval = usb_register(&usb_storage_driver);
+ 	if (retval == 0) {
+@@ -1041,6 +1162,9 @@
+ {
+ 	US_DEBUGP("usb_stor_exit() called\n");
+ 
++#ifdef CONFIG_SOFT_USB_LED_BLINK
++	usb_led_deinit();
++#endif
+ 	/* Deregister the driver
+ 	 * This will cause disconnect() to be called for each
+ 	 * attached unit

@@ -1,0 +1,120 @@
+--- linux-2.6.31.old/arch/mips/atheros/gpio.c	2013-03-15 06:13:45.526971787 -0400
++++ linux-2.6.31/arch/mips/atheros/gpio.c	2013-03-15 10:28:36.536969896 -0400
+@@ -163,6 +163,8 @@
+ static struct proc_dir_entry *usb5v_en = NULL;
+ static struct proc_dir_entry *all_led = NULL;
+ static struct proc_dir_entry *button_test = NULL;
++int led_factory = 0;
++EXPORT_SYMBOL(led_factory);
+ static int reset_count=0;
+ static int wps_count=0;
+ static int wireless_count=0;
+@@ -234,7 +236,7 @@
+ #endif
+ }
+ 
+-void ath_gpio_out_val(int gpio, int val)
++void _ath_gpio_out_val(int gpio, int val)
+ {
+ 	if (val & 0x1) {
+ 		ath_reg_rmw_set(ATH_GPIO_OUT, (1 << gpio));
+@@ -242,6 +244,15 @@
+ 		ath_reg_rmw_clear(ATH_GPIO_OUT, (1 << gpio));
+ 	}
+ }
++
++void ath_gpio_out_val(int gpio, int val)
++{
++	if(led_factory == 1 && 
++		(gpio == WLAN_LED_GPIO || gpio == USB_LED_GPIO || gpio == WAN_GREEN_LED_GPIO 
++		|| gpio == STATUS_LED_GPIO || gpio == WAN_AMBER_LED_GPIO || gpio == POWER_LED_GPIO))
++		return;
++	_ath_gpio_out_val(gpio,val);
++}
+ EXPORT_SYMBOL(ath_gpio_out_val);
+ 
+ int ath_gpio_in_val(int gpio)
+@@ -893,13 +904,20 @@
+ static int all_led_read (char *page, char **start, off_t off,
+                                int count, int *eof, void *data)
+ {
+-        return 0;
++/*
++	if(led_factory == 1)
++		printk("Led is at factory mode\n");
++	else
++		printk("Led is off factory mode\n");
++*/
++	
++	return sprintf(page, "%d\n", led_factory);
+ }
+ 
+ static int all_led_write (struct file *file, const char *buf,
+                                         unsigned long count, void *data)
+ {
+-	if (0 != strncmp(buf,"on",2) && 0 != strncmp(buf,"off",3))
++	if (0 != strncmp(buf,"on",2) && 0 != strncmp(buf,"off",3) && 0 != strncmp(buf,"normal",6))
+ 		return count;
+ 
+ 	ath_gpio_config_output(POWER_LED_GPIO);
+@@ -911,22 +929,27 @@
+ 	ath_gpio_config_output(WPS_LED_GPIO);
+ 
+ 	if (strncmp(buf,"on",2) == 0) {
+-		ath_gpio_out_val(POWER_LED_GPIO, LED_ON);
+-		ath_gpio_out_val(STATUS_LED_GPIO, LED_ON);
+-		ath_gpio_out_val(WAN_AMBER_LED_GPIO, LED_ON);
+-		ath_gpio_out_val(WAN_GREEN_LED_GPIO, LED_ON);
+-		ath_gpio_out_val(USB_LED_GPIO, LED_ON);
+-		ath_gpio_out_val(WLAN_LED_GPIO, LED_ON);
+-		ath_gpio_out_val(WPS_LED_GPIO, LED_ON);
++		led_factory = 1;
++		_ath_gpio_out_val(POWER_LED_GPIO, LED_ON);
++		_ath_gpio_out_val(STATUS_LED_GPIO, LED_ON);
++		_ath_gpio_out_val(WAN_AMBER_LED_GPIO, LED_ON);
++		_ath_gpio_out_val(WAN_GREEN_LED_GPIO, LED_ON);
++		_ath_gpio_out_val(USB_LED_GPIO, LED_ON);
++		_ath_gpio_out_val(WLAN_LED_GPIO, LED_ON);
++		_ath_gpio_out_val(WPS_LED_GPIO, LED_ON);
+ 	} else if (strncmp(buf,"off",3) == 0) {
+-		ath_gpio_out_val(POWER_LED_GPIO, LED_OFF);
+-		ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
+-		ath_gpio_out_val(WAN_AMBER_LED_GPIO, LED_OFF);
+-		ath_gpio_out_val(WAN_GREEN_LED_GPIO, LED_OFF);
+-		ath_gpio_out_val(USB_LED_GPIO, LED_OFF);
+-		ath_gpio_out_val(WLAN_LED_GPIO, LED_OFF);
+-		ath_gpio_out_val(WPS_LED_GPIO, LED_OFF);
++		led_factory = 1;
++		_ath_gpio_out_val(POWER_LED_GPIO, LED_OFF);
++		_ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
++		_ath_gpio_out_val(WAN_AMBER_LED_GPIO, LED_OFF);
++		_ath_gpio_out_val(WAN_GREEN_LED_GPIO, LED_OFF);
++		_ath_gpio_out_val(USB_LED_GPIO, LED_OFF);
++		_ath_gpio_out_val(WLAN_LED_GPIO, LED_OFF);
++		_ath_gpio_out_val(WPS_LED_GPIO, LED_OFF);
+ 	}
++	else
++		led_factory = 0;
++		
+ 	return count;
+ }
+ 
+@@ -1083,6 +1106,9 @@
+ 
+ void ap_usb_led_on(void)
+ {
++
++	if(led_factory == 1)
++		return;
+ #ifdef CONFIG_MACH_AR934x
+ #if !defined(CONFIG_I2S) && defined(USB_LED_GPIO)
+ 	unsigned int rddata;
+@@ -1115,6 +1141,8 @@
+ 
+ void ap_usb_led_off(void)
+ {
++	if(led_factory == 1)
++		return;
+ #ifdef CONFIG_MACH_AR934x
+ #if !defined(CONFIG_I2S) && defined(USB_LED_GPIO)
+ 	ath_reg_rmw_set(ATH_GPIO_OUT, (1<<USB_LED_GPIO));

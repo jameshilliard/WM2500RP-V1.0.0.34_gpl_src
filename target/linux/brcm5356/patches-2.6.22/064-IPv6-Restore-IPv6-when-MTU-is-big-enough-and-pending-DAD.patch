@@ -1,0 +1,19 @@
+diff -Nur linux-2.6.22.old//net/ipv6/addrconf.c linux-2.6.22/net/ipv6/addrconf.c
+--- linux-2.6.22.old//net/ipv6/addrconf.c	2012-06-11 12:22:15.918897577 -0400
++++ linux-2.6.22/net/ipv6/addrconf.c	2012-06-11 12:23:53.998897601 -0400
+@@ -2260,9 +2260,14 @@
+ 					dev->name);
+ 				break;
+ 			}
++			
++			if (!idev && dev->mtu >= IPV6_MIN_MTU)
++                                idev = ipv6_add_dev(dev);
+ 
+-			if (idev)
++			if (idev){
+ 				idev->if_flags |= IF_READY;
++				run_pending = 1;
++			}
+ 		} else {
+ 			if (!netif_carrier_ok(dev)) {
+ 				/* device is still not ready. */

@@ -1,0 +1,49 @@
+diff -Nur linux-2.6.30.old//drivers/usb/core/driver.c linux-2.6.30/drivers/usb/core/driver.c
+--- linux-2.6.30.old//drivers/usb/core/driver.c	2012-03-27 05:40:45.977322216 -0400
++++ linux-2.6.30/drivers/usb/core/driver.c	2012-03-27 05:42:38.127322244 -0400
+@@ -28,6 +28,7 @@
+ #include <linux/workqueue.h>
+ #include "hcd.h"
+ #include "usb.h"
++#include "../usb-modem-list.h"
+ 
+ 
+ #ifdef CONFIG_HOTPLUG
+@@ -609,6 +610,37 @@
+ 
+ 		intf = to_usb_interface(dev);
+ 		usb_drv = to_usb_driver(drv);
++		
++#if 1
++		/*Don't attach 3G modems in modem devices list, even they may have storage interface
++		 * Apples.Wang of DNI added this at April 23, 2010 */
++		int modem_match=0;
++		//printk("drv->name:%s\n", drv->name);
++		if(!strcmp(drv->name, "usb-storage")){
++			int modem_ct=0, modem_vid=0, modem_pid=0, uudev_vid=0, uudev_pid=0;
++			struct usb_device *uudev;
++			uudev = interface_to_usbdev(intf);
++			uudev_vid = le16_to_cpu(uudev->descriptor.idVendor);
++			uudev_pid = le16_to_cpu(uudev->descriptor.idProduct);
++			//printk("uudev, VenderId: 0x%x, ProductId: 0x%x\n",uudev_vid,uudev_pid);
++			while(1){
++				modem_vid = usb_modem_ids[modem_ct].idVendor;
++				modem_pid = usb_modem_ids[modem_ct].idProduct;
++				if(!modem_vid && !modem_pid)
++					break;
++				if(modem_vid == uudev_vid && modem_pid == uudev_pid){
++					//printk("USB Wireless Modem device detected, VenderId: 0x%x, ProductId: 0x%x\n",modem_vid,modem_pid);
++					modem_match = 1;
++					break;
++				}
++				modem_ct ++;
++			}
++		}
++		if(modem_match)
++			return 0;
++#endif
++
++
+ 
+ 		id = usb_match_id(intf, usb_drv->id_table);
+ 		if (id)

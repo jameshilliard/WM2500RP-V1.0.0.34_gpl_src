@@ -1,0 +1,141 @@
+1) List the model number. If the open source code archive applies to multiple models, list each model individually.
+
+WM2500RP
+
+2) List the version number of the firmware/software that correlates with the open source code archive.
+
+WM2500RP-V1.0.0.22
+
+7) List the main HW platform utilized such as CPU, main chipset, RF chipset, DSP, Switch IC...etc
+
+Qualcomm QCA9557  AR9580(5G chip)
+
+8) List the name, version, license, and modification status of the OS for the product
+
+Linux kernel 2.6.31, GPL, No 
+
+9) List the name, version, license, and modification status of the boot loader for the product
+
+u-boot, 1.1.4, GPL, No
+
+10) List the name, version, license, and modification status of the toolchain for the product
+
+gcc, 4.3.3, GPL, No
+
+11) List the name, version, license, and modification status of the tools for the product
+
+genext2fs, 1.4rc1, GPL, No
+
+ipkg-utils, 1.7, GPL, No
+
+lzma, 4.32, GPL, No
+
+mtd, 20090505, GPL, No
+
+sed, 4.1.2, GPL, No
+
+squashfs, 3.0, GPL, No
+
+12) List the name, version, license, and modification status of the application modules for the product
+
+acl, 1, DNI, Yes
+
+artmtd, 1, DNI, Yes
+
+atheros-aquila-madwifi-11n-scripts, 7.1.3.29, Atheros, Yes
+
+atheros-aquila-wpa2, v0.5.9, BSD/GPL, Yes
+
+boxlogin, 4, DNI, Binary
+
+datalib, 1.0, DNI, Yes
+
+etcable, 1, DNI, Yes
+
+dni-autoip, 1, DNI, Yes
+
+dnibusybox, 1.4.2, GPL, Yes
+
+dni-cwmp, 1, DNI, Yes
+
+ebtables, 2.0.9-1, GPL, No
+
+factory-tools, 1, DNI, Yes
+
+fetchpin, 1, DNI, Yes
+
+hotplug2, 199, GPL, No
+
+led-control, 1, DNI, Yes
+
+lltd, 0.1, MICROSOFT WINDOWS RALLY PROGRAM LICENSE, Yes
+
+lua, 5.1.4, GPL, No
+
+miniupnp, 20070127, BSD, Yes
+
+moca-util, 0.1 Entropic, No
+
+net6conf, 0.2, GPL, Yes
+
+net-cgi, 1, BSD, Yes
+
+net-scan, 1.0, GPL, Yes
+
+net-snmp, 1, BSD, Yes
+
+dni-ntpclient, 2003_194, GPL, Yes
+
+pot, 1.0.4, GPL, Yes
+
+px5g, 1, GPL, Yes
+
+telnetenable, 1, GPL, Yes
+
+uci, 0.7.5, GPL, No
+
+udev, 106, GPL, Yes
+
+udhcp, 0.9.8, GPL, Yes
+
+uhttpd, 1, Apache, Yes
+
+utelnetd, 0.1.9, GPL, Yes
+
+wide-dhcpv6, 20080615, GPL, Yes
+
+wireless-tools, 29, GPL, Yes
+
+wlan-common, 2.5, GPL, Yes
+
+fuse, 2.8.5, GPL, No
+
+detcable, 1, DNI, Yes
+
+debug_driver, 1, DNI, Yes
+
+bridge-utils, 1.0.6, GPL, No
+
+base-files, 33, GPL, No
+
+atheros-gpio, 1.0.0.1, Atheros, No
+
+atheros-aquila-madwifi, 9.5.3.15, Atheros, No
+
+atheros-enet, 9.5.3.15, Atheros, No
+
+13) List the name, version, license, and modification status of the library modules for the product
+
+cyassl, 1.6.5, GPL, No
+
+libiconv, 1.11, GPL, No
+
+openssl, 0.9.8p, GPL, Yes
+
+libtool, 1.5.26, GPL, No
+
+zlib, 1.2.3, GPL, Yes
+
+libgcrypt, 0.9.30.1, GPL, Yes
+
+

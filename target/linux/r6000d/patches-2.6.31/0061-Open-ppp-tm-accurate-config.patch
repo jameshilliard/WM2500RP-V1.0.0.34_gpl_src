@@ -1,0 +1,16 @@
+--- linux-2.6.31/drivers/net/Kconfig.org	2012-05-08 17:24:36.688454622 +0800
++++ linux-2.6.31/drivers/net/Kconfig	2012-05-09 10:56:00.108454671 +0800
+@@ -3386,6 +3386,13 @@
+ 	  and session setup). One such daemon is OpenL2TP
+ 	  (http://openl2tp.sourceforge.net/).
+ 
++config PPP_TM_ACCURATE_CONTROL
++       tristate "PPP_TM_ACCURATE_CONTROL"
++
++       ---help---
++             This is used to traffic meter accurate control for ppp mode .
++
++
+ config SLIP
+ 	tristate "SLIP (serial line) support"
+ 	---help---

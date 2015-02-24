@@ -1,0 +1,230 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% noload_header("_info", "welcomeok.htm", "client_connect") %>
+
+<script>
+var ts='<% cfg_get("client_connect") %>';
+<% bas_ether_info() %>;
+
+var wl_key1 = xss_replace("<% cfg_sed("wl_key1") %>");
+var get_wpa1= xss_replace("<% cfg_sed_passphrase("wl_wpa1_psk") %>");
+var get_wpa2= xss_replace("<% cfg_sed_passphrase("wl_wpa2_psk") %>");
+var get_wpas= xss_replace("<% cfg_sed_passphrase("wl_wpas_psk") %>");
+	
+lan_dhcp="<% cfg_get("lan_dhcp") %>";
+con_status="<% cat_file("/tmp/wl0_status") %>";
+
+var gui_region="<% cfg_get("GUI_Region") %>";
+var ap_client="<% cfg_get("ap_client") %>";
+var ap_mode="<% cfg_get("ap_mode") %>";
+var info_get_security="<% cfg_get("wl_sectype") %>";
+var passphrase;
+var w10_rate="<% cat_file("/tmp/wl0_rate") %>";
+if(w10_rate == "")
+	w10_rate = "0";
+var link_rate=parseInt(w10_rate) / 1000;
+link_rate=Math.round(link_rate*10)/10;
+if(info_get_security==2)
+	passphrase=wl_key1;
+else if(info_get_security==3)
+	passphrase=get_wpa1;
+else if(info_get_security==4)
+	passphrase=get_wpa2;
+else if(info_get_security==5)
+	passphrase=get_wpas;	
+
+function getObj(name)
+{
+    if (document.getElementById)
+    {
+        return document.getElementById(name);
+    }
+    else if (document.all)
+    {
+        return document.all[name];
+    }
+    else if (document.layers)
+    {
+        return document.layers[name];
+    }
+}
+
+function re_con()
+{
+	var cf = document.forms[0];
+	cf.submit_flag.value = "client_connect";
+	cf.action="/apply.cgi?/welcomeok.htm timestamp="+ts;
+    cf.submit();
+}
+
+</script>
+<input type="hidden" name="refresh_url">
+<input type="hidden" name="refresh_page" value="info">
+<div class="page_title">$info_mark_head</div>
+<div id="main" class="main">
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<TR><TD colSpan=3></TD></TR><TR><td colspan=3><img src=/liteblue.gif width=100% height=12></td></TR>
+<!--   <tr>
+   <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','acname')"><b><script>document.write(info_mark_name)</script></b></a></td>        
+    <td nowrap>${info_get_acname}</td> 
+  </tr>          -->
+    <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','hard_ver')"><b>$router_status_hwversion</b></td>
+    <td nowrap><% cat_file("/hardware_version") %></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','firv')"><b>$info_mark_ver</b></a></td>
+    <td nowrap><% cat_file("/firmware_version") %><% cat_file("/firmware_region") %></td>
+  </tr>  
+    <tr>
+      <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','lang_ver')"><b>$info_language_ver</b></td>
+      <td nowrap><% get_language_version() %></td>
+    </tr>
+$bluebar
+  <tr>
+     <td nowrap colspan=2><a tabindex=-1 href="javascript:loadhelp('_info','connect_status')"><span class="subhead">$router_status_connect</span></a></td>
+  </tr>
+  <tr>
+  <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','conn_ssid')"><b>$info_mark_ssid</b></a></td>
+  <td nowrap>
+  <script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script>
+  <script>
+		var sta_ssid = "<% cfg_get_ssid_value("wl_ssid") %>";
+		var new_sta_ssid="";
+        /*for(i=0;i<sta_ssid.length;i++)
+               if(sta_ssid.substring(i,i+4)=='>gt;')
+				{
+                       new_sta_ssid+='&gt;';
+					   i=i+3;
+				}
+			   else if(sta_ssid.substring(i,i+4)=='<lt;')
+			   {
+                       new_sta_ssid+='&lt;';
+					   i=i+3;
+               }
+			   else
+                       new_sta_ssid+=sta_ssid.substring(i,i+1);*/
+               new_sta_ssid=sta_ssid.replace(/ /g,"&nbsp;");
+       document.write(new_sta_ssid);
+</script>
+</span>
+</td>
+</tr>    
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','conn_status')"><b>$connect_status_mark</b></a></td>
+  <td nowrap>
+	<script>
+	if(con_status=="0")
+	{
+		document.write("$client_discon_mark");
+		document.write('<input class="short_common_bt" type="submit" name="re_connect" value="$connect_mark" onclick="url_change_ornot();re_con()">');
+	}
+	else
+		document.write("$client_con_mark");	
+	</script>
+	</td>
+  </tr>
+  	<script>
+	if(con_status=="1" && ap_client==1)
+	{
+	document.write("<tr><td nowrap><a tabindex=-1 href=\"javascript:loadhelp('_info','conn_rate')\"><b>$info_link_rate</b></a></td>");
+    document.write("<td nowrap>"+link_rate+"$bps_mark</td></tr>");
+	}
+   </script>
+$bluebar
+  <tr>
+    <td nowrap colspan=2><a tabindex=-1 href="javascript:loadhelp('_info','device_status')"><span class="subhead">$router_status_ip</span></a></td>
+  </tr>
+   <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','lanmac')"><b>$info_mark_mac</b></a></td>
+    <td nowrap><% lan_mac() %></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','lanip')"><b>$info_mark_ip</b></a></td>
+    <td nowrap><script>document.write(ether_get_ip)</script></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','landhcp')"><b>$info_mark_dhcp</b></a></td>
+    <td nowrap><% on_status("lan_dhcp") %></td>
+  </tr>
+  <tr>
+      <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','lansub')"><b>$router_status_ip_sub</b></a></td>
+	  <td nowrap><script>document.write(ether_get_subnet)</script></td>
+ </tr>
+ <tr>
+      <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','langateway')"><b>$lan_mark_gateway</b></a></td>
+	  <td nowrap><script>document.write(ether_get_gateway)</script></td>
+ </tr>
+  <tr>
+      <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','landns')"><b>$router_status_domain_ser</b></a></td>
+	  <td nowrap><script>document.write(ether_get_dns1)</script></td>
+ </tr>
+$bluebar
+  <tr><td nowrap colspan=2><a tabindex=-1 href="javascript:loadhelp('_info','wireless_port')"><span class="subhead">$info_mark_wireless_port</span></a></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlssid')"><b><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script>$info_mark_ssid</b></a></td>
+    <td nowrap>
+	<script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script>
+	<script>
+		var ssid = "<% cfg_get_ssid_value("wl_ssid") %>";
+		var new_ssid="";
+        /*for(i=0;i<ssid.length;i++)
+               if(ssid.substring(i,i+4)=='>gt;')
+				{
+                       new_ssid+='&gt;';
+					   i=i+3;
+				}
+			   else if(ssid.substring(i,i+4)=='<lt;')
+			   {
+                       new_ssid+='&lt;';
+					   i=i+3;
+               }
+			   else
+                       new_ssid+=ssid.substring(i,i+1);*/
+               new_ssid=ssid.replace(/ /g,"&nbsp;");
+       document.write(new_ssid);
+	</script>    
+	</span>
+    </td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlregion')"><b><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script>$info_mark_reg</span></b></a></td>
+    <td nowrap><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script><% wl_country() %></span></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlchannel')"><b><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script>$info_mark_chan</span></b></a></td>
+    <td nowrap><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script><% ap_wl_channel() %></span></td>
+  </tr>
+    <tr style="position:absolute;top:0;left:0;visibility:hidden">
+  <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlmode')"><b><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script>$adva_wlan_mode</span></b></a></td>
+<td nowrap><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script><% wl_mode("wl_") %></span></td>
+  </tr>
+   <tr>
+	<td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlmode')"><b><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script>$wlan_ap</span></b></a></td>
+	<td nowrap><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>');if (ap_mode==0) document.write("$off_mark");else document.write("$on_mark");</script></span></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlbroad')"><b><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script>$router_status_broadcast</span></b></a></td>
+    <td nowrap><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script><% on_status("endis_ssid_broadcast") %></span></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlwps')"><b><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script>$info_wps_status</span></b></a></td>
+    <td nowrap><script>if(ap_mode==0) document.write('<span class="con_gray">');else document.write('<span>')</script><% show_wps() %></span></td>
+  </tr> 
+$bluebar
+ 
+<tr><td nowrap colspan=2 align=center>
+<script>
+if(gui_region == "French" || gui_region == "Russian")
+	document.write('<input class="wladv_long_common_bt" type="button" name="statistics" value="$show_sta_mark" onClick="window.open(\'show_statistic.htm\',\'show_statistic\',\'width=900,height=400,top=200,left=200,status=yes\');">')
+else
+	document.write('<input class="wizard_middle_common_bt" type="button" name="statistics" value="$show_sta_mark" onClick="window.open(\'show_statistic.htm\',\'show_statistic\',\'width=900,height=400,top=200,left=200,status=yes\');">')
+</script>
+    </td>
+</tr>
+</table>
+</div>
+<% help_box("1","_info") %>
+</body>
+</html>
+

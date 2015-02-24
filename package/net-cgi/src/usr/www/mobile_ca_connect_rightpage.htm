@@ -1,0 +1,46 @@
+<% run_system("/usr/sbin/wlif_status is_OK  >/dev/console") %>
+
+<% http_header("style/form.css", "/wlan.js") %>
+<% mobile_body_header("mobile_ca_connect_rightpage.htm", "ca_ap_wlan") %>
+
+<script>
+var dns_hijack="<% cfg_get("dns_hijack") %>";
+var refresh_url="<% cfg_get("refresh_url") %>";
+<% get_link_value() %>
+var wl_ap_sectype="<% cfg_get("sta_wl_sectype") %>";
+var wpa_error_passwd="<% cfg_get("passwd_error") %>";
+var wep_error_key="<% cfg_get("passwd_error") %>";
+
+if(link_value==2)
+{
+	if(wl_ap_sectype==2 && wep_error_key==1)
+    	location.href="mobile_ca_apclient_wl_wep.htm";
+   	else
+        location.href="mobile_ca_connect_success.htm";
+}
+else if(link_value==0)
+{
+	if (wl_ap_sectype==1)
+    	location.href="mobile_ca_wl_network.htm";
+    else if (wl_ap_sectype==2)
+    	location.href="mobile_ca_apclient_wl_wep.htm";
+  	else if (wl_ap_sectype==3 || wl_ap_sectype==4 || wl_ap_sectype==5 || wl_ap_sectype==6 || wl_ap_sectype==7)
+   	{
+    	if(wpa_error_passwd == 1)
+     		location.href="mobile_ca_apclient_wl_wpa.htm";
+    	else
+          	location.href="mobile_ca_connect_uncomplete_wpa.htm";
+	}
+}
+
+else if(link_value==1)
+	location.href="mobile_ca_connect_uncomplete.htm";
+
+</script>
+<input type="hidden" name="refresh_url">
+<input type="hidden" name="refresh_page">
+</form>
+<% cfg_set("refresh_url", "") %>
+</body>
+</html>
+

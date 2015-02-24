@@ -1,0 +1,6165 @@
+wanif_eth=br0
+IPV6_IF="br0"
+
+#################################################################################
+## functions args definition                                                     #
+##       case 1: $1 - get, $2 - <parameter name>                                 #
+##       case 2: $1 - set, $2 - <parameter name>, $3 - <parameter value>         #
+##################################################################################
+
+par_true()
+{
+	[ "$1" = "true" -o "$1" = "TRUE" -o "$1" = "True" -o "$1" = "1" ] && echo 1 || echo 0
+}
+
+par_false()
+{
+	[ "$1" = "false" -o "$1" = "FLASE" -o "$1" = "False" -o "$1" = "0" ] && echo 0 || echo 1
+}
+
+#datalib_bool $1 $2 $3 ----$1:the config name $2: get or set $3:bool value
+datalib_bool()
+{
+	if [ "$2" = "set" ]; then
+		if [ "$(par_false $3)" = "0" ]; then
+			config set "$1"=0
+		elif [ "$(par_true $3)" = "1" ]; then
+			config set "$1"=1
+		fi
+	else
+		local val=`config get $1`
+		[ ! -z "$val" ] && echo "$val"
+	fi
+}
+
+#datalib_bool $1 $2 $3 ----$1:the config name $2: get or set $3:config value
+datalib_general()
+{
+	if [ "$2" = "set" ]; then
+		config set "$1"=$3
+	else
+		local val=`config get $1`
+		[ ! -z "$val" ] && echo "$val"
+	fi
+}
+
+D_DI_ManufacturerOUI()
+{
+	ifconfig $wanif_eth | grep HWaddr | $AWK '{print $5}' |$AWK -F ":" '{print toupper($1$2$3)}'
+}
+
+D_DI_UpTime()
+{
+	$CAT /proc/uptime | $AWK -F "." '{print $1}'
+}
+
+D_DI_MS_Free()
+{
+	free |grep Mem |awk '{print $4}'
+}
+
+D_DI_MS_Total()
+{
+	free |grep Mem |awk '{print $2}'
+}
+
+D_DI_PS_ProcessNumberOfEntries()
+{
+	local c=0
+	for i in $(ps | awk '{print $1}' |grep -v PID);do
+		let c=$c+1
+	done
+	let c=$c-2
+	echo "$c"
+}
+
+D_DI_PS_P_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $5}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_DI_PS_P_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_LAN_DNSServers()
+{
+
+	cat /tmp/resolv.conf |awk '{print $2}'
+}
+
+
+D_LAN_IPAddress()
+{
+	if [ "$1" = "get" ]; then
+		$CONFIG get lan_ipaddr
+	fi
+}
+
+D_LAN_SubnetMask()
+{
+	if [ "$1" = "get" ]; then
+		ifconfig $wanif_eth |grep "inet addr" |awk '{print $4}' |cut -d: -f2
+	fi
+}
+
+D_LAN_MACAddress()
+{
+	if [ "$1" = "set" ]; then
+		artmtd -w macset $3
+	else 
+		ifconfig $wanif_eth | grep HWaddr | awk '{print $5}'
+	fi
+}
+
+D_IP_IPv4Enable()
+{
+	if [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			/usr/bin/killall -SIGUSR2 udhcpc
+			killall -9 udhcpc
+			ifconfig $wanif_eth 0.0.0.0
+			config set cwmp_IPv4Enable=0
+		elif  [ "$3" = "1" -o "$3" = "true" -o "$3" = "TRUE" ];then
+			local MAC_ADDR=`ifconfig br0 | grep HWaddr | awk '{print $5}'`
+			local hostname="ap-$MAC_ADDR"
+			ifconfig br0 $($CONFIG get ap_ipaddr) netmask $($CONFIG get ap_netmask)
+			/usr/bin/killall -9 udhcpc
+			udhcpc -a -f -i br0 -h $hostname -r 0.0.0.0 -V "netgear wndr4300-tn" &
+			config set cwmp_IPv4Enable=1
+		fi
+	else
+		config get cwmp_IPv4Enable
+	fi
+}
+
+D_IP_IPv4Status()
+{
+	local ipaddr=`ifconfig $wanif_eth |grep "inet addr" |awk '{print $2}'|awk -F ":" '{print $2}'`
+	if [ "x$ipaddr" = "x" ];then
+		echo "Disabled"
+	else 
+		echo "Enabled"
+	fi
+}
+
+D_IP_IPv6Enable()
+{
+	if [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set cwmp_IPv6Enable=0
+			/etc/net6conf/net6conf-ap stop
+		elif [ "$3" = "1" -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set cwmp_IPv6Enable=1
+			/etc/net6conf/net6conf-ap restart
+		fi
+	else
+		config get cwmp_IPv6Enable
+	fi
+}
+
+D_IP_IPv6Status()
+{
+	local ipv6addr=`ifconfig br0 |grep "inet6 addr" |awk '{print $3}'`
+	if [ "x$ipv6addr" = "x" ];then
+		echo "Disabled"
+	else
+		echo "Enabled"
+	fi
+}
+
+D_ND_Enable()
+{
+	local PROC_NAME="/proc/sys/net/ipv6/conf/$IPV6_IF/accept_dad"
+	if [ "$1" = "set" ]; then
+		if [ "$(par_true $3)" = "1" ]; then
+			echo 3 > $PROC_NAME
+			echo 0 > /proc/sys/net/ipv6/neigh/$IPV6_IF/not_send_neighbor_solicitation
+			config set ipv6_rs_enable=1
+		elif [ "$(par_false $3)" = "0" ]; then
+			echo 0 > $PROC_NAME
+			echo 1 > /proc/sys/net/ipv6/neigh/$IPV6_IF/not_send_neighbor_solicitation
+			config set ipv6_rs_enable=0
+		fi
+	else
+		local proc_value=`cat $PROC_NAME`
+		if [ "$proc_value" = "0" ]; then
+			echo "0"
+		else
+			echo "1"
+		fi
+	fi
+}
+
+
+D_ND_IFS_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+		if [ "$inumber" -le "1" ]; then
+			echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_ND_IFS_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_ND_IFS_Enable()
+{
+	inumber=`echo $2 | awk -F '.' '{print $4}'`
+	[ "$inumber" -le "1" ] || return
+	datalib_bool "ipv6_setting_enable" $1 $3
+}
+
+D_ND_IFS_IF()
+{
+	sta6=`config get ipv6_setting_enable` && [ "$sta6" = "0" ] && return
+	inumber=`echo $2 | awk -F '.' '{print $4}'`
+	[ "$inumber" -le "1" ] || return
+	echo "br0"
+}
+
+D_ND_IFS_Status()
+{
+	inumber=`echo $2 | awk -F '.' '{print $4}'`
+	[ "$inumber" -le "1" ] || return
+	val=`config get ipv6_setting_enable`
+	[ ! -z "$val" ] && echo "$val"
+}
+
+D_ND_IFS_MaxRS()
+{
+	sta6=`config get ipv6_setting_enable` && [ "$sta6" = "0" ] && return
+	inumber=`echo $2 | awk -F '.' '{print $4}'`
+	[ "$inumber" -le "1" ] || return
+	datalib_general "ipv6_maxrs" $1 $3
+}
+
+D_ND_IFS_NUDEnable()
+{
+	sta6=`config get ipv6_setting_enable` && [ "$sta6" = "0" ] && return
+	inumber=`echo $2 | awk -F '.' '{print $4}'`
+	[ "$inumber" -le "1" ] || return
+	local PROC_NAME="/proc/sys/net/ipv6/neigh/$IPV6_IF/not_send_neighbor_solicitation"
+	if [ "$1" = "set" ]; then
+		if [ "$(par_true $3)" = "1" ]; then
+			echo 0 > $PROC_NAME
+		elif [ "$(par_false $3)" = "0" ]; then
+			echo 1 > $PROC_NAME
+		fi
+	else
+		local proc_value=`cat $PROC_NAME`
+		if [ "$proc_value" = "0" ]; then
+			echo "1"
+		else
+			echo "0"
+		fi
+	fi
+}
+
+D_ND_IFS_RSEnable()
+{
+	sta6=`config get ipv6_setting_enable` && [ "$sta6" = "0" ] && return
+	inumber=`echo $2 | awk -F '.' '{print $4}'`
+	[ "$inumber" -le "1" ] || return
+	datalib_bool "ipv6_rs_enable" $1 $3
+}
+
+D_ND_IFS_ReTime()
+{
+	sta6=`config get ipv6_setting_enable` && [ "$sta6" = "0" ] && return
+	inumber=`echo $2 | awk -F '.' '{print $4}'`
+	[ "$inumber" -le "1" ] || return
+	local PROC_NAME="/proc/sys/net/ipv6/neigh/$IPV6_IF/retrans_time_ms"
+	if [ "$1" = "set" ]; then
+		echo $3 > $PROC_NAME
+	else
+		local proc_value=`cat $PROC_NAME`
+		echo "$proc_value"
+	fi
+}
+
+D_ND_IFS_RSInterval()
+{
+	sta6=`config get ipv6_setting_enable` && [ "$sta6" = "0" ] && return
+	inumber=`echo $2 | awk -F '.' '{print $4}'`
+	[ "$inumber" -le "1" ] || return
+	datalib_general "ipv6_rs_interval" $1 $3
+}
+
+D_IP_IF_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+		if [ "$inumber" -le "1" ]; then
+			echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_IP_IF_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_IP_IF_Enable()
+{
+	if [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			ifconfig $wanif_eth down
+		elif [ "$3" = "1" -o "$3" = "true" -o "$3" = "TRUE" ];then
+			ifconfig $wanif_eth up
+			/etc/init.d/ap-mode start
+		fi
+	else
+		local ipv4addr=`ifconfig $wanif_eth |grep "inet addr" |awk '{print $3}'`
+		local ipv6addr=`ifconfig $wanif_eth |grep "inet6 addr" |grep -v Link|awk '{print $2}'`
+		if [  "x$ipv4addr" = "x" -a "x$ipv6addr" = "x" ];then
+			echo "0"
+		else
+			echo "1"
+		fi
+	fi
+}
+
+D_IP_IF_IPv4AddressNumberOfEntries()
+{	
+	local c=0
+	local ipv4addr=`ifconfig $wanif_eth |grep "inet addr" |awk '{print $3}'`
+	for i in $ipv4addr;do
+		let c=$c+1
+	done
+	echo "$c"
+}
+
+D_IP_IF_IPv4Enable()
+{
+	if [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			ifconfig $wanif_eth  0.0.0.0
+		elif [ "$3" = "1" -o "$3" = "true" -o "$3" = "TRUE" ];then
+			/etc/init.d/ap-mode start
+		fi
+	else
+		local ipv4addr=`ifconfig $wanif_eth |grep "inet addr" |awk '{print $3}'`
+		if [  "x$ipv4addr" = "x" ];then
+			echo "0"
+		else
+			echo "1"
+		fi
+	fi
+}
+
+D_IP_IF_IPv6AddressNumberOfEntries()
+{	
+	local c=0
+	local ipv6addr=`ifconfig br0 |grep "inet6 addr" |awk '{print $3}'`
+	for i in $ipv6addr;do
+		let c=$c+1
+	done
+	echo "$c"
+}
+
+D_IP_IF_IPv6Enable()
+{
+	local ipv6addr=`ifconfig br0 |grep "inet addr" |grep -v Link |awk '{print $3}'`
+	if [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+
+			ip -6 addr del $ipv6addr dev br0
+		elif [ "$3" = "1" -o "$3" = "true" -o "$3" = "TRUE" ];then
+			/etc/init.d/ap-mode start
+		fi
+	else
+		if [  "x$ipv6addr" = "x" ];then
+			echo "0"
+		else
+			echo "1"
+		fi
+	fi
+}
+
+D_IP_IF_MaxMTUSize()
+{
+	if [ "$1" = "get" ]; then
+		ifconfig br0 |grep MTU |awk '{print $5}'|awk -F ':' '{print $2}'
+	else
+		ifconfig br0 mtu "$3"
+	fi
+}
+
+
+D_IP_IF_IPv4Address_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $6}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_IP_IF_IPv4Address_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_IP_IF_IPv6Address_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $6}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_IP_IF_IPv6Address_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_IP_IF_IPv6Prefix_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $6}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_IP_IF_IPv6Prefix_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_IP_ActivePort_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_IP_ActivePort_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_H_Host_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_H_Host_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_H_H_IPv4Address_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $6}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_H_H_IPv4Address_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_H_H_IPv6Address_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $6}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_H_H_IPv6Address_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+
+D_PS_SampleSet_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_PS_SampleSet_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_MS_ConnectionRequestURL()
+{
+	$ECHO "http://$(ifconfig $wanif_eth | grep 'inet addr' | cut -d: -f2 | cut -d' ' -f1):$($CONFIG get cwmp_con_port)/"
+}
+
+D_MS_PeriodicInformEnable()
+{
+	if [ $1 = set ]; then
+		[ $3 = true -o $3 = 1 ] && $CONFIG set cwmp_inform_enable=1 || $CONFIG set cwmp_inform_enable=0
+	else
+		[ "x$(config get cwmp_inform_enable)" = "x1" ] && $ECHO true || $ECHO false;
+	fi
+}
+
+D_MS_URL()
+{
+
+	if [ "$1" = "set" ]; then
+		if [ "$3" != "" ];then
+			$CONFIG set cwmp_acs_url="$3"
+		fi
+	else
+		local ACS_URL=`$CONFIG get cwmp_acs_url`
+		echo "$ACS_URL"
+	fi
+}
+
+D_T_CurrentLocalTime()
+{
+	hour=`date | awk '{print $4}'| cut -d ":" -f1`
+	symbol=`$CONFIG get time_zone |cut -c  4-4`
+	if [ "x$symbol" = "x-" ];then
+		gmt=`$CONFIG get time_zone |cut -d "-"  -f2`
+	else
+		gmt=`$CONFIG get time_zone |cut -d "+"  -f2`
+	fi
+
+	if [ "$symbol" = "+" ];then
+		symbol="-"
+	else
+		symbol="+"
+	fi
+
+	let hour=$hour$symbol$gmt
+	if [ "$hour" -lt "0" ];then
+		let hour=$hour+24
+	else
+		hour=$(($hour%24))
+	fi
+
+	if [ "$hour" -lt "10" ];then
+		hour="0$hour"
+	fi
+
+	min_sec=`date | awk '{print $4}'| cut -d ":" -f2,3`
+	time="$hour:$min_sec"
+	D=`date -I`
+	echo "$D"T"$time"
+}
+
+D_T_LocalTimeZone()
+{
+	if [ "$1" = "get" ]; then
+		symbol=`$CONFIG get time_zone |cut -c  4-4`
+		if [ "x$symbol" = "x-" ];then
+			gmt=`$CONFIG get time_zone |cut -d "-"  -f2`
+		else
+			gmt=`$CONFIG get time_zone |cut -d "+"  -f2`
+		fi
+		if [ "$symbol" = "+" ];then
+			symbol="-"
+		else
+			symbol="+"
+		fi
+		add_zero=`echo $gmt |grep ":"`
+		if [ "x$add_zero" = "x" ];then
+			gmt="$gmt:00"
+		fi
+		gmt="$symbol$gmt"
+		echo $gmt
+	elif [ "$1" = "set" ]; then
+		val=$(echo "$3")
+		symbol=`echo $val | cut -c 1`
+		T=`echo ${val#$symbol} | cut -d : -f 1`
+
+		if [ "$symbol" = "+" ];then
+                        symbol="-"
+                else
+                        symbol="+"
+                fi
+
+		re="GMT$symbol$T"
+
+		$CONFIG set time_zone="$re"
+
+	fi
+}
+
+
+D_T_NTPServer1()
+{
+	$CONFIG get ntpserver1
+}
+
+D_T_NTPServer2()
+{
+	$CONFIG get ntpserver2
+}
+
+D_DI_PS_CPUUsage()
+{
+	line=1
+	first=0
+	second=0
+	total=0
+
+	[ -f /tmp/top.log ] && cat /dev/null > /tmp/top.log || touch /tmp/top.log
+	top -n 1 -b -d 10 > /tmp/top.log &
+
+	while [ 1 ]; do
+		[ "X$(cat /tmp/top.log)" = "X" ] && \
+			usleep 500000 && continue
+		killall top
+		break
+	done
+
+	sed '1,3d' -i /tmp/top.log
+	sed '/top/d' -i /tmp/top.log
+
+	while read content; do
+		
+		tmp=`echo $content | awk -F " " '{print $6}'`
+		tmp_1=`echo $tmp | awk -F "." '{print $1}'`
+		tmp_2=`echo $tmp | awk -F "." '{print $2}'`
+
+		let first=$first+$tmp_1
+		let second=$second+$tmp_2
+	
+	done < /tmp/top.log
+
+	[ $second -ge 10 ] && second=$(($second/10)) || second=0
+	total=$(($first+$second))
+
+	echo $total
+
+}
+
+D_DI_PS_P_INUMBER_CPUTime() 
+{
+	process=`ps | awk '{print $1}' | grep -v PID`
+	inumber=`echo $2 | awk -F "." '{print $5}'`
+	count=1
+	result=0
+
+	for i in $process; do
+		[ $count -lt $inumber ] && let count=$count+1 && continue
+
+		utime=`cat /proc/$i/stat | awk -F " " '{print $14}'`
+		stime=`cat /proc/$i/stat | awk -F " " '{print $15}'`
+		cutime=`cat /proc/$i/stat | awk -F " " '{print $16}'`
+		cstime=`cat /proc/$i/stat | awk -F " " '{print $17}'`
+
+		total=$(($utime+$stime+$cutime+$cstime))
+		result=$(($total*10))
+		break
+	done
+
+	echo $result
+}
+
+D_DI_PS_P_INUMBER_Command()
+{
+	process=`ps | awk '{print $1}' | grep -v PID`
+	inumber=`echo $2 | awk -F "." '{print $5}'`
+	result=""
+	count=1
+
+	for i in $process; do
+		[ $count -lt $inumber ] && let count=$count+1 && continue
+		result=`echo kill -9 $i`
+		break
+	done
+
+	echo $result
+
+}
+
+D_DI_PS_P_INUMBER_PID()
+{
+	process=`ps | awk '{print $1}' | grep -v PID`
+        inumber=`echo $2 | awk -F "." '{print $5}'`
+        result=""
+        count=1
+
+	for i in $process; do
+		[ $count -lt $inumber ] && let count=$count+1 && continue
+		result=`echo $i`
+		break
+	done
+
+	echo $result
+}
+
+D_DI_PS_P_INUMBER_Priority()
+{
+	 process=`ps | awk '{print $1}' | grep -v PID`
+         inumber=`echo $2 | awk -F "." '{print $5}'`
+         result=""
+         count=1
+
+         for i in $process; do
+                 [ $count -lt $inumber ] && let count=$count+1 && continue
+		 pri=`cat /proc/$i/stat | awk -F " " '{print $18}'`
+		 result=`echo $pri`
+		 break
+	 done
+
+	 echo $result
+}
+
+D_DI_PS_P_INUMBER_Size()
+{
+	process=`ps | awk '{print $3}' | grep -v VmSize`
+	init_size=`echo $process | awk '{print $1}'`
+        inumber=`echo $2 | awk -F "." '{print $5}'`
+        result=""
+        count=1
+
+        for i in $process; do
+                [ $count -lt $inumber ] && let count=$count+1 && continue
+		if [ "$i" = "SW" -o "$i" = "SW<" ]; then
+			result=`echo $init_size`
+		else
+			result=`echo $i`
+		fi
+		break
+	done
+
+	echo $result
+
+}
+
+D_GI_ManufacturerOUI()
+{
+	/usr/bin/device_info oui
+}
+
+D_GI_ProductClass()
+{
+	/usr/bin/device_info pclass
+}
+
+D_DI_PS_P_INUMBER_State() 
+{
+	process=`ps | awk '{print $1}' | grep -v PID`
+        inumber=`echo $2 | awk -F "." '{print $5}'`
+        result=""
+        count=1
+
+	for i in $process; do
+		[ $count -lt $inumber ] && let count=$count+1 && continue
+		state=`cat /proc/$i/stat | awk -F " " '{print $3}'`
+		break
+	done
+
+	case "$state" in 
+		R) echo "Runing" ;;
+		S) echo "Sleeping" ;;
+		T) echo "Stoped" ;;
+		X) echo "Idle" ;;
+		D) echo "Uninterruptible" ;;
+		Z) echo "Zombie" ;;
+		*) echo "Stoped" ;;
+	esac
+}
+
+D_E_I_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_E_I_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_E_I_DuplexMode()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	let num=$inumber-1
+	echo $(cat /tmp/LAN"$num"_status | cut -d / -f 2)
+}
+
+D_E_I_Enable()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	if [ "$1" = "get" ]; then
+		let num=$inumber-1
+		tmp=`cat /tmp/LAN"$num"_status`
+		[ "$tmp" != "Link down" ] && echo 1 || echo 0
+	elif [ "$1" = "set" ]; then
+		if [ "$(par_true $3)" = "1" ]; then
+			D_IP_IPv4Enable "set" "$2" "1" 
+		elif [ "$(par_false $3)" = "0" ]; then
+			D_IP_IPv4Enable "set" "$2" "0"
+		fi
+	fi
+}
+
+D_E_I_MACAddress()
+{
+	echo $(ifconfig br0 | grep HW | awk '{print $5}')
+}
+
+D_E_I_MaxBitRate()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	let inumber=$inumber-1
+	tmp=`cat /tmp/LAN"$inumber"_status`
+	[ "$tmp" != "Link down" ] && echo $(echo $tmp | awk -F "M" '{print $1}')
+}
+
+
+D_E_I_Name()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	echo "LAN $inumber"
+}
+
+D_E_I_Status()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	let inumber=$inumber-1
+	tmp=`cat /tmp/LAN"$inumber"_status`
+	[ "$tmp" != "Link down" ] && echo Up || echo Down
+}
+
+D_E_I_get()
+{
+	br_id="$1"
+        inf_id="$2"
+        L="$3"
+        [ $br_id -ge 0 ] && let br_id=$br_id-1
+        iname=`echo "br"$br_id`
+        tmp=`cat /proc/net/dev | grep $iname `
+        re=`echo ${tmp#*:} | awk '{print $'$L'}'`
+
+        echo $re
+}
+
+D_E_I_INUMBER_S_BytesReceived()
+{
+	echo $(D_E_I_get "1" "1" "1")
+}
+
+D_E_I_INUMBER_S_BytesSent()
+{
+	echo $(D_E_I_get "1" "1" "9")	
+}
+
+D_E_I_INUMBER_S_DiscardPacketsReceived()
+{
+	echo $(D_E_I_get "1" "1" "2")
+}
+
+D_E_I_INUMBER_S_DiscardPacketsSent()
+{
+	echo $(D_E_I_get "1" "1" "10")
+}
+
+D_E_I_INUMBER_S_ErrorsReceived()
+{
+	echo $(D_E_I_get "1" "1" "3")	
+}
+
+D_E_I_INUMBER_S_ErrorsSent()
+{
+	echo $(D_E_I_get "1" "1" "11")
+}
+
+D_E_I_INUMBER_S_MulticastPacketsReceived()
+{
+	echo $(D_E_I_get "1" "1" "8")
+}
+
+D_E_I_INUMBER_S_MulticastPacketsSent()
+{
+	echo ""	
+}
+
+D_E_I_INUMBER_S_PacketsReceived()
+{
+	echo $(D_E_I_get "1" "1" "2")
+}
+
+D_E_I_INUMBER_S_PacketsSent()
+{
+	echo $(D_E_I_get "1" "1" "10")
+}
+
+D_E_L_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_E_L_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_E_L_INUMBER_Enable()
+{
+	D_E_I_Enable "$1" "$2" "$3"	
+}
+
+D_E_L_INUMBER_MACAddress()
+{
+	echo $(ifconfig br0 | grep HW | awk '{print $5}')
+}
+
+D_E_L_INUMBER_Status()
+{
+	tmp=`ifconfig br0 | grep "inet addr" | awk '{print $2}' | cut -d : -f 2`
+	[ "X$tmp" != "X" ] && echo Up || echo Down
+}
+
+D_E_L_INUMBER_S_BytesReceived()
+{
+	D_E_I_INUMBER_S_BytesReceived	
+}
+
+D_E_L_INUMBER_S_BytesSent()
+{
+	D_E_I_INUMBER_S_BytesSent	
+}
+
+D_E_L_INUMBER_S_DiscardPacketsReceived()
+{
+	D_E_I_INUMBER_S_DiscardPacketsReceived	
+}
+
+D_E_L_INUMBER_S_DiscardPacketsSent()
+{
+	D_E_I_INUMBER_S_DiscardPacketsSent	
+}
+
+D_E_L_INUMBER_S_ErrorsReceived()
+{
+	D_E_I_INUMBER_S_ErrorsReceived	
+}
+
+D_E_L_INUMBER_S_ErrorsSent()
+{
+	D_E_I_INUMBER_S_ErrorsSent	
+}
+
+D_E_L_INUMBER_S_MulticastPacketsReceived()
+{
+	D_E_I_INUMBER_S_MulticastPacketsReceived	
+}
+
+D_E_L_INUMBER_S_MulticastPacketsSent()
+{
+	D_E_I_INUMBER_S_MulticastPacketsSent	
+}
+
+D_E_L_INUMBER_S_PacketsReceived()
+{
+	D_E_I_INUMBER_S_PacketsReceived	
+}
+
+D_E_L_INUMBER_S_PacketsSent()
+{
+	D_E_I_INUMBER_S_PacketsSent
+}
+
+D_IP_ActivePortNumberOfEntries()
+{
+	cnt="0 1 2 3"
+	count=0
+	for i in $cnt; do
+		tmp=`cat /tmp/LAN"$i"_status`
+		[ "X$tmp" != "X" -a "$tmp" != "Link down" ] && let count=$count+1
+	done
+
+	echo $count
+
+}
+
+D_IP_ULAPrefix_complexAddr()
+{
+	addr=`echo $1`
+	[ "$(echo $addr | awk -F ":" '{print NF}')" = "8" ] && echo $addr && return
+	
+	first=`echo ${addr%::*}`
+	first_num=`echo $first | awk -F ":" '{print NF}'`
+
+	last=`echo ${addr#*::}`
+	last_num=`echo $last | awk -F ":" '{print NF}'`
+
+	mid_num=$((8-$first_num-$last_num))
+
+	mid=""
+	i=1
+	while [ $i -le $mid_num ]; do
+		mid=":0000$mid"
+		let i=$i+1
+	done
+	addr="$first$mid:$last"
+	echo "$addr"
+	
+}
+
+D_IP_ULAPrefix()
+{
+	tmp=`ifconfig br0 | grep inet6 | grep Global`
+	addr=`echo $tmp | awk '{print $3}' | cut -d / -f 1`
+	addr_len=`echo $tmp | awk '{print $3}' | cut -d / -f 2`
+
+	addr=$(D_IP_ULAPrefix_complexAddr $addr)
+	
+	
+	if [ "$1" = "get" ]; then
+		pref_1=`echo $addr | cut -d : -f 1`
+		pref_2=`echo $addr | cut -d : -f 2`
+		pref_3=`echo $addr | cut -d : -f 3`
+		if [ "X$pref_2" = "X0000" -a "X$pref_3" = "X0000" ]; then
+			echo "$pref_1::/48"
+		elif [ "X$pref_2" != "X0000" -a "X$pref_3" = "X0000" ]; then 
+			echo "$pref_1:$pref_2::/48"
+		else
+			echo "$pref_1:$pref_2:$pref_3/48"
+		fi
+
+		
+	else
+		val=`echo $3 | cut -d / -f 1`
+		len=`echo $3 | cut -d / -f 2`
+		[ "X$len" = "X" -o "$len" != "48" ] && return
+
+		pref_1=`echo $val | cut -d : -f 1`
+		pref_2=`echo $val | cut -d : -f 2`
+		pref_3=`echo $val | cut -d : -f 3`
+		[ "X$pref_2" = "X" ] && pref_2="0000"
+		[ "X$pref_3" = "X" ] && pref_3="0000"
+
+		last=`echo $addr | cut -d : -f 4-8`
+		ip -6 addr del $addr dev br0
+		ip -6 addr add "$pref_1:$pref_2:$pref_3:$last/$addr_len" dev br0
+
+	fi
+}
+
+D_IP_IF_Reset()
+{
+	if [ "$1" = "get" ]; then
+		echo "0"
+	else
+		val=`echo $3`
+		[ "$val" = "1" ] && /etc/init.d/net-lan restart
+	fi
+}
+
+D_IP_I_INUMBER_Router()
+{
+	if [ "$1" = "get" ]; then
+		echo ""
+	fi
+}
+
+D_IP_I_INUMBER_Name()
+{
+	inumber=`echo $2 | awk -F '.' '{print $4}'`
+	if [ "$inumber" = "1" ]; then
+		echo "br0"
+	else
+		let inumber=$inumber-1
+		[ "X$(ifconfig | grep "br0:$inumber")" != "X"] && echo "br0:$inumber" || echo ""
+	fi
+}
+
+D_IP_I_INUMBER_Status()
+{
+	inumber=`echo $2 | awk -F '.' '{print $4}'`
+	if [ "$inumber" = "1" ]; then
+		iname=`echo "br0"`
+	else
+		let inumber=$inumber-1
+		iname=`echo "br0:$inumber"`
+	fi
+
+	tmp_4=`ifconfig $iname | grep inet | grep -v inet6`
+	tmp_6=`ifconfig $iname | grep inet6 | grep Global`
+	[ "X$tmp_4" != "X" -o "Xtmp_6" != "X" ] && echo Up || echo Down
+}
+
+D_IP_I_INUMBER_ULAEnable()
+{
+	D_IP_IF_IPv6Enable "$1" "$2" "$3"	
+}
+
+D_IP_I_INUMBER_IPv4Address_INUMBER_AddressingType()
+{
+	inumber_inf=`echo $2 | awk -F '.' '{print $4}'`
+	inumber_ip=`echo $2 | awk -F '.' '{print $6}'`
+
+	if [ "$inumber_inf" = "1" ]; then
+                iname=`echo "br0"`
+        else
+                let inumber_inf=$inumber_inf-1
+                iname=`echo "br0:$inumber_inf"`
+        fi
+
+	tmp=`ifconfig $iname | grep inet | grep -v inet6`
+	ip_list=`echo $tmp | awk '{print $2}' | cut -d : -f 2`
+
+	i=1
+	for IP in $ip_list; do
+		[ "$i" != "$inumber_ip" ] && let i=$i+1 && continue
+		if [ "$i" = "$inumber_ip" -a "X$IP" != "X" ]; then
+			[ "$IP" = "$(config get ap_dhcp_ipaddr)" ] && echo DHCP || echo Static
+			return
+		fi
+	done
+
+	echo ""
+}
+
+D_IP_I_INUMBER_IPv4Address_INUMBER_Enable()
+{
+	inumber_inf=`echo $2 | awk -F '.' '{print $4}'`
+	inumber_ip=`echo $2 | awk -F '.' '{print $6}'`
+
+	if [ "$inumber_inf" = "1" ]; then
+                iname=`echo "br0"`
+        else
+                let inumber_inf=$inumber_inf-1
+                iname=`echo "br0:$inumber_inf"`
+        fi
+
+	tmp=`ifconfig $iname | grep inet | grep -v inet6`
+	ip_list=`echo $tmp | awk '{print $2}' | cut -d : -f 2`
+
+	i=1
+	for IP in $ip_list; do
+		if [ "$i" != "$inumber_ip" ]; then
+			let i=$i+1
+			continue
+		else
+			if [ "$1" = "get" ]; then
+				[ "X$IP" != "X" ] && echo 1 || echo 0
+			else
+				if [ "$(par_true $3)" = "1" ]; then
+					[ "X$IP" = "X" ] && return
+					new_ip=`echo $(config get ap_dhcp_ipaddr)`
+					ifconfig $iname up
+					ifconfig $iname $new_ip netmask 255.255.255.0
+					D_IP_IPv4Enable "set" "" "1"
+				else
+					ifconfig $iname down
+				fi
+			fi
+			return
+		fi
+	done
+}
+
+D_IP_I_INUMBER_IPv4Address_INUMBER_IPAddress()
+{
+	inumber_inf=`echo $2 | awk -F '.' '{print $4}'`
+	inumber_ip=`echo $2 | awk -F '.' '{print $6}'`
+
+	if [ "$inumber_inf" = "1" ]; then
+                iname=`echo "br0"`
+        else
+                let inumber_inf=$inumber_inf-1
+                iname=`echo "br0:$inumber_inf"`
+        fi
+
+        tmp=`ifconfig $iname | grep inet | grep -v inet6`
+        ip_list=`echo $tmp | awk '{print $2}' | cut -d : -f 2`
+
+	i=1
+	for IP in $ip_list; do
+		if [ "$i" != "$inumber_ip" ]; then
+                        let i=$i+1
+                        continue
+                else
+			if [ "$1" = "get" ]; then
+				[ "X$IP" != "X" ] && echo $IP
+			else
+				ap_ip=`echo $(config get ap_dhcp_ipaddr)`
+				mew_ip=`echo $3`
+
+				[ "$ap_ip" = "$IP" ] && return
+				ifconfig $iname $new_ip netmask 255.255.255.0
+			fi
+		fi
+		return
+	done
+}
+
+D_IP_I_INUMBER_IPv4Address_Status()
+{
+	inumber_inf=`echo $2 | awk -F '.' '{print $4}'`
+        inumber_ip=`echo $2 | awk -F '.' '{print $6}'`
+
+        if [ "$inumber_inf" = "1" ]; then
+                iname=`echo "br0"`
+        else
+                let inumber_inf=$inumber_inf-1
+                iname=`echo "br0:$inumber_inf"`
+        fi
+
+        tmp=`ifconfig $iname | grep inet | grep -v inet6`
+        ip_list=`echo $tmp | awk '{print $2}' | cut -d : -f 2`
+
+        i=1
+        for IP in $ip_list; do
+		if [ "$i" != "$inumber_ip" ]; then
+                        let i=$i+1
+                        continue
+                else
+			[ "X$IP" != "X" ] && echo Enable || echo Disable
+		fi
+		return
+	done
+}
+
+D_IP_I_INUMBER_IPv4Address_SubnetMask()
+{
+	inumber_inf=`echo $2 | awk -F '.' '{print $4}'`
+        inumber_ip=`echo $2 | awk -F '.' '{print $6}'`
+
+        if [ "$inumber_inf" = "1" ]; then
+                iname=`echo "br0"`
+        else
+                let inumber_inf=$inumber_inf-1
+                iname=`echo "br0:$inumber_inf"`
+        fi
+
+        tmp=`ifconfig $iname | grep inet | grep -v inet6`
+	netmask_list=`echo $tmp | awk '{print $4}' | cut -d : -f 2`
+
+	i=1
+	for MASK in $netmask_list; do
+		if [ "$i" != "$inumber_ip" ]; then
+                        let i=$i+1
+                        continue
+                else
+			[ "X$MASK" != "X" ] && echo $MASK 
+		fi
+		return
+	done
+}
+
+IPv6_List_Check() 
+{
+	# config ipv6List_<interface name>_<ip ID>
+	# = enable*ip_address
+	iname=`echo $1`
+	addr6_list=`echo $2`
+	
+	for IP in $addr6_list; do
+		i=1
+		while [[ $i -lt 21 ]]; do
+			tmp=`eval config get ipv6List_"$iname"_"$i"`
+			ip=`echo ${tmp#*\*}`
+			if [ "$ip" = "$IP" ]; then
+				return
+			fi
+			let i=$i+1
+		done
+		i=1
+		while [[ $i -lt 21 ]]; do
+			tmp=`eval config get ipv6List_"$iname"_"$i"`
+			ip=`echo ${tmp#*\*}`
+			if [ "X$ip" = "X" ]; then
+				eval config set ipv6List_"$iname"_"$i"="1\*\$IP"
+				break
+			elif [ "$ip" = "$IP" ]; then
+				break
+			fi
+			let i=$i+1
+		done
+	done
+	
+}
+
+D_IP_I_INUMBER_IPv6Address_INUMBER_Enable()
+{
+	inumber_inf=`echo $2 | awk -F '.' '{print $4}'`
+	inumber_ip=`echo $2 | awk -F '.' '{print $6}'`
+
+	if [ "$inumber_inf" = "1" ]; then
+                iname=`echo "br0"`
+        else
+                let inumber_inf=$inumber_inf-1
+                iname=`echo "br0:$inumber_inf"`
+        fi
+
+	addr6_list=`ifconfig $iname | grep inet6 | awk '{print $3}'`
+	IPv6_List_Check "$iname" "$addr6_list"
+	
+	if [ "$1" = "get" ]; then
+		ip=`eval config get ipv6List_"$iname"_"$inumber_ip"`
+		[ "X$ip" != "X" ] && echo $(echo $ip | awk -F "*" '{print $1}') || echo 0
+	else
+		val=`echo $3`
+		ip=`eval config get ipv6List_"$iname"_"$inumber_ip"`
+		[ "X$ip" = "X" ] && return
+
+		tag=`echo $ip | awk -F "*" '{print $1}'`
+		ip=`echo $ip | awk -F "*" '{print $2}'`
+		[ "$tag" = "$val" ] && return
+
+		if [ "$(par_true $val)" = "1" ]; then
+			ip -6 addr add "$ip" dev "$iname"
+			[ $? -eq 0 ] && eval config set ipv6List_"$iname"_"$inumber_ip"="1\*\$ip"
+		elif [ "$(par_false $val)" = "0" ]; then
+			ip -6 addr del "$ip" dev "$iname"
+			[ $? -eq 0 ] && eval config set ipv6List_"$iname"_"$inumber_ip"="0\*\$ip"
+		fi
+	fi
+}
+
+D_IP_INUMBER_IPv6Address_INUMBER_IPAddress()
+{
+	inumber_inf=`echo $2 | awk -F '.' '{print $4}'`
+	inumber_ip=`echo $2 | awk -F '.' '{print $6}'`
+
+	if [ "$inumber_inf" = "1" ]; then
+                iname=`echo "br0"`
+        else
+                let inumber_inf=$inumber_inf-1
+                iname=`echo "br0:$inumber_inf"`
+        fi
+
+	tmp=`ifconfig $iname | grep inet6 `
+        addr6_list=`echo $tmp | awk '{print $3}'`
+        IPv6_List_Check "$iname" "$addr6_list"
+
+	if [ "$1" = "get" ]; then
+		ip=`eval config get ipv6List_"$iname"_"$inumber_ip"`
+		[ "X$ip" != "X" ] && echo $(echo $ip | cut -d \* -f 2) || echo ""
+	else
+		val=`echo $3`
+		ip=`eval config get ipv6List_"$iname"_"$inumber_ip"`
+		[ "X$ip" = "X" ] && return
+
+		old_ip=`echo $ip | cut -d \* -f 2`
+		tag=`echo $ip | cut -d \* -f 1`
+
+		if [ "$tag" = "1" ]; then
+			ip -6 addr del "$old_ip" dev "$iname"
+			ip -6 addr add "$val" dev "$iname"
+			[ $? -eq 0 ] && eval config set ipv6List_"$iname"_"$inumber_ip"="1\*\$val"
+		else
+			eval config set ipv6List_"$iname"_"$inumber_ip"="0\*\$val"
+		fi
+	fi
+}
+
+D_IP_INUMBER_IPv6Address_INUMBER_Origin()
+{
+	tmp=`cat /tmp/dhcp6c.conf | grep "id-assoc na"`
+	[ "X$tmp" = "X" ] && echo "AutoConfigured" || echo "DHCPv6"
+}
+
+D_IP_INUMBER_IPv6Address_INUMBER_Status()
+{
+	inumber_inf=`echo $2 | awk -F '.' '{print $4}'`
+        inumber_ip=`echo $2 | awk -F '.' '{print $6}'`
+
+        if [ "$inumber_inf" = "1" ]; then
+                iname=`echo "br0"`
+        else
+                let inumber_inf=$inumber_inf-1
+                iname=`echo "br0:$inumber_inf"`
+        fi
+
+        tmp=`ifconfig $iname | grep inet6 `
+        addr6_list=`echo $tmp | awk '{print $3}'`
+        IPv6_List_Check "$iname" "$addr6_list"
+
+	ip=`eval config get ipv6List_"$iname"_"$inumber_ip"`
+	[ "X$ip" = "X" ] && echo "Disable" && return
+
+	tag=`echo $ip | cut -d \* -f 1`
+	[ "$tag" = "1" ] && echo "Enable" || echo "Disable"
+}
+
+D_IP_I_INUMBER_S_BytesReceived()
+{
+	D_E_I_INUMBER_S_BytesReceived
+}
+
+D_IP_I_INUMBER_S_BytesSent()
+{
+	D_E_I_INUMBER_S_BytesSent
+}
+
+D_IP_I_INUMBER_S_ErrorsReceived()
+{
+	D_E_I_INUMBER_S_ErrorsReceived	
+}
+
+D_IP_I_INUMBER_S_ErrorsSent()
+{
+	D_E_I_INUMBER_S_ErrorsSent	
+}
+
+D_IP_I_INUMBER_S_DiscardPacketsReceived()
+{
+	D_E_I_INUMBER_S_DiscardPacketsReceived
+}
+
+D_IP_I_INUMBER_S_DiscardPacketsSent()
+{
+	D_E_I_INUMBER_S_DiscardPacketsSent
+}
+
+D_IP_I_INUMBER_S_PacketsReceived()
+{
+	D_E_I_INUMBER_S_PacketsReceived	
+}
+
+D_IP_I_INUMBER_S_PacketsSent()
+{
+	D_E_I_INUMBER_S_PacketsSent
+}
+
+D_IP_I_INUMBER_S_MulticastPacketsReceived()
+{
+	D_E_I_INUMBER_S_MulticastPacketsReceived
+}
+
+D_IP_I_INUMBER_S_MulticastPacketsSent()
+{
+	D_E_I_INUMBER_S_MulticastPacketsSent	
+}
+
+D_IP_AP_INUMBER_LocalIPAddress()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	tmp=`netstat -ate | grep tcp | awk '{print $4}'`
+
+	i=1
+	for IP in $tmp; do
+		[ $i -ne $inumber ] && let i=$i+1 && continue
+		ip=`echo ${IP%:*}`
+		[ "X$(echo $IP | grep \*:)" != "X" ] && echo \* && return
+		[ "$ip" = "localhost" ] && echo "127.0.0.1" && return
+		echo $ip
+		break
+	done
+
+}
+
+D_IP_AP_INUMBER_LocalPort()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+        tmp=`netstat -ate | grep tcp | awk '{print $4}'`
+
+        i=1
+        for IP in $tmp; do
+                [ $i -ne $inumber ] && let i=$i+1 && continue
+                port=`echo ${IP##*:}`
+		[ "X$(echo $IP | grep :\\*)" != "X" ] && echo \* && return
+		echo $port
+                break
+        done
+}
+
+D_IP_AP_INUMBER_RemoteIPAddress()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	tmp=`netstat -ate | grep tcp | awk '{print $5}'`
+
+	i=1
+        for IP in $tmp; do
+                [ $i -ne $inumber ] && let i=$i+1 && continue
+                ip=`echo ${IP%:*}`
+		[ "X$(echo $IP | grep \*:)" != "X" ] && echo \* && return
+		[ "$ip" = "localhost" ] && echo "127.0.0.1" && return
+		echo $ip
+                break
+        done
+}
+
+D_IP_AP_INUMBER_RemotePort()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+        tmp=`netstat -ate | grep tcp | awk '{print $5}'`
+
+        i=1
+        for IP in $tmp; do
+                [ $i -ne $inumber ] && let i=$i+1 && continue
+                port=`echo ${IP##*:}`
+		[ "X$(echo $IP | grep :\\*)" != "X" ] && echo \* && return
+		echo $port
+                break
+        done
+}
+
+D_IP_AP_INUMBER_Status()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+        tmp=`netstat -ate | grep tcp | awk '{print $6}'`
+
+        i=1
+        for IP in $tmp; do
+                [ $i -ne $inumber ] && let i=$i+1 && continue
+		if [ "$IP" = "LISTEN" ]; then
+			echo "LISTEN"
+		elif [ "$IP" = "ESTABLISHED" ]; then
+			echo "ESTABLISHED"
+		fi
+                break
+        done
+}
+
+
+D_IP_D_IPP_AverageResponseTime()
+{
+	val=`config get IPPing_AverageResponseTime`
+	[ "X$val" != "X" ] && echo $val
+}
+
+D_IP_D_IPP_DataBlockSize()
+{
+	if [ "$1" = "get" ]; then
+		val=`config get IPPing_DataBlockSize`
+		[ "X$val" != "X" ] && echo $val || echo "56"
+	elif [ "$1" = "set" ]; then
+		[ "X$3" != "X" ] && config set IPPing_DataBlockSize="$3"
+	fi
+}
+
+D_IP_D_IPP_DiagnosticsState()
+{
+	if [ "$1" = "get" ]; then
+		val=`config get IPPing_DiagnosticsState`
+		[ "X$val" != "X" ] && echo $val || echo "None"
+	elif [ "$1" = "set" ]; then
+		[ "X$3" != "X" ] && config set IPPing_DiagnosticsState="$3"
+		if [ "$3" = "Requested" ]; then
+			killall IPPing_test
+			IPPing_test &
+			return
+		fi
+	fi
+}
+
+D_IP_D_IPP_FailureCount()
+{
+	val=`config get IPPing_FailureCount`
+	[ "X$val" != "X" ] && echo $val
+}
+
+D_IP_D_IPP_Host()
+{
+	if [ "$1" = "get" ]; then
+                val=`config get IPPing_Host`
+                [ "X$val" != "X" ] && echo $val
+        elif [ "$1" = "set" ]; then
+                [ "X$3" != "X" ] && config set IPPing_Host="$3" || config set IPPing_Host="127.0.0.1"
+        fi
+}
+
+D_IP_D_IPP_MaximumResponseTime()
+{
+	val=`config get IPPing_MaximumResponseTime`
+        [ "X$val" != "X" ] && echo $val
+}
+
+D_IP_D_IPP_MinimumResponseTime()
+{
+	val=`config get IPPing_minimumResponseTime`
+        [ "X$val" != "X" ] && echo $val
+}
+
+D_IP_D_IPP_NumberOfRepetitions()
+{
+	if [ "$1" = "get" ]; then
+		val=`config get IPPing_NumberOfRepetitions`
+		[ "X$val" != "X" ] && echo $val
+	elif [ "$1" = "set" ]; then
+		[ "X$3" != "X" ] && config set IPPing_NumberOfRepetitions="$3"
+	fi
+}
+
+D_IP_D_IPP_SuccessCount()
+{
+	val=`config get IPPing_SuccessCount`
+        [ "X$val" != "X" ] && echo $val
+}
+
+D_IP_D_IPP_Timeout()
+{
+	if [ "$1" = "get" ]; then
+		val=`config get IPPing_Timeout`
+        	[ "X$val" != "X" ] && echo $val
+	elif [ "$1" = "set" ]; then
+		[ "X$3" != "X" ] && config set IPPing_Timeout="$3"
+	fi
+}
+
+D_IP_D_TR_DataBlockSize()
+{
+	if [ "$1" = "get" ]; then
+                val=`config get TRR_DataBlockSize`
+                [ "X$val" != "X" ] && echo $val
+        elif [ "$1" = "set" ]; then
+                [ "X$3" != "X" ] && config set TRR_DataBlockSize="$3"
+        fi
+}
+
+D_IP_D_TR_DiagnosticsState()
+{
+	if [ "$1" = "get" ]; then
+                val=`config get TRR_DiagnosticsState`
+                [ "X$val" != "X" ] && echo $val || echo "None"
+        elif [ "$1" = "set" ]; then
+                [ "X$3" != "X" ] && config set TRR_DiagnosticsState="$3"
+                if [ "$3" = "Requested" ]; then
+			killall TRR_test
+                        TRR_test &
+                        return
+                fi
+        fi
+}
+
+D_IP_D_TR_Host()
+{
+	if [ "$1" = "get" ]; then
+                val=`config get TRR_Host`
+                [ "X$val" != "X" ] && echo $val
+        elif [ "$1" = "set" ]; then
+                [ "X$3" != "X" ] && config set TRR_Host="$3" || config set TRR_Host="127.0.0.1"
+        fi
+}
+
+D_IP_D_TR_MaxHopCount()
+{
+	if [ "$1" = "get" ]; then
+                val=`config get TRR_MaxHopCount`
+                [ "X$val" != "X" ] && echo $val
+        elif [ "$1" = "set" ]; then
+                [ "X$3" != "X" ] && config set TRR_MaxHopCount="$3" || config set TRR_MaxHopCount="30"
+        fi
+}
+
+D_IP_D_TR_NumberOfTries()
+{
+	if [ "$1" = "get" ]; then
+                val=`config get TRR_NumberOfTries`
+                [ "X$val" != "X" ] && echo $val
+        elif [ "$1" = "set" ]; then
+                [ "X$3" != "X" ] && config set TRR_NumberOfTries="$3" || config set TRR_NumberOfTries="3"
+        fi
+}
+
+D_IP_D_TR_ResponseTime()
+{
+	val=`config get TRR_ResponseTime`
+	[ "X$val" != "X" ] && echo $val || echo "0"
+}
+
+D_IP_D_TR_RouteHopsNumberOfEntries()
+{
+	val=`config get TRR_RouteHopsNumberOfEntries`
+	[ "X$val" != "X" ] && echo $val || echo "0"
+}
+
+D_IP_D_TR_Timeout()
+{
+	if [ "$1" = "get" ]; then
+                val=`config get TRR_Timeout`
+                [ "X$val" != "X" ] && echo $val
+        elif [ "$1" = "set" ]; then
+                [ "X$3" != "X" ] && config set TRR_Timeout="$3" || config set TRR_Timeout="5000"
+        fi
+}
+
+D_IP_D_TR_RH_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $6}'`
+	local count=`config get TRR_MaxHopCount`
+	if [ "x$count" = "x" ];then
+		echo "0" && return 0
+	fi
+	if [ "$inumber" -le "$count" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_IP_D_TR_RH_INUMBER()
+{
+	local count=`config get TRR_MaxHopCount`
+	if [ "$2" -le "$count" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_IP_D_TR_RH_INUMBER_Host()
+{
+	inumber=`echo $2 | awk -F "." '{print $6}'`
+	val=`eval config get TRR_RH_"$inumber"`
+	echo $(echo $val | awk -F "*" '{print $1}')
+}
+
+D_IP_D_TR_RH_INUMBER_HostAddress()
+{
+	inumber=`echo $2 | awk -F "." '{print $6}'`
+        val=`eval config get TRR_RH_"$inumber"`
+        echo $(echo $val | awk -F "*" '{print $2}')
+}
+
+D_IP_D_TR_RH_INUMBER_RTTimes()
+{
+	inumber=`echo $2 | awk -F "." '{print $6}'`
+        val=`eval config get TRR_RH_"$inumber"`
+        echo $(echo $val | awk -F "*" '{print $3}')
+}
+
+D_H_H_INUMBER_Active()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	killall -SIGUSR1 net-scan
+	sleep 5
+	line=`sed -n "${inumber}p" /tmp/netscan/attach_device`
+	[ "X$line" = "X" ] && echo 0 && exit
+
+	ip=$(echo $line | awk '{print $1}')
+	tmp=`ping -c 1 $ip `
+	[ "X$(echo $tmp | grep "bytes from")" != "X" ] && echo 1 || echo 0
+}
+
+D_H_H_INUMBER_AddressSource()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	killall -SIGUSR1 net-scan
+	sleep 5
+	line=`sed -n "${inumber}p" /tmp/netscan/attach_device`
+	[ "X$line" = "X" ] && echo 0 && exit
+
+	ip=$(echo $line | awk '{print $1}')
+
+	if [ ! -f /tmp/dhcpd_hostlist ]; then
+		echo "Static"
+		return
+	fi
+	
+	tmp=`cat /tmp/dhcpd_hostlist | grep $ip`
+	
+	if [ "X$tmp" != "X" ]; then
+		echo "DHCP"
+	elif [ "X$(echo $ip | grep 169)" != "X" ]; then
+		echo "AutoIP"
+	else
+		echo "Static"
+	fi
+}
+
+D_H_HostNumberOfEntries()
+{
+	killall -SIGUSR1 net-scan
+	sleep 5
+	echo $(cat /tmp/netscan/attach_device | wc -l)
+}
+
+D_H_H_INUMBER_HostName()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	killall -SIGUSR1 net-scan
+	sleep 5
+	line=`sed -n "${inumber}p" /tmp/netscan/attach_device`
+	[ "X$line" = "X" ] && echo 0 && exit
+
+	hostname=$(echo $line | awk '{print $3}')
+	[ "X$(echo $hostname | grep unknown)" = "X" ] && echo "$hostname" || echo ""
+}
+
+D_H_H_INUMBER_IPAddress()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	killall -SIGUSR1 net-scan
+	sleep 5
+        line=`sed -n "${inumber}p" /tmp/netscan/attach_device`
+        [ "X$line" = "X" ] && echo 0 && exit
+
+        ip=$(echo $line | awk '{print $1}')
+	echo "$ip"
+}
+
+D_H_H_INUMBER_PhysAddress()
+{
+	inumber=`echo $2 | awk -F "." '{print $4}'`
+	killall -SIGUSR1 net-scan
+	sleep 5
+        line=`sed -n "${inumber}p" /tmp/netscan/attach_device`
+        [ "X$line" = "X" ] && echo 0 && exit
+
+        ip=$(echo $line | awk '{print $2}')
+        echo "$ip"
+}
+
+D_H_H_INUMBER_IPA_INUMBER_IPAddress()
+{
+	D_H_H_INUMBER_IPAddress "$1" "$2" "$3"
+}
+
+D_IP_I_INUMBER_Reset()
+{
+	if [ "$1" = "get" ]; then
+		inumber=`echo $2 | awk -F "." '{print $4}'`
+		if [ $inumber -eq 1 ]; then
+			iname="br0"
+		else
+			let inumber=$inumber-1
+			iname="br0:$inumber"
+		fi
+		ip=`ifconfig $iname | grep inet | grep -v inet6 | awk '{print $2}'`
+		ip=`echo ${ip#*:}`
+		[ "X$ip" != "X" ] && echo 1 || echo 0
+	else
+		if [ "$(par_true $3)" = "1" ]; then
+			D_IP_IPv4Enable "set" "" "1"		
+		fi
+	fi
+}
+
+D_DHCPv4_C_INUMBER_Status()
+{
+
+	ip=`ifconfig "br0" | grep inet | grep -v inet6 | awk '{print $2}' | cut -d : -f 2`
+	[ "X$ip" != "X" ] && echo "Enable" || echo "Disable"
+}
+
+D_DHCPv4_C_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_DHCPv4_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_DHCPv4_C_INUMBER_DNSServers()
+{
+	list=`cat /tmp/resolv.conf | grep nameserver | awk '{print $2}'`
+	re=""
+	first=1
+	for IP in $list; do
+		[ $first -eq 1 ] && re="$re$IP" && first=0 && continue
+		re="$re,$IP"
+	done
+
+	echo "$re"
+}
+
+D_DHCPv4_C_INUMBER_Enable()
+{
+	if [ "$1" = "get" ]; then
+		[ "$(D_DHCPv4_C_INUMBER_Status)" = "Enable" ] && echo 1 || echo 0
+	elif [ "$1" = "set" ]; then
+		if [ "$(par_true $3)" = "1" ]; then
+                        D_IP_IPv4Enable "set" "" "1"
+                elif [ "$(par_false $3)" = "0" ]; then
+			D_IP_IPv4Enable "set" "" "0"
+		fi
+	fi
+}
+
+D_DHCPv4_C_INUMBER_Renew()
+{
+	[ "$1" = "set" -a "$(par_true $3)" = "1" ] && \
+		killall -SIGUSR1 udhcpc
+}
+
+D_DNS_C_ServerNumberOfEntries()
+{
+	echo $(cat /tmp/resolv.conf | grep nameserver | wc -l)
+}
+
+D_DNS_C_Status()
+{
+	[ "X$(ps | grep dnsmasq)" != "X" ] && echo Enable || echo Disable 
+}
+
+BR_S_get()
+{
+	br_id="$1"
+	inf_id="$2"
+	L="$3"
+	[ $br_id -ge 0 ] && let br_id=$br_id-1	
+	list=`ls /sys/devices/virtual/net/br"$br_id"/brif`
+	iname=`echo $list | awk '{print $'$inf_id'}'`
+	tmp=`cat /proc/net/dev | grep $iname `
+	re=`echo ${tmp#*:} | awk '{print $'$L'}'`
+
+	echo $re
+}
+
+D_B_B_INUMBER_P_INUMBER_S_PacketsSent()
+{
+	br_id=`echo $2 | awk -F "." '{print $4}'`
+        inf_id=`echo $2 | awk -F "." '{print $6}'`
+
+        echo $(BR_S_get "$br_id" "$inf_id" "10")
+}
+
+D_B_B_INUMBER_P_INUMBER_S_PacketsReceived()
+{
+	br_id=`echo $2 | awk -F "." '{print $4}'`
+        inf_id=`echo $2 | awk -F "." '{print $6}'`
+
+        echo $(BR_S_get "$br_id" "$inf_id" "2")
+}
+
+D_B_B_INUMBER_P_INUMBER_S_MulticastPacketsReceived()
+{
+	br_id=`echo $2 | awk -F "." '{print $4}'`
+        inf_id=`echo $2 | awk -F "." '{print $6}'`
+
+        echo $(BR_S_get "$br_id" "$inf_id" "8")
+}
+
+D_B_B_INUMBER_P_INUMBER_S_ErrorsSent()
+{
+	br_id=`echo $2 | awk -F "." '{print $4}'`
+        inf_id=`echo $2 | awk -F "." '{print $6}'`
+
+        echo $(BR_S_get "$br_id" "$inf_id" "11")
+}
+
+D_B_B_INUMBER_P_INUMBER_S_ErrorsReceived()
+{
+	br_id=`echo $2 | awk -F "." '{print $4}'`
+        inf_id=`echo $2 | awk -F "." '{print $6}'`
+
+        echo $(BR_S_get "$br_id" "$inf_id" "3")
+}
+
+D_B_B_INUMBER_P_INUMBER_S_BytesSent()
+{
+	br_id=`echo $2 | awk -F "." '{print $4}'`
+        inf_id=`echo $2 | awk -F "." '{print $6}'`
+
+        echo $(BR_S_get "$br_id" "$inf_id" "9")
+}
+
+D_B_B_INUMBER_P_INUMBER_S_BytesReceived()
+{
+	br_id=`echo $2 | awk -F "." '{print $4}'`
+	inf_id=`echo $2 | awk -F "." '{print $6}'`
+
+	echo $(BR_S_get "$br_id" "$inf_id" "1")
+}
+
+D_DI_FirstUseDate()
+{
+	ntpst get
+	tmp=`cat /tmp/first_ntp`	
+	time=`echo ${tmp%%,*}`
+	month=`echo $tmp | awk '{print $2}'`
+	day=`echo $tmp | awk -F "," '{print $2}' | awk '{print $2}'`
+	year=`echo $tmp | awk -F "," '{print $3}'`
+
+	case "$month" in
+		Jan) month="01" ;;
+		Feb) month="02" ;;
+		Mar) month="03"	;;
+		Apr) month="04"	;;
+		May) month="05"	;;
+		Jun) month="06"	;;
+		Jul) month="07"	;;
+		Aug) month="08"	;;
+		Sep) month="09"	;;
+		Oct) month="10"	;;
+		Nov) month="11"	;;
+		Dec) month="12" ;;
+
+	esac
+
+	[ $day -lt 10 ] && day="0$day"
+
+	echo "$year-$month-$dayT$time"
+}
+
+D_WF_AccessPointNumberOfEntries()
+{	
+	local c=0
+	local ssidnums=`iwconfig ath0 |grep 'Access Point' |awk -F " " '{print $4}'`	
+	for i in $ssidnums;do
+		let c=$c+1
+	done
+	local ssidnums=`iwconfig ath1 |grep 'Access Point' |awk -F " " '{print $4}'`	
+	for i in $ssidnums;do
+		let c=$c+1
+	done
+	echo "$c"		
+}
+
+D_WF_EndPointNumberOfEntries()
+{
+	local c=0
+	local endpointnumbers=`iwconfig ath0 |grep ath0 |awk -F " " '{print $1}'`
+	for i in $endpointnumbers;do
+		let c=$c+1
+	done
+	local endpointnumbers=`iwconfig ath1 |grep ath1 |awk -F " " '{print $1}'`
+	for i in $endpointnumbers;do
+		let c=$c+1
+	done
+	echo "$c"		
+}
+
+D_WF_RadioNumberofEntries()
+{	
+	local c=0
+	local radionumbers=`iwconfig ath0 |grep ath0 |awk -F " " '{print $1}'`
+	for i in $radionumbers;do
+		let c=$c+1
+	done
+	local radionumbers=`iwconfig ath1 |grep ath1 |awk -F " " '{print $1}'`
+	for i in $radionumbers;do
+		let c=$c+1
+	done
+	echo "$c"		
+}
+
+D_WF_SSIDNumberOfEntries()
+{
+	local ssidnums=`iwconfig ath0 |grep SSID |awk -F " " '{print $4}'`
+	local c=0
+	for i in $ssidnums;do
+		let c=$c+1
+	done
+	local ssidnums=`iwconfig ath1 |grep SSID |awk -F " " '{print $4}'`	
+	for i in $ssidnums;do
+		let c=$c+1
+	done
+	echo "$c"		
+}
+
+D_WF_AP_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_AP_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+		echo "$2" && return $2
+	else
+		echo "0" && return 0
+	fi
+}
+
+
+D_WF_AP_Alias()
+{
+	echo ""	
+}
+
+D_WF_AP_AssociatedDeviceNumberOfEntries()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_AssociatedDeviceNumberOfEntries_wl $@
+		;;
+		2)
+		D_WF_AP_AssociatedDeviceNumberOfEntries_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+}
+
+D_WF_AP_AssociatedDeviceNumberOfEntries_wl()
+{
+	local c=0
+	local num=`wlanconfig ath0 list sta |grep ':' |awk -F " " '{print $1}'` 
+	if [ "$num" != "" ];then
+		for i in $num;do
+			let c=$c+1
+		done
+	else
+		let c=0
+	fi	
+	echo "$c"			
+}
+
+D_WF_AP_AssociatedDeviceNumberOfEntries_wla()
+{
+	local c=0
+	local num=`wlanconfig ath1 list sta |grep ':' |awk -F " " '{print $1}'` 
+	if [ "$num" != "" ];then
+		for i in $num;do
+			let c=$c+1
+		done
+	else
+		let c=0
+	fi	
+	echo "$c"			
+}
+
+D_WF_AP_Enable()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_Enable_wl $@
+		;;
+		2)
+		D_WF_AP_Enable_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+}
+
+D_WF_AP_Enable_wl()
+{
+	if [ "$1" = "get" ];then
+		loacl num=`config get endis_wl_radio`
+		if [ "$num" = "0" ];then
+			echo "false"
+		elif [ "$num" = "1" ];then
+			echo "true"
+		fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_wl_radio=0
+		else [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ]
+			config set endis_wl_radio=1
+		fi
+	fi		
+}
+
+D_WF_AP_Enable_wla()
+{
+	if [ "$1" = "get" ];then
+		local num=`config get endis_wla_radio`
+        if [ "$num" = "0" ];then
+            echo "false"
+        elif [ "$num" = "1" ];then
+            echo "true"
+        fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_wla_radio=0
+		else [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ]
+			config set endis_wla_radio=1
+		fi
+	fi		
+}
+
+D_WF_AP_RetryLimit()
+{
+	echo ""	
+}
+
+D_WF_AP_SSIDAdvertisementEnabled()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_SSIDAdvertisementEnabled_wl $@
+		;;
+		2)
+		D_WF_AP_SSIDAdvertisementEnabled_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+}
+
+D_WF_AP_SSIDAdvertisementEnabled_wl()
+{
+	if [ "$1" = "get" ];then
+		config get endis_ssid_broadcast
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_ssid_broadcast=0
+		else [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ]
+			config set endis_ssid_broadcast=1
+		fi
+	fi	
+}
+
+D_WF_AP_SSIDAdvertisementEnabled_wla()
+{
+	if [ "$1" = "get" ];then
+		config get wla_endis_ssid_broadcast
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set wla_endis_ssid_broadcast=0
+		else [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ]
+			config set wla_endis_ssid_broadcast=1
+		fi
+	fi	
+}
+
+D_WF_AP_SSIDReference()
+{
+	echo ""	
+}
+
+D_WF_AP_Status()
+{	
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_Status_wl $@
+		;;
+		2)
+		D_WF_AP_Status_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+}
+
+D_WF_AP_Status_wl()
+{
+	if [ "$1" = "get" ];then
+		local status=`config get endis_wl_radio`
+		if [ "$status" = "1" ];then
+			echo "Enabled"
+		elif [ "$status" = "0" ];then
+			echo "Disabled"
+		else
+			echo "Error_Misconfigured"
+		fi
+	fi
+}
+
+D_WF_AP_Status_wla()
+{
+	if [ "$1" = "get" ];then
+		local status=`config get endis_wla_radio`
+		if [ "$status" = "1" ];then
+			echo "Enabled"
+		elif [ "$status" = "0" ];then
+			echo "Disabled"
+		else
+			echo "Error_Misconfigured"
+		fi
+	fi
+}
+
+D_WF_AP_UAPSDCapability()
+{
+	echo ""		
+}
+
+D_WF_AP_UAPSDEnable()
+{
+	echo "false"	
+}
+
+D_WF_AP_WMMCapability()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_WMMCapability_wl $@
+		;;
+		2)
+		D_WF_AP_WMMCapability_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac	
+}
+
+D_WF_AP_WMMCapability_wl()
+{
+	local string=`config show |grep endis_wl_wmm`
+	if [ "$string" != "" ];then
+		echo "Supported"
+	else
+		echo "Not Supported"
+	fi
+}
+
+D_WF_AP_WMMCapability_wla()
+{
+	local string=`config show |grep endis_wla_wmm`
+	if [ "$string" != "" ];then
+		echo "Supported"
+	else
+		echo "Not Supported"
+	fi
+}
+
+D_WF_AP_WMMEnable()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_WMMEnable_wl $@
+		;;
+		2)
+		D_WF_AP_WMMEnable_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+	
+}
+D_WF_AP_WMMEnable_wl()
+{
+	if [ "$1" = "get" ];then
+		local num =`config get endis_wl_wmm`
+		if [ "$num" = "0" ];then
+			echo "false"
+		elif [ "$num" = "1" ];then
+			echo "true"
+		fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "1" -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set endis_wl_wmm=1
+		elif [ "$3" = "0" -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_wl_wmm=0
+		fi
+	fi
+}
+
+D_WF_AP_WMMEnable_wla()
+{
+    if [ "$1" = "get" ];then
+        local num =`config get endis_wla_wmm`
+        if [ "$num" = "0" ];then
+            echo "false"
+        elif [ "$num" = "1" ];then
+            echo "true"
+		else
+			echo "true"
+        fi
+    elif [ "$1" = "set" ];then
+        if [ "$3" = "1" -o "$3" = "true" -o "$3" = "TRUE" ];then
+            config set endis_wla_wmm=1
+        elif [ "$3" = "0" -o "$3" = "false" -o "$3" = "FALSE" ];then
+            config set endis_wla_wmm=0
+        fi
+    fi
+}
+
+D_WF_AP_AD_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_AP_AD_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+		echo "$2" && return $2
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_AP_AD_Active()
+{
+	echo ""	
+}
+
+D_WF_AP_AD_AuthenticationState()
+{
+	echo ""		
+}
+
+D_WF_AP_AD_LastDataDownlinkRate()
+{
+	echo ""	
+}
+
+D_WF_AP_AD_LastDataUplinkRate()
+{
+	echo ""	
+}
+
+D_WF_AP_AD_MACAddress()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_AD_MACAddress_wl $@
+		;;
+		2)
+		D_WF_AP_AD_MACAddress_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+}
+
+D_WF_AP_AD_MACAddress_wl()
+{		
+	wlanconfig ath0 list sta |grep ':' |awk -F " " '{print $1}' 
+}
+
+D_WF_AP_AD_MACAddress_wla()
+{		
+	wlanconfig ath1 list sta |grep ':' |awk -F " " '{print $1}' 
+}
+
+D_WF_AP_AD_Retransmissions()
+{
+	echo ""	
+}
+
+D_WF_AP_AD_SignalStrength()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_AD_SignalStrength_wl $@
+		;;
+		2)
+		D_WF_AP_AD_SignalStrength_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+}
+
+D_WF_AP_AD_SignalStrength_wl()
+{
+	iwlist ath0 txpower |grep 'Current Tx-Power'|awk -F " " '{print $2}'|awk -F ":" '{print $2}'		
+}
+
+D_WF_AP_AD_SignalStrength_wla()
+{
+	iwlist ath1 txpower |grep 'Current Tx-Power'|awk -F " " '{print $2}'|awk -F ":" '{print $2}'		
+}
+
+D_WF_AP_Security_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_AP_Security_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+		echo "$2" && return $2
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_AP_Security_Reset()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_Security_Reset_wl $@
+		;;
+		2)
+		D_WF_AP_Security_Reset_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+}
+
+D_WF_AP_Security_Reset_wl()
+{
+	if [ "$1" = "get" ];then
+		config get wl_sectype
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "1" -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set wl_sectype=1
+		fi
+	fi
+}
+
+D_WF_AP_Security_Reset_wla()
+{
+	if [ "$1" = "get" ];then
+		config get wla_sectype
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "1" -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set wla_sectype=1
+		fi
+	fi
+}
+
+D_WF_AP_Security_KeyPassphrase()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_Security_KeyPassphrase_wl $@
+		;;
+		2)
+		D_WF_AP_Security_KeyPassphrase_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+}
+
+D_WF_AP_Security_KeyPassphrase_wl()
+{
+	local sectype=`config get wl_sectype`
+	local keynum=`config get wl_key`
+	local keylength=`config get wl_key_length`
+	if [ "$1" = "get" ];then
+		echo ""
+	elif [ "$1" = "set" ];then
+        case $sectype in
+            1)
+            echo "None"
+            ;;
+            2)
+            config set wl_key$keynum=$3
+            if [ "$keylength" = "5" ];then
+                config set wl_wep_64_key$keynum=$3
+            elif [ "$keylength" = "13" ];then
+                config set wl_wep_128_key$keynum=$3
+            fi
+            ;;
+            3)
+            config set wl_wpa1_psk=$3
+            ;;
+            4)
+            config set wl_wpa2_psk=$3
+            ;;
+            5)
+            config set wl_wpas_psk=$3
+            ;;
+            *)
+            echo ""
+            ;;
+        esac
+	fi
+}
+
+D_WF_AP_Security_KeyPassphrase_wla()
+{
+	local sectype=`config get wla_sectype`
+	local keynum=`config get wla_key`
+	local keylength=`config get wla_key_length`
+	if [ "$1" = "get" ];then
+		echo ""
+	elif [ "$1" = "set" ];then
+		case $sectype in
+			1)
+			echo "None"
+			;;
+			2)
+			config set wla_key$keynum=$3
+			if [ "$keylength" = "5" ];then
+				config set wla_wep_64_key$keynum=$3
+			elif [ "$keylength" = "13" ];then	
+				config set wla_wep_128_key$keynum=$3
+			fi
+			;;
+			3)
+			config set wla_wpa1_psk=$3
+			;;
+			4)
+			config set wla_wpa2_psk=$3
+			;;
+			5)
+			config set wla_wpas_psk=$3
+			;;
+			*)
+			echo ""
+			;;
+		esac
+	fi
+}
+
+D_WF_AP_Security_ModeEnabled()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_Security_ModeEnabled_wl $@
+		;;
+		2)
+		D_WF_AP_Security_ModeEnabled_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+}
+
+D_WF_AP_Security_ModeEnabled_wl()
+{
+    local sectype=`config get wl_sectype`
+    if [ "$1" = "get" ];then
+        case $sectype in
+            1)
+                echo "None"
+            ;;
+            2)
+                local keylen =`config get wl_key_length`
+                if [ "$keylen" = "5" ];then
+                    echo "WEP-64"
+                elif [ "$keylen" = "13" ];then
+                    echo "WEP-128"
+                fi
+            ;;
+            3)
+                echo "WPA-Personal"
+            ;;
+            4)
+                echo "WPA2-Personal"
+            ;;
+            5)
+                echo "WPA-WPA2-Personal"
+            ;;
+            6)
+                echo "WPA-WPA2-Enterprise"
+            ;;
+            *)
+                echo "Invalid sectype"
+            ;;
+        esac
+    elif [ "$1" = "set" ];then
+        case $3 in
+			None)
+				config set wl_sectype=1
+			;;
+            WEP-64)
+                config set wl_sectype=2
+                config set wl_key_length=5
+            ;;
+            WEP-128)
+                config set wl_sectype=2
+                config set wl_key_length=13
+            ;;
+            WPA-Personal)
+                config set wl_sectype=3
+            ;;
+            WPA2-Personal)
+                config set wl_sectype=4
+            ;;
+            WPA-WPA2-Personal)
+                config set wl_sectype=5
+            ;;
+            WPA-WPA2-Enterprise)
+                config set wl_sectype=6
+            ;;
+            *)
+				echo "Invalid sectype"
+            ;;
+        esac
+    fi
+}
+
+D_WF_AP_Security_ModeEnabled_wla()
+{
+    local sectype=`config get wla_sectype`
+    if [ "$1" = "get" ];then
+        case $sectype in
+            1)
+                echo "None"
+            ;;
+            2)
+                local keylen =`config get wla_key_length`
+                if [ "$keylen" = "5" ];then
+                    echo "WEP-64"
+                elif [ "$keylen" = "13" ];then
+                    echo "WEP-128"
+                fi
+            ;;
+            3)
+                echo "WPA-Personal"
+            ;;
+            4)
+                echo "WPA2-Personal"
+            ;;
+            5)
+                echo "WPA-WPA2-Personal"
+            ;;
+            6)
+                echo "WPA-WPA2-Enterprise"
+            ;;
+            *)
+				echo "Invalid sectype"
+            ;;
+        esac
+    elif [ "$1" = "set" ];then
+        case $3 in
+			None)
+				config set wla_sectype=1
+			;;
+            WEP-64)
+                config set wla_sectype=2
+                config set wla_key_length=5
+            ;;
+            WEP-128)
+                config set wla_sectype=2
+                config set wla_key_length=13
+            ;;
+            WPA-Personal)
+                config set wla_sectype=3
+            ;;
+            WPA2-Personal)
+                config set wla_sectype=4
+            ;;
+            WPA-WPA2-Personal)
+                config set wla_sectype=5
+            ;;
+            WPA-WPA2-Enterprise)
+                config set wla_sectype=6
+            ;;
+            *)
+				echo "Invalid sectype"
+            ;;
+        esac
+    fi
+}
+
+D_WF_AP_Security_ModesSupported()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_Security_ModesSupported_wl $@
+		;;
+		2)
+		D_WF_AP_Security_ModesSupported_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+}
+
+D_WF_AP_Security_ModesSupported_wl()
+{
+	echo "None,WEP-64,WEP-128,WPA-Personal,WPA2-Personal,WPA-WPA2-Personal,WPA-WPA2-Enterprise"
+}
+
+D_WF_AP_Security_ModesSupported_wla()
+{
+	echo "None,WEP-64,WEP-128,WPA-Personal,WPA2-Personal,WPA-WPA2-Personal,WPA-WPA2-Enterprise"
+}
+
+D_WF_AP_Security_PreSharedKey()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_Security_PreSharedKey_wl $@
+		;;
+		2)
+		D_WF_AP_Security_PreSharedKey_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac	
+}
+
+D_WF_AP_Security_PreSharedKey_wl()
+{
+	local sectype=`config get wl_sectype`
+	if [ "$1" = "get" ];then
+		echo ""
+	elif [ "$1" = "set" ];then
+		case $sectype in
+			3)
+			config set wl_wpa1_psk=$3
+			;;
+			4)
+			config set wl_wpa2_psk=$3
+			;;
+			5)
+			config set wl_wpas_psk=$3
+			;;
+			*)
+			echo ""
+			;;
+		esac
+	fi
+}
+
+D_WF_AP_Security_PreSharedKey_wla()
+{
+	local sectype=`config get wla_sectype`
+	if [ "$1" = "get" ];then
+		echo ""
+	elif [ "$1" = "set" ];then
+		case $sectype in
+			3)
+			config set wla_wpa1_psk=$3
+			;;
+			4)
+			config set wla_wpa2_psk=$3
+			;;
+			5)
+			config set wla_wpas_psk=$3
+			;;
+			*)
+			echo ""
+			;;
+		esac
+	fi
+}
+
+D_WF_AP_Security_RadiusSecret()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_Security_RadiusSecret_wl $@
+		;;
+		2)
+		D_WF_AP_Security_RadiusSecret_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac	
+}
+
+D_WF_AP_Security_RadiusSecret_wl()
+{
+	local sectype=`config get wl_sectype`
+	if [ "$sectype" = "6" ];then
+		if [ "$1" = "get" ];then
+			config get wl_wpa_psk
+		elif [ "$1" = "set" ];then
+			config set wl_wpa_psk=$3
+		fi
+	fi
+}
+
+D_WF_AP_Security_RadiusSecret_wla()
+{
+	local sectype=`config get wla_sectype`
+	if [ "$sectype" = "6" ];then
+		if [ "$1" = "get" ];then
+			config get wla_wpa_psk
+		elif [ "$1" = "set" ];then
+			config set wla_wpa_psk=$3
+		fi
+	fi
+
+}
+
+D_WF_AP_Security_RadiusServerIPAddr()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_Security_RadiusServerIPAddr_wl $@
+		;;
+		2)
+		D_WF_AP_Security_RadiusServerIPAddr_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac		
+}
+
+D_WF_AP_Security_RadiusServerIPAddr_wl()
+{
+	local sectype=`config get wl_sectype`
+	if [ "$sectype" = "6" ];then
+		if [ "$1" = "get" ];then
+			config get wl_radiusSerIp
+		elif [ "$1" = "set" ];then
+			config set wl_radiusSerIp=$3
+		fi
+	else
+		echo "0.0.0.0"
+	fi	
+}
+
+D_WF_AP_Security_RadiusServerIPAddr_wla()
+{
+	local sectype=`config get wla_sectype`
+	if [ "$sectype" = "6" ];then
+		if [ "$1" = "get" ];then
+			config get wla_radiusSerIp
+		elif [ "$1" = "set" ];then
+			config set wla_radiusSerIp=$3
+		fi
+	else
+		echo "0.0.0.0"
+	fi	
+}
+
+D_WF_AP_Security_RadiusServerPort()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_Security_RadiusServerPort_wl $@
+		;;
+		2)
+		D_WF_AP_Security_RadiusServerPort_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_AP_Security_RadiusServerPort_wl()
+{
+	local sectype=`config get wl_sectype`
+	if [ "$sectype" = "6" ];then
+		if [ "$1" = "get" ];then
+			config get wl_radiusPort
+		elif [ "$1" = "set" ];then
+			config set wl_radiusPort=$3
+		fi
+	else
+		echo ""
+	fi		
+}
+
+D_WF_AP_Security_RadiusServerPort_wla()
+{
+	local sectype=`config get wla_sectype`
+	if [ "$sectype" = "6" ];then
+		if [ "$1" = "get" ];then
+			config get wla_radiusPort
+		elif [ "$1" = "set" ];then
+			config set wla_radiusPort=$3
+		fi
+	else
+		echo ""
+	fi		
+}
+
+D_WF_AP_Security_RekeyingInterval()
+{
+	if [ "$1" = "get" ];then
+		config get timer_interval
+	elif [ "$1" = "set" ];then
+		config set timer_interval=$3
+	fi
+}
+
+D_WF_AP_Security_WEPKey()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_Security_WEPKey_wl $@
+		;;
+		2)
+		D_WF_AP_Security_WEPKey_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_AP_Security_WEPKey_wl()
+{
+	local sectype=`config get wl_sectype`
+	local keynum=`config get wl_key`
+	local keylength=`config get wl_key_length`
+	if [ "$1" = "get" ];then
+		echo ""
+	elif [ "$1" = "set" ];then
+		if [ "$sectype" = "2" ];then
+			config set wl_key$keynum=$3
+			if [ "$keylength" = "5" ];then
+				config set wl_wep_64_key$keynum=$3
+			elif [ "$keylength" = "13" ];then
+				config set wl_wep_128_key$keynum=$3
+			fi
+		else
+			echo ""
+		fi
+	fi		
+}
+
+D_WF_AP_Security_WEPKey_wla()
+{
+	local sectype=`config get wla_sectype`
+	local keynum=`config get wla_key`
+	local keylength=`config get wla_key_length`
+	if [ "$1" = "get" ];then
+		echo ""
+	elif [ "$1" = "set" ];then
+		if [ "$sectype" = "2" ];then
+			config set wla_key$keynum=$3
+			if [ "$keylength" = "5" ];then
+				config set wla_wep_64_key$keynum=$3
+			elif [ "$keylength" = "13" ];then
+				config set wla_wep_128_key$keynum=$3
+			fi
+		else
+			echo ""
+		fi
+	fi		
+}
+
+D_WF_AP_WPS_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_AP_WPS_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+		echo "$2" && return $2
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_AP_WPS_ConfigMethodsEnabled()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_WPS_ConfigMethodsEnabled_wl $@
+		;;
+		2)
+		D_WF_AP_WPS_ConfigMethodsEnabled_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_AP_WPS_ConfigMethodsEnabled_wl()
+{
+	if [ "$1" = "get" ];then
+		local num=`config get endis_pin`
+		if [ "$num" = "1" ];then
+			echo "false"
+		elif [ "$num" = "0" ];then
+			echo "true"
+		else
+			echo "true"
+		fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_pin=1
+		elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set endis_pin=0
+		else
+            echo "Usage:"
+            echo "Available :1,TRUE,true"
+            echo "Availbale :0,FALSE,false"
+		fi
+	fi
+}
+
+D_WF_AP_WPS_ConfigMethodsEnabled_wla()
+{
+	if [ "$1" = "get" ];then
+		local num=`config get wla_endis_pin`
+        if [ "$num" = "1" ];then
+            echo "false"
+        elif [ "$num" = "0" ];then
+            echo "true"
+		else
+			echo "true"
+        fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set wla_endis_pin=1
+		elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set wla_endis_pin=0
+		else
+			echo "Usage:"
+			echo "Available :1,TRUE,true"
+			echo "Availbale :0,FALSE,false"
+		fi
+	fi
+}
+
+D_WF_AP_WPS_ConfigMethodsSupported()
+{
+	echo "PushButton,PIN"
+}
+
+D_WF_AP_WPS_Enable()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_AP_WPS_Enable_wl $@
+		;;
+		2)
+		D_WF_AP_WPS_Enable_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_AP_WPS_Enable_wl()
+{
+	if [ "$1" = "get" ];then
+		local num=`config get endis_wl_wps`
+		if [ "$num" = "0" ];then
+			echo "false"
+		elif [ "$num" = "1" ];then
+			echo "true"
+		fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_wl_wps=0
+		elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set endis_wl_wps=1
+		fi
+	fi		
+}
+
+D_WF_AP_WPS_Enable_wla()
+{
+    if [ "$1" = "get" ];then
+        local num=`config get endis_wla_wps`
+        if [ "$num" = "0" ];then
+            echo "false"
+        elif [ "$num" = "1" ];then
+            echo "true"
+        fi
+    elif [ "$1" = "set" ];then
+        if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+            config set endis_wla_wps=0
+        elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+            config set endis_wla_wps=1
+        fi
+    fi
+}
+
+D_WF_EP_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_EP_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+		echo "$2" && return $2
+	else
+		echo "0" && return 0
+	fi
+}
+
+
+D_WF_EP_Alias()
+{
+	echo ""	
+}
+
+D_WF_EP_Enable()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_EP_Enable_wl $@
+		;;
+		2)
+		D_WF_EP_Enable_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_EP_Enable_wl()
+{
+	if [ "$1" = "get" ];then
+		config get endis_wl_radio
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_wl_radio=0
+		else [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ]
+			config set endis_wl_radio=1
+		fi
+	fi		
+}
+
+D_WF_EP_Enable_wla()
+{
+	if [ "$1" = "get" ];then
+		config get endis_wla_radio
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_wla_radio=0
+		else [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ]
+			config set endis_wla_radio=1
+		fi
+	fi		
+}
+
+D_WF_EP_EnableProfileNumberOfEntries()
+{
+	local endpointnums=`iwconfig ath0 |grep SSID |awk -F " " '{print $4}'`
+	local c=0
+	for i in $endpointnums;do
+		let c=$c+1
+	done
+	local endpointnums=`iwconfig ath1 |grep SSID |awk -F " " '{print $4}'`	
+	for i in $endpointnums;do
+		let c=$c+1
+	done
+	echo "$c"		
+}
+
+D_WF_EP_ProfileReference()
+{
+	echo ""		
+}
+
+D_WF_EP_SSIDReference()
+{
+	echo ""	
+}
+
+D_WF_EP_Status()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_EP_Status_wl $@
+		;;
+		2)
+		D_WF_EP_Status_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_EP_Status_wl()
+{
+	local status=`config get endis_wl_radio`
+	if [ "$status" = "1" ];then
+		echo "Enabled"
+	elif [ "$status" = "0" ];then
+		echo "Disabled"
+	else
+		echo "Error_Misconfigured"
+	fi
+}
+
+D_WF_EP_Status_wla()
+{
+	local status=`config get endis_wla_radio`
+	if [ "$status" = "1" ];then
+		echo "Enabled"
+	elif [ "$status" = "0" ];then
+		echo "Disabled"
+	else
+		echo "Error_Misconfigured"
+	fi
+}
+
+D_WF_EP_Profile_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_EP_Profile_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_EP_Profile_Alias()
+{
+	echo ""		
+}
+
+D_WF_EP_Profile_Enable()
+{
+	config get default_ssphrase
+}
+
+D_WF_EP_Profile_Location()
+{
+	echo ""	
+}
+
+D_WF_EP_Profile_Priority()
+{
+	echo "0"	
+}
+
+D_WF_EP_Profile_SSID()
+{
+	if [ "$1" = "get" ];then
+		artmtd -r ssid |awk -F " " '{print $5}'		
+	elif [ "$1" = "set" ];then
+		artmtd -w ssidset $3
+	fi
+}
+
+D_WF_EP_Profile_Status()
+{
+	echo "Disabled"
+}
+
+D_WF_EP_Profile_Security_KeyPassphrase()
+{
+	if [ "$1" = "get" ];then
+		echo ""
+	elif [ "$1" = "set" ];then
+		artmtd -w passphraseset $3
+	fi
+}
+
+D_WF_EP_Profile_Security_ModelEnabled()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_EP_Profile_Security_ModelEnabled_wl $@
+		;;
+		2)
+		D_WF_EP_Profile_Security_ModelEnabled_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_EP_Profile_Security_ModelEnabled_wl()
+{
+    local sectype=`config get wl_sectype`
+    if [ "$1" = "get" ];then
+        case $sectype in
+            1)
+                echo "None"
+            ;;
+            2)
+                local keylen =`config get wl_key_length`
+                if [ "$keylen" = "5" ];then
+                    echo "WEP-64"
+                elif [ "$keylen" = "13" ];then
+                    echo "WEP-128"
+                fi
+            ;;
+            3)
+                echo "WPA-Personal"
+            ;;
+            4)
+                echo "WPA2-Personal"
+            ;;
+            5)
+                echo "WPA-WPA2-Personal"
+            ;;
+            6)
+                echo "WPA-WPA2-Enterprise"
+            ;;
+            *)
+                echo "Invalid sectype"
+            ;;
+        esac
+    elif [ "$1" = "set" ];then
+        case $3 in
+            None)
+                config set wl_sectype=1
+            ;;
+            WEP-64)
+                config set wl_sectype=2
+                config set wl_key_length=5
+            ;;
+            WEP-128)
+                config set wl_sectype=2
+                config set wl_key_length=13
+            ;;
+            WPA-Personal)
+                config set wl_sectype=3
+            ;;
+            WPA2-Personal)
+                config set wl_sectype=4
+            ;;
+            WPA-WPA2-Personal)
+                config set wl_sectype=5
+            ;;
+            WPA-WPA2-Enterprise)
+                config set wl_sectype=6
+            ;;
+            *)
+                echo "Invalid sectype"
+            ;;
+        esac
+	fi	
+}
+
+D_WF_EP_Profile_Security_ModelEnabled_wla()
+{
+    local sectype=`config get wla_sectype`
+    if [ "$1" = "get" ];then
+        case $sectype in
+            1)
+                echo "None"
+            ;;
+            2)
+                local keylen =`config get wla_key_length`
+                if [ "$keylen" = "5" ];then
+                    echo "WEP-64"
+                elif [ "$keylen" = "13" ];then
+                    echo "WEP-128"
+                fi
+            ;;
+            3)
+                echo "WPA-Personal"
+            ;;
+            4)
+                echo "WPA2-Personal"
+            ;;
+            5)
+                echo "WPA-WPA2-Personal"
+            ;;
+            6)
+                echo "WPA-WPA2-Enterprise"
+            ;;
+            *)
+                echo "Invalid sectype"
+            ;;
+        esac
+    elif [ "$1" = "set" ];then
+        case $3 in
+			None)
+				config set wla_sectype=1
+			;;
+            WEP-64)
+                config set wla_sectype=2
+                config set wla_key_length=5
+            ;;
+            WEP-128)
+                config set wla_sectype=2
+                config set wla_key_length=13
+            ;;
+            WPA-Personal)
+                config set wla_sectype=3
+            ;;
+            WPA2-Personal)
+                config set wla_sectype=4
+            ;;
+            WPA-WPA2-Personal)
+                config set wla_sectype=5
+            ;;
+            WPA-WPA2-Enterprise)
+                config set wla_sectype=6
+            ;;
+            *)
+                echo "Invalid sectype"
+            ;;
+        esac
+	fi	
+}
+
+D_WF_EP_Profile_Security_PreSharedKey()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_EP_Profile_Security_PreSharedKey_wl $@
+		;;
+		2)
+		D_WF_EP_Profile_Security_PreSharedKey_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac				
+}
+
+D_WF_EP_Profile_Security_PreSharedKey_wl()
+{
+	local sectype=`config get wl_sectype`
+	if [ "$1" = "get" ];then
+			echo ""
+	elif [ "$1" = "set" ];then
+		case $sectype in
+			3)
+			config set wl_wpa1_psk=$3
+			;;
+			4)
+			config set wl_wpa2_psk=$3
+			;;
+			5)
+			config set wl_wpas_psk=$3
+			;;
+			*)
+			echo "Not support"
+			;;
+		esac
+	fi
+}
+
+D_WF_EP_Profile_Security_PreSharedKey_wla()
+{
+	local sectype=`config get wla_sectype`
+	if [ "$1" = "get" ];then
+			echo ""
+	elif [ "$1" = "set" ];then
+		case $sectype in
+			3)
+			config set wla_wpa1_psk=$3
+			;;
+			4)
+			config set wla_wpa2_psk=$3
+			;;
+			5)
+			config set wla_wpas_psk=$3
+			;;
+			*)
+			echo "Not support"
+			;;
+		esac
+	fi
+}
+
+D_WF_EP_Profile_Security_WEPKey()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_EP_Profile_Security_WEPKey_wl $@
+		;;
+		2)
+		D_WF_EP_Profile_Security_WEPKey_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_EP_Profile_Security_WEPKey_wl()
+{
+	local sectype=`config get wl_sectype`
+	local keynum=`config get wl_key`
+	local keylength=`config get wl_key_length`
+	if [ "$1" = "get" ];then
+		echo ""
+	elif [ "$1" = "set" ];then
+		if [ "$sectype" = "2" ];then
+			config set wl_key$keynum=$3
+			if [ "$keylength" = "5" ];then
+				config set wl_wep_64_key$keynum=$3
+			elif [ "$keylength" = "13" ];then
+				config set wl_wep_128_key$keynum=$3
+			fi
+		else
+			echo ""
+		fi
+	fi		
+}
+
+D_WF_EP_Profile_Security_WEPKey_wla()
+{
+	local sectype=`config get wla_sectype`
+	local keynum=`config get wla_key`
+	local keylength=`config get wla_key_length`
+	if [ "$1" = "get" ];then
+		echo ""
+	elif [ "$1" = "set" ];then
+		if [ "$sectype" = "2" ];then
+			config set wla_key$keynum=$3
+			if [ "$keylength" = "5" ];then
+				config set wla_wep_64_key$keynum=$3
+			elif [ "$keylength" = "13" ];then
+				config set wla_wep_128_key$keynum=$3
+			fi
+		else
+			echo ""
+		fi
+	fi		
+}
+
+D_WF_EP_Stats_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_EP_Stats_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+		echo "$2" && return $2
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_EP_Stats_LastDataDownlinkRate()
+{
+	echo ""	
+}
+
+D_WF_EP_Stats_LastDataUplinkRate()
+{
+	echo ""	
+}
+
+D_WF_EP_Stats_Retransmissions()
+{
+	echo "0"	
+}
+
+D_WF_EP_Stats_SignalStrength()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_EP_Stats_SignalStrength_wl $@
+		;;
+		2)
+		D_WF_EP_Stats_SignalStrength_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac
+}
+
+D_WF_EP_Stats_SignalStrength_wl()
+{
+	iwlist ath0 txpower |grep 'Current Tx-Power'|awk -F " " '{print $2}'|awk -F ":" '{print $2}'		
+}
+
+D_WF_EP_Stats_SignalStrength_wla()
+{
+	iwlist ath1 txpower |grep 'Current Tx-Power'|awk -F " " '{print $2}'|awk -F ":" '{print $2}'		
+}
+
+D_WF_EP_Security_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_EP_Security_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+        echo "$2" && return $2
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_EP_Security_ModesSupported()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_EP_Security_ModesSupported_wl $@
+		;;
+		2)
+		D_WF_EP_Security_ModesSupported_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_EP_Security_ModesSupported_wl()
+{
+	echo "None,WEP-64,WEP-128,WPA-Personal,WPA2-Personal,WPA-WPA2-Personal,WPA-WPA2-Enterprise"
+}
+
+D_WF_EP_Security_ModesSupported_wla()
+{
+	echo "None,WEP-64,WEP-128,WPA-Personal,WPA2-Personal,WPA-WPA2-Personal,WPA-WPA2-Enterprise"
+}
+
+D_WF_EP_WPS_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_EP_WPS_INUMBER()
+{	
+	if [ "$2" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_EP_WPS_ConfigMethodsEnabled()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_EP_WPS_ConfigMethodsEnabled_wl $@
+		;;
+		2)
+		D_WF_EP_WPS_ConfigMethodsEnabled_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_EP_WPS_ConfigMethodsEnabled_wl()
+{
+	if [ "$1" = "get" ];then
+		local num =`config get endis_pin`
+		if [ "$num" = "1" ];then
+			echo "false"
+		elif [ "$num" = "0" ];then
+			echo "true"
+		fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "FALSE" -o "$3" = "false" ];then
+			config set endis_pin=1
+		elif [ "$3" = "1"  -o "$3" = "TRUE" -o "$3" = "true" ];then
+			config set endis_pin=0
+		else
+			echo "available value: true false"
+		fi
+	fi
+}
+
+D_WF_EP_WPS_ConfigMethodsEnabled_wla()
+{
+	if [ "$1" = "get" ];then
+		local num =`config get wla_endis_pin`
+        if [ "$num" = "1" ];then
+            echo "false"
+        elif [ "$num" = "0" ];then
+            echo "true"
+        fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set wla_endis_pin=1
+		elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set wla_endis_pin=0
+		else
+			echo "available value: true false"
+		fi
+	fi
+}
+
+D_WF_EP_WPS_ConfigMethodsSupported()
+{
+	echo "PushButton,PIN"
+}
+
+D_WF_EP_WPS_Enable()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_EP_WPS_Enable_wl $@
+		;;
+		2)
+		D_WF_EP_WPS_Enable_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_EP_WPS_Enable_wl()
+{
+	if [ "$1" = "get" ];then
+		local num =`config get endis_wl_wps`
+		if [ "$num" = "0" ];then
+			echo "false"
+		elif [ "$num" = "1" ];then
+            echo "true"
+		fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_wl_wps=0
+		elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set endis_wl_wps=1
+		fi
+	fi		
+}
+
+D_WF_EP_WPS_Enable_wla()
+{
+    if [ "$1" = "get" ];then
+        local num=`config get endis_wla_wps`
+        if [ "$num" = "0" ];then
+            echo "false"
+        elif [ "$num" = "1" ];then
+            echo "true"
+		else
+			echo "true"
+        fi
+    elif [ "$1" = "set" ];then
+        if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+            config set endis_wla_wps=0
+        elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+            config set endis_wla_wps=1
+        fi
+    fi
+}
+
+D_WF_Radio_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_Radio_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+        echo "$2" && return $2
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_Radio_Alias()
+{
+	echo ""	
+}
+
+D_WF_Radio_AutoChannelEnable()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_AutoChannelEnable_wl $@
+		;;
+		2)
+		D_WF_Radio_AutoChannelEnable_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_Radio_AutoChannelEnable_wl()
+{
+	if [ "$1" = "get" ];then
+		local autochannel=`config get wl_channel`
+		if [ "$autochannel" = "0" ];then
+			echo "true"
+		else
+			echo "false"
+		fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			local channel=`iwlist ath0 chan |grep Current |awk -F " " '{print $5}' |grep -o "[0-9]\+"`		
+			config set wl_channel=$channel
+		elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set wl_channel=0
+		fi
+	fi	
+}
+
+D_WF_Radio_AutoChannelEnable_wla()
+{
+	if [ "$1" = "get" ];then
+		local autochannel=`config get wla_channel`
+		if [ "$autochannel" = "0" ];then
+			echo "true"
+		else
+			echo "false"
+		fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			loacl channel=`iwlist ath0 chan |grep Current |awk -F " " '{print $5}' |grep -o "[0-9]\+"`
+			config set wla_channel=$channel
+		elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set wla_channel=0
+		fi
+	fi	
+}
+
+D_WF_Radio_AutoChannelRefreshPeriod()
+{
+	echo ""	
+}
+
+D_WF_Radio_AutoChannelSupported()
+{	
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_AutoChannelSupported_wl $@
+		;;
+		2)
+		D_WF_Radio_AutoChannelSupported_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_Radio_AutoChannelSupported_wl()
+{
+	echo "Supported"
+}
+
+D_WF_Radio_AutoChannelSupported_wla()
+{
+	echo "Supported"
+}
+
+D_WF_Radio_Channel()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Channel_wl $@
+		;;
+		2)
+		D_WF_Radio_Channel_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac				
+}
+
+D_WF_Radio_Channel_wl()
+{	
+	if [ "$1" = "get" ];then
+        local channel=`config get wl_channel`
+        if [ "$channel" = "0" ];then
+            iwlist ath0 chan |grep Current |awk -F " " '{print $5}' |grep -o "[0-9]\+"
+        else
+			echo "$channel"
+		fi
+	elif [ "$1" = "set" ];then
+		local channel=`config get wl_channel`	
+		if [ "$channel" = "0" ];then
+			config set wl_channel=0
+		else
+			config set wl_channel=$3
+		fi
+	fi
+}
+
+D_WF_Radio_Channel_wla()
+{	
+    if [ "$1" = "get" ];then
+        local channel=`config get wla_channel`
+        if [ "$channel" = "0" ];then
+            iwlist ath1 chan |grep Current |awk -F " " '{print $5}' |grep -o "[0-9]\+"
+        else
+            echo "$channel"
+        fi
+	elif [ "$1" = "set" ];then
+		local channel=`config get wla_channel`	
+		if [ "$channel" = "0" ];then
+			config set wla_channel=36
+		else
+			config set wla_channel=$3
+		fi
+	fi
+}
+
+D_WF_Radio_ChannelsInUse()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_ChannelsInUse_wl $@
+		;;
+		2)
+		D_WF_Radio_ChannelsInUse_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac				
+}
+
+D_WF_Radio_ChannelsInUse_wl()
+{
+	iwlist ath0 chan |grep Current |awk -F ":" '{print $2}'	
+}
+
+D_WF_Radio_ChannelsInUse_wla()
+{
+	iwlist ath1 chan |grep Current |awk -F ":" '{print $2}'	
+}
+
+D_WF_Radio_Enable()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Enable_wl $@
+		;;
+		2)
+		D_WF_Radio_Enable_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac				
+}
+
+D_WF_Radio_Enable_wl()
+{	
+	if [ "$1" = "get" ];then
+		local num=`config get endis_wl_radio`
+		if [ "$num" = "0" ];then
+			echo "false"
+		elif [ "$num" = "1" ];then
+			echo "true"
+		fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "2"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_wl_radio=0
+		elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set endis_wl_radio=1
+		fi
+	fi
+}
+
+D_WF_Radio_Enable_wla()
+{	
+	if [ "$1" = "get" ];then
+        local num=`config get endis_wla_radio`
+        if [ "$num" = "0" ];then
+            echo "false"
+        elif [ "$num" = "1" ];then
+            echo "true"
+        fi
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "2"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_wla_radio=0
+		elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set endis_wla_radio=1
+		fi
+	fi
+}
+
+D_WF_Radio_ExtensionChannel()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_ExtensionChannel_wl $@
+		;;
+		2)
+		D_WF_Radio_ExtensionChannel_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac						
+}
+
+D_WF_Radio_ExtensionChannel_wl()
+{
+	echo "Auto"
+}
+
+D_WF_Radio_ExtensionChannel_wla()
+{
+	echo "Auto"
+}
+
+D_WF_Radio_GuardInterval()
+{
+	echo "400nsec"	
+}
+
+D_WF_Radio_IEEE80211hEnabled()
+{
+	echo "false"		
+}
+
+D_WF_Radio_IEEE80211hSupported()
+{
+	echo "false"	
+}
+
+D_WF_Radio_LastChange()
+{
+	echo "1"		
+}
+
+D_WF_Radio_LowerLayers()
+{
+	echo ""	
+}
+
+D_WF_Radio_MCS()
+{
+	echo ""	
+}
+
+D_WF_Radio_RegulatoryDomain()
+{
+	echo ""	
+}
+
+D_WF_Radio_MaxBitRate()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_MaxBitRate_wl $@
+		;;
+		2)
+		D_WF_Radio_MaxBitRate_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_Radio_MaxBitRate_wl()
+{
+	iwconfig ath0 |grep 'Bit Rate' |awk -F " " '{print $2}'	|awk -F ":"	'{print $2}'		
+}
+
+D_WF_Radio_MaxBitRate_wla()
+{
+	iwconfig ath1 |grep 'Bit Rate' |awk -F " " '{print $2}'	|awk -F ":"	'{print $2}'		
+}
+
+D_WF_Radio_Name()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Name_wl $@
+		;;
+		2)
+		D_WF_Radio_Name_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac						
+}
+
+D_WF_Radio_Name_wl()
+{
+	iwconfig ath0 |grep ath0 |awk -F " " '{print $1}'		
+}
+
+D_WF_Radio_Name_wla()
+{
+	iwconfig ath1 |grep ath1 |awk -F " " '{print $1}'		
+}
+
+D_WF_Radio_OperatingChannelBandwidth()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_OperatingChannelBandwidth_wl $@
+		;;
+		2)
+		D_WF_Radio_OperatingChannelBandwidth_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac							
+}
+
+D_WF_Radio_OperatingChannelBandwidth_wl()
+{
+	local wl_simple_mode=`config get wl_simple_mode`	
+	if [ "$1" = "get" ];then
+		if [ "$wl_simple_mode" = "3" -o "$wl_simple_mode" = "2" ];then
+			local wl_channel_width=`config get wl_channel_width`
+			case $wl_channel_width in
+				1)
+				echo "Auto"
+				;;
+				2)
+				echo "20MHz"
+				;;
+				3)
+				echo "40MHz"
+				;;
+				*)
+				echo "Auto"
+				;;
+			esac			
+		else
+			echo "wl_channel_width disabled"
+		fi
+	elif [ "$1" = "set" ];then
+		if [ "$wl_simple_mode" = "3" -o "$wl_simple_mode" = "2" ];then	
+			if [ "$3" = "Auto" ];then
+				config set wl_channel_width=1
+			elif [ "$3" = "20MHz" ];then
+				config set wl_channel_width=2
+			elif [ "$3" = "40MHz" ];then
+				config set wl_channel_width=3
+			else
+				echo "Auto"
+			fi
+		else
+			echo "Not support channelwidth modify"
+		fi
+	fi
+}
+
+D_WF_Radio_OperatingChannelBandwidth_wla()
+{
+	local wla_simple_mode=`config get wla_simple_mode`	
+	if [ "$1" = "get" ];then
+		if [ "$wla_simple_mode" = "3" ];then
+			local wla_channel_width=`config get wla_channel_width`
+			case $wla_channel_width in
+				1)
+				echo "Auto"
+				;;
+				2)
+				echo "20MHz"
+				;;
+                3)
+                echo "40MHz"
+				;;
+				*)
+				echo "Invalid channelwidth "
+				;;
+			esac			
+		else
+			echo "wla_channel_width disabled"
+		fi
+	elif [ "$1" = "set" ];then
+		if [ "$wla_simple_mode" = "3" ];then	
+			if [ "$3" = "Auto" ];then
+				config set wla_channel_width=1
+			elif [ "$3" = "20MHz" ];then
+				config set wla_channel_width=2
+            elif [ "$3" = "40MHz" ];then
+                config set wla_channel_width=3
+			else
+				echo "Auto"
+			fi
+		else
+			echo "Not support channelwidth modify"
+		fi
+	fi
+}
+
+D_WF_Radio_OperatingFrequencyBand()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_OperatingFrequencyBand_wl $@
+		;;
+		2)
+		D_WF_Radio_OperatingFrequencyBand_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_Radio_OperatingFrequencyBand_wl()
+{
+	local num=`iwconfig ath0 |grep Frequency |awk -F " " '{print $2}' |awk -F":" '{print $2}'`
+	local tmp="GHz"
+	echo "$num$tmp"
+}
+
+D_WF_Radio_OperatingFrequencyBand_wla()
+{
+    local num=`iwconfig ath1 |grep Frequency |awk -F " " '{print $2}' |awk -F":" '{print $2}'`
+    local tmp="GHz"
+    echo "$num$tmp"
+}
+
+D_WF_Radio_OperatingStandards()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_OperatingStandards_wl $@
+		;;
+		2)
+		D_WF_Radio_OperatingStandards_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac				
+}
+
+D_WF_Radio_OperatingStandards_wl()
+{
+	local wl_simple_mode=`config get wl_simple_mode`
+	if [ "$1" = "get" ];then
+		case $wl_simple_mode in
+			1)
+			echo "b,g"
+			;;
+			2)
+			echo "b,g"
+			;;
+			3)
+			echo "b,g,n"
+			;;
+			*)
+			echo "Invalid simple mode"
+			;;
+		esac
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "b,g" ];then
+		    config set wl_simple_mode=1
+		elif [ "$3" = "b,g,n" ];then
+		    config set wl_simple_mode=3
+		else
+		    echo "Usage:"
+		    echo "available value: b,g b,g,n"
+		fi
+	fi
+}
+
+D_WF_Radio_OperatingStandards_wla()
+{
+    local wla_simple_mode=`config get wla_simple_mode`
+    if [ "$1" = "get" ];then
+        case $wla_simple_mode in
+            1)
+            echo "a"
+            ;;
+            2)
+            echo "a,n"
+			;;
+            3)
+            echo "a,n"
+            ;;
+            *)
+            echo "Invalid simple mode"
+            ;;
+        esac
+    elif [ "$1" = "set" ];then
+        if [ "$3" = "a" ];then
+            config set wla_simple_mode=1
+        elif [ "$3" = "a,n" ];then
+            config set wla_simple_mode=3
+        else
+            echo "Usage:"
+            echo "available value: a a,n"
+        fi
+    fi
+}
+
+D_WF_Radio_PossibleChannels()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_PossibleChannels_wl $@
+		;;
+		2)
+		D_WF_Radio_PossibleChannels_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_Radio_PossibleChannels_wl()
+{
+	iwlist ath0 chan |grep Channel
+}
+
+D_WF_Radio_PossibleChannels_wla()
+{
+	iwlist ath1 chan |grep Channel
+}
+
+D_WF_Radio_Status()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Status_wl $@
+		;;
+		2)
+		D_WF_Radio_Status_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_Radio_Status_wl()
+{	
+	local status=`config get endis_ssid_broadcast`
+	if [ "$status" = "1" ];then
+		echo "Up"
+	elif [ "$status" = "0" ];then
+		echo "Down"
+	fi
+}
+
+D_WF_Radio_Status_wla()
+{	
+	local status=`config get wla_endis_ssid_broadcast`
+	if [ "$status" = "1" ];then
+		echo "Up"
+	elif [ "$status" = "0" ];then
+		echo "Down"
+	fi
+}
+
+D_WF_Radio_SupportedFrequencyBands()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_SupportedFrequencyBands_wl $@
+		;;
+		2)
+		D_WF_Radio_SupportedFrequencyBands_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+	
+}
+
+D_WF_Radio_SupportedFrequencyBands_wl()
+{
+	echo "2.4GHz"
+}
+
+D_WF_Radio_SupportedFrequencyBands_wla()
+{
+	echo "5GHz"
+}
+
+D_WF_Radio_SupportedStandards()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_SupportedStandards_wl $@
+		;;
+		2)
+		D_WF_Radio_SupportedStandards_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac				
+}
+
+D_WF_Radio_SupportedStandards_wl()
+{
+	echo "b,g,n"
+}
+
+D_WF_Radio_SupportedStandards_wla()
+{
+	echo "a,n"
+}
+
+D_WF_Radio_TransmitPower()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_TransmitPower_wl $@
+		;;
+		2)
+		D_WF_Radio_TransmitPower_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac				
+}
+
+D_WF_Radio_TransmitPower_wl()
+{
+	if [ "$1" = "get" ];then
+		config get wl_tpscale
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "100"  -o "$3" = "75" -o "$3" = "50" -o "$3" = "25" ];then
+			config set wl_tpscale=$3
+		else 
+			echo "Usage:"
+			echo "Available set value:25,50,75,100"
+		fi
+	fi		
+}
+
+D_WF_Radio_TransmitPower_wla()
+{
+	if [ "$1" = "get" ];then
+		config get wla_tpscale
+
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "100"  -o "$3" = "75" -o "$3" = "50" -o "$3" = "25" ];then
+			config set wla_tpscale=$3
+		else 
+			echo "Usage:"
+			echo "Available set value:25,50,75,100"
+		fi
+	fi		
+}
+
+D_WF_Radio_TransmitPowerSupported()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_TransmitPowerSupported_wl $@
+		;;
+		2)
+		D_WF_Radio_TransmitPowerSupported_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_Radio_TransmitPowerSupported_wl()
+{
+	local strings=`iwpriv wifi0 |grep tpscale`
+	[ "x$strings" != "x" ] && echo "TransmitPower:25,50,75,100"
+}
+
+D_WF_Radio_TransmitPowerSupported_wla()
+{
+	local strings=`iwpriv wifi0 |grep tpscale`
+	[ "x$strings" != "x" ] && echo "TransmitPower:25,50,75,100"
+}
+
+D_WF_Radio_Stats_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_Radio_Stats_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+		echo "$2" && return $2
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_Radio_Stats_BytesReceived()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Stats_BytesReceived_wl $@
+		;;
+		2)
+		D_WF_Radio_Stats_BytesReceived_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac				
+}
+
+D_WF_Radio_Stats_BytesReceived_wl()
+{
+	ifconfig wifi0 |grep 'RX bytes'|awk -F " " '{print $2}'|awk -F ":" '{print $2}'		
+}
+
+D_WF_Radio_Stats_BytesReceived_wla()
+{
+	ifconfig wifi1 |grep 'RX bytes'|awk -F " " '{print $2}'|awk -F ":" '{print $2}'		
+}
+
+D_WF_Radio_Stats_BytesSent()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Stats_BytesSent_wl $@
+		;;
+		2)
+		D_WF_Radio_Stats_BytesSent_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_Radio_Stats_BytesSent_wl()
+{
+	ifconfig wifi0 |grep 'TX bytes'|awk -F " " '{print $2}'|awk -F ":" '{print $2}'		
+}
+
+D_WF_Radio_Stats_BytesSent_wla()
+{
+	ifconfig wifi1 |grep 'TX bytes'|awk -F " " '{print $2}'|awk -F ":" '{print $2}'		
+}
+
+D_WF_Radio_Stats_DiscardPacketsReceived()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Stats_DiscardPacketsReceived_wl $@
+		;;
+		2)
+		D_WF_Radio_Stats_DiscardPacketsReceived_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac						
+}
+
+D_WF_Radio_Stats_DiscardPacketsReceived_wl()
+{
+	ifconfig wifi0 |grep 'RX packets' |awk -F " " '{print $4}' |awk -F ":" '{print $2}'					
+}
+
+D_WF_Radio_Stats_DiscardPacketsReceived_wla()
+{
+	ifconfig wifi1 |grep 'RX packets' |awk -F " " '{print $4}' |awk -F ":" '{print $2}'						
+}
+
+D_WF_Radio_Stats_DiscardPacketsSent()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Stats_DiscardPacketsSent_wl $@
+		;;
+		2)
+		D_WF_Radio_Stats_DiscardPacketsSent_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_Radio_Stats_DiscardPacketsSent_wl()
+{
+	ifconfig wifi0 |grep 'TX packets' |awk -F " " '{print $4}' |awk -F ":" '{print $2}'						
+}
+
+D_WF_Radio_Stats_DiscardPacketsSent_wla()
+{
+	ifconfig wifi1 |grep 'TX packets' |awk -F " " '{print $4}' |awk -F ":" '{print $2}'						
+}
+
+D_WF_Radio_Stats_ErrorsReceived()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Stats_ErrorsReceived_wl $@
+		;;
+		2)
+		D_WF_Radio_Stats_ErrorsReceived_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_Radio_Stats_ErrorsReceived_wl()
+{
+	ifconfig wifi0 |grep 'RX packets' |awk -F " " '{print $3}' |awk -F ":" '{print $2}'						
+}
+
+D_WF_Radio_Stats_ErrorsReceived_wla()
+{
+	ifconfig wifi1 |grep 'RX packets' |awk -F " " '{print $3}' |awk -F ":" '{print $2}'						
+}
+
+D_WF_Radio_Stats_ErrorsSent()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Stats_ErrorsSent_wl $@
+		;;
+		2)
+		D_WF_Radio_Stats_ErrorsSent_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_Radio_Stats_ErrorsSent_wl()
+{
+	ifconfig wifi0 |grep 'TX packets' |awk -F " " '{print $3}' |awk -F ":" '{print $2}'						
+}
+
+D_WF_Radio_Stats_ErrorsSent_wla()
+{
+	ifconfig wifi1 |grep 'TX packets' |awk -F " " '{print $3}' |awk -F ":" '{print $2}'						
+}
+
+D_WF_Radio_Stats_PacketsReceived()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Stats_PacketsReceived_wl $@
+		;;
+		2)
+		D_WF_Radio_Stats_PacketsReceived_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_Radio_Stats_PacketsReceived_wl()
+{
+	ifconfig wifi0 |grep 'RX packets'  |awk -F " " '{print $2}' |awk -F ":" '{print $2}'
+}
+
+D_WF_Radio_Stats_PacketsReceived_wla()
+{
+	ifconfig wifi1 |grep 'RX packets'  |awk -F " " '{print $2}' |awk -F ":" '{print $2}'
+}
+
+D_WF_Radio_Stats_PacketsSent()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_Radio_Stats_PacketsSent_wl $@
+		;;
+		2)
+		D_WF_Radio_Stats_PacketsSent_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_Radio_Stats_PacketsSent_wl()
+{
+	ifconfig wifi0 |grep 'TX packets' |awk -F " " '{print $2}' |awk -F ":" '{print $2}'	
+}
+
+D_WF_Radio_Stats_PacketsSent_wla()
+{
+	ifconfig wifi1 |grep 'TX packets' |awk -F " " '{print $2}' |awk -F ":" '{print $2}'	
+}
+
+D_WF_SSID_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_SSID_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+		echo "$2" && return $2
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_SSID_Alias()
+{
+	echo ""
+}
+
+D_WF_SSID_BSSID()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_BSSID_wl $@
+		;;
+		2)
+		D_WF_SSID_BSSID_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac				
+}
+
+D_WF_SSID_BSSID_wl()
+{
+	iwconfig ath0 |grep 'Access Point' |awk -F " " '{print $6}'
+}
+
+D_WF_SSID_BSSID_wla()
+{
+	iwconfig ath1 |grep 'Access Point' |awk -F " " '{print $6}'
+}
+
+D_WF_SSID_Enable()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Enable_wl $@
+		;;
+		2)
+		D_WF_SSID_Enable_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_SSID_Enable_wl()
+{
+	if [ "$1" = "get" ];then
+		config get endis_ssid_broadcast
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set endis_ssid_broadcast=0
+		elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set endis_ssid_broadcast=1
+		fi
+	fi
+}
+
+D_WF_SSID_Enable_wla()
+{
+	if [ "$1" = "get" ];then
+		config get wla_endis_ssid_broadcast
+	elif [ "$1" = "set" ];then
+		if [ "$3" = "0"  -o "$3" = "false" -o "$3" = "FALSE" ];then
+			config set wla_endis_ssid_broadcast=0
+		elif [ "$3" = "1"  -o "$3" = "true" -o "$3" = "TRUE" ];then
+			config set wla_endis_ssid_broadcast=1
+		fi
+	fi
+}
+
+D_WF_SSID_LastChange()
+{
+	echo 1	
+}
+
+D_WF_SSID_LowerLayers()
+{
+	echo ""	
+}
+
+
+D_WF_SSID_MACAddress()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_MACAddress_wl $@
+		;;
+		2)
+		D_WF_SSID_MACAddress_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac				
+}
+
+D_WF_SSID_MACAddress_wl()
+{
+	iwconfig ath0 |grep 'Access Point' |awk -F " " '{print $6}'
+}
+
+D_WF_SSID_MACAddress_wla()
+{
+	iwconfig ath1 |grep 'Access Point' |awk -F " " '{print $6}'
+}
+
+D_WF_SSID_Name()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Name_wl $@
+		;;
+		2)
+		D_WF_SSID_Name_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_SSID_Name_wl()
+{
+	ifconfig wifi0 |grep wifi0 |awk -F " " '{print $1}'
+}
+
+D_WF_SSID_Name_wla()
+{
+	ifconfig wifi1 |grep wifi1 |awk -F " " '{print $1}'
+}
+
+D_WF_SSID_SSID()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_SSID_wl $@
+		;;
+		2)
+		D_WF_SSID_SSID_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac				
+}
+
+D_WF_SSID_SSID_wl()
+{
+	if [ "$1" = "get" ];then
+		config get wl_ssid
+	elif [ "$1" = "set" ];then
+		config set wl_ssid=$3
+	fi
+}
+
+D_WF_SSID_SSID_wla()
+{
+	if [ "$1" = "get" ];then
+		config get wla_ssid
+	elif [ "$1" = "set" ];then
+		config set wla_ssid=$3
+	fi	
+}
+
+D_WF_SSID_Status()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Status_wl $@
+		;;
+		2)
+		D_WF_SSID_Status_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac			
+}
+
+D_WF_SSID_Status_wl()
+{
+	local status=`config get endis_ssid_broadcast`
+	if [ "$status" = "0" -o "$status" = "false" -o "$status" = "FALSE" ];then
+		echo "Down"
+	elif [ "$status" = "1" -o "$status" = "true" -o "$status" = "TRUE" ];then
+		echo "Up"	
+	fi
+}
+
+D_WF_SSID_Status_wla()
+{
+	local status=`config get wla_endis_ssid_broadcast`
+	if [ "$status" = "0" -o "$status" = "false" -o "$status" = "FALSE" ];then
+		echo "Down"
+	elif [ "$status" = "1" -o "$status" = "true" -o "$status" = "TRUE" ];then
+		echo "Up"	
+	fi
+}
+
+D_WF_SSID_Stats_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "2" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_SSID_Stats_INUMBER()
+{
+	if [ "$2" -le "2" ]; then
+		echo "$2" && return $2
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_WF_SSID_Stats_BroadcastPacketsReceived()
+{
+	echo ""	
+}
+
+D_WF_SSID_Stats_BroadcastPacketsSent()
+{
+	echo ""	
+}
+
+D_WF_SSID_Stats_BytesReceived()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Stats_BytesReceived_wl $@
+		;;
+		2)
+		D_WF_SSID_Stats_BytesReceived_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_SSID_Stats_BytesReceived_wl()
+{
+	ifconfig wifi0 |grep 'RX bytes' |awk -F " " '{print $2}' |awk -F ":" '{print $2}'		
+}
+
+D_WF_SSID_Stats_BytesReceived_wla()
+{
+	ifconfig wifi1 |grep 'RX bytes' |awk -F " " '{print $2}' |awk -F ":" '{print $2}'		
+}
+
+D_WF_SSID_Stats_BytesSent()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Stats_BytesSent_wl $@
+		;;
+		2)
+		D_WF_SSID_Stats_BytesSent_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_SSID_Stats_BytesSent_wl()
+{
+	ifconfig wifi0 |grep 'TX bytes' |awk -F ":" '{print $3}' |awk -F " " '{print $1}'			
+}
+
+D_WF_SSID_Stats_BytesSent_wla()
+{
+	ifconfig wifi1 |grep 'TX bytes' |awk -F ":" '{print $3}' |awk -F " " '{print $1}'			
+}
+
+D_WF_SSID_Stats_DiscardPacketsReceived()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Stats_DiscardPacketsReceived_wl $@
+		;;
+		2)
+		D_WF_SSID_Stats_DiscardPacketsReceived_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac						
+}
+
+D_WF_SSID_Stats_DiscardPacketsReceived_wl()
+{
+	ifconfig wifi0 |grep 'RX packets' |awk -F " " '{print $4}' |awk -F ":" '{print $2}'					
+}
+
+D_WF_SSID_Stats_DiscardPacketsReceived_wla()
+{
+	ifconfig wifi1 |grep 'RX packets' |awk -F " " '{print $4}' |awk -F ":" '{print $2}'					
+}
+
+D_WF_SSID_Stats_DiscardPacketsSent()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Stats_DiscardPacketsSent_wl $@
+		;;
+		2)
+		D_WF_SSID_Stats_DiscardPacketsSent_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_SSID_Stats_DiscardPacketsSent_wl()
+{	
+	ifconfig wifi0 |grep 'TX packets' |awk -F " " '{print $4}' |awk -F ":" '{print $2}'					
+}
+
+D_WF_SSID_Stats_DiscardPacketsSent_wla()
+{	
+	ifconfig wifi1 |grep 'TX packets' |awk -F " " '{print $4}' |awk -F ":" '{print $2}'					
+}
+
+D_WF_SSID_Stats_ErrorsReceived()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Stats_ErrorsReceived_wl $@
+		;;
+		2)
+		D_WF_SSID_Stats_ErrorsReceived_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac					
+}
+
+D_WF_SSID_Stats_ErrorsReceived_wl()
+{
+	ifconfig wifi0 |grep 'RX packets' |awk -F " " '{print $3}' |awk -F ":" '{print $2}'						
+}
+
+D_WF_SSID_Stats_ErrorsReceived_wla()
+{
+	ifconfig wifi1 |grep 'RX packets' |awk -F " " '{print $3}' |awk -F ":" '{print $2}'						
+}
+
+D_WF_SSID_Stats_ErrorsSent()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Stats_ErrorsSent_wl $@
+		;;
+		2)
+		D_WF_SSID_Stats_ErrorsSent_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac						
+}
+
+D_WF_SSID_Stats_ErrorsSent_wl()
+{
+	ifconfig wifi0 |grep 'TX packets' |awk -F " " '{print $3}' |awk -F ":" '{print $2}'						
+}
+
+D_WF_SSID_Stats_ErrorsSent_wla()
+{
+	ifconfig wifi1 |grep 'TX packets' |awk -F " " '{print $3}' |awk -F ":" '{print $2}'						
+}
+
+D_WF_SSID_Stats_MulticastPacketsReceived()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Stats_MulticastPacketsReceived_wl $@
+		;;
+		2)
+		D_WF_SSID_Stats_MulticastPacketsReceived_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac						
+}
+
+D_WF_SSID_Stats_MulticastPacketsReceived_wl()
+{
+	cat /proc/net/dev |grep ath0 |awk -F " " '{print $9}'	
+}
+
+D_WF_SSID_Stats_MulticastPacketsReceived_wla()
+{
+	cat /proc/net/dev |grep ath1 |awk -F " " '{print $9}'	
+}
+
+D_WF_SSID_Stats_MulticastPacketsSent()
+{
+	echo ""	
+}
+
+D_WF_SSID_Stats_PacketsReceived()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Stats_PacketsReceived_wl $@
+		;;
+		2)
+		D_WF_SSID_Stats_PacketsReceived_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac						
+}
+
+D_WF_SSID_Stats_PacketsReceived_wl()
+{
+	ifconfig wifi0 |grep 'RX packets'  |awk -F " " '{print $2}' |awk -F ":" '{print $2}'
+}
+
+D_WF_SSID_Stats_PacketsReceived_wla()
+{
+	ifconfig wifi1 |grep 'RX packets'  |awk -F " " '{print $2}' |awk -F ":" '{print $2}'
+}
+
+D_WF_SSID_Stats_PacketsSent()
+{
+	local num=`echo $2 |awk -F "." '{print $4}'`
+	case $num in
+		1)
+		D_WF_SSID_Stats_PacketsSent_wl $@
+		;;
+		2)
+		D_WF_SSID_Stats_PacketsSent_wla $@
+		;;
+		*)
+		echo "invalid num"
+		;;
+	esac							
+}
+
+D_WF_SSID_Stats_PacketsSent_wl()
+{
+	ifconfig wifi0 |grep 'TX packets' |awk -F " " '{print $2}' |awk -F ":" '{print $2}'	
+}
+
+D_WF_SSID_Stats_PacketsSent_wla()
+{
+	ifconfig wifi1 |grep 'TX packets' |awk -F " " '{print $2}' |awk -F ":" '{print $2}'	
+}
+
+D_WF_SSID_Stats_UnicastPacketsReceived()
+{
+	echo ""	
+}
+
+D_WF_SSID_Stats_UnicastPacketsSent()
+{
+	echo ""	
+}
+
+D_WF_SSID_Stats_UnknownProtoPacketsReceived()
+{
+	echo ""	
+}
+
+D_IP_INUMBER_IPv6Prefix_INUMBER_Enable()
+{
+	inumber=`echo $2 | awk -F '.' '{print $4}'`
+	prefnum=`echo $2 | awk -F '.' '{print $6}'`
+	[ "$inumber" -le "1" ] || return
+	[ "$prefnum" -le "2" ] || return
+	datalib_bool "cwmp_IPv6Prefix_Enable" $1 $3
+}
+
+D_IP_INUMBER_IPv6Prefix_INUMBER_Origin()
+{
+    inumber=`echo $2 | awk -F '.' '{print $4}'`
+    prefnum=`echo $2 | awk -F '.' '{print $6}'`
+    [ "$inumber" -le "1" ] || return
+    [ "$prefnum" -le "2" ] || return
+    prefixenable=`config get cwmp_IPv6Prefix_Enable`
+    if [ $prefixenable = 1 ] ; then
+	if [ "$prefnum" = "2" ]; then
+		echo "WellKnown"
+		return
+	fi
+        isdhcpv6=`cat /tmp/dhcp6c.conf | grep 'id-assoc'`
+        if [ "$isdhcpv6" = "" ]; then
+            echo "RouterAdvertisement"
+            config set cwmp_IPv6Prefix_Origin="RouterAdvertisement"
+        fi
+    fi
+}
+
+D_IP_INUMBER_IPv6Prefix_INUMBER_Status()
+{
+    inumber=`echo $2 | awk -F '.' '{print $4}'`
+    prefnum=`echo $2 | awk -F '.' '{print $6}'`
+    [ "$inumber" -le "1" ] || return
+    [ "$prefnum" -le "2" ] || return
+    prefixenable=`config get cwmp_IPv6Prefix_Enable`
+    if [ $prefixenable = 1 ] ; then
+            echo "Enabled"
+    else
+            echo "Disabled"
+    fi
+}
+
+D_IP_INUMBER_IPv6Prefix_INUMBER_PrefixStatus()
+{
+    inumber=`echo $2 | awk -F '.' '{print $4}'`
+    prefnum=`echo $2 | awk -F '.' '{print $6}'`
+    [ "$inumber" -le "1" ] || return
+    [ "$prefnum" -le "2" ] || return
+    prefixenable=`config get cwmp_IPv6Prefix_Enable`
+    if [ $prefixenable = 1 ] ; then
+	[ "$prefnum" = "2" ] && echo "Preferred" && return
+        ip6=`ifconfig br0 |grep 'inet6 addr' |grep 'Global' |awk '{print $3}'`
+        if [ "$ip6" != "" ] ; then
+            echo "Preferred"
+        else
+            echo "Invalid"
+        fi
+    fi
+}
+
+# TN br0 have 2 prefix one for grobal, one for linklocal 
+D_IP_INUMBER_IPv6Prefix_INUMBER_Autonomous()
+{
+    inumber=`echo $2 | awk -F '.' '{print $4}'`
+    prefnum=`echo $2 | awk -F '.' '{print $6}'`
+    [ "$inumber" -le "1" ] || return
+    [ "$prefnum" -le "2" ] || return
+    prefixenable=`config get cwmp_IPv6Prefix_Enable`
+    if [ $prefixenable = 1 ] ; then
+            servtype=`config get cwmp_IPv6Prefix_Origin`
+            if [ "$servtype" = "RouterAdvertisement" ] ; then
+		[ ! -f "/tmp/ipv6_ra_prefix" ] && echo "0" && return
+                autonomous=`cat /tmp/ipv6_ra_prefix | grep 'Autonom' |awk '{print $2}'`
+                if [ "$autonomous" = "0x40" ] ; then
+                    echo "1"
+                else
+                    echo "0"
+                fi
+	    else
+		echo "0" #other servtype don't support automomous
+            fi
+    fi
+}
+
+D_IP_INUMBER_IPv6Prefix_INUMBER_OnLink()
+{
+    inumber=`echo $2 | awk -F '.' '{print $4}'`
+    prefnum=`echo $2 | awk -F '.' '{print $6}'`
+    [ "$inumber" -le "1" ] || return
+    [ "$prefnum" -le "2" ] || return
+    prefixenable=`config get cwmp_IPv6Prefix_Enable`
+    if [ $prefixenable = 1 ] ; then
+	    [ "$prefnum" = "2" ] && echo "0" && return
+            servtype=`config get cwmp_IPv6Prefix_Origin`
+            if [ "$servtype" = "RouterAdvertisement" ] ; then
+		[ ! -f "/tmp/ipv6_ra_prefix" ] && echo "0" && return
+                onlink=`cat /tmp/ipv6_ra_prefix | grep 'Onlink' |awk '{print $2}'`
+                if [ "$onlink" = "0x80"  ] ; then
+                    echo "1"
+                else
+                    echo "0"
+                fi
+            else
+		echo "0" 
+            fi
+    fi
+}
+
+D_IP_INUMBER_IPv6Prefix_INUMBER_PreferredLifetime()
+{
+    inumber=`echo $2 | awk -F '.' '{print $4}'`
+    prefnum=`echo $2 | awk -F '.' '{print $6}'`
+    [ "$inumber" -le "1" ] || return
+    [ "$prefnum" -le "2" ] || return
+    prefixenable=`config get cwmp_IPv6Prefix_Enable`
+    if [ $prefixenable = 1 ] ; then
+        [ "$prefnum" = "2" ] && return
+        isdhcpv6=`config get cwmp_IPv6Prefix_Origin`
+        if [ "$isdhcpv6" = "RouterAdvertisement" ] ; then
+	    [ ! -f "/tmp/ipv6_ra_prefix" ] && return
+            pltime=`cat /tmp/ipv6_ra_prefix| grep 'Prefered_time' |awk '{print $2}'`
+        else
+            return
+        fi
+        echo $pltime
+    fi
+}
+
+D_IP_INUMBER_IPv6Prefix_INUMBER_Prefix()
+{
+    inumber=`echo $2 | awk -F '.' '{print $4}'`
+    prefnum=`echo $2 | awk -F '.' '{print $6}'`
+    [ "$inumber" -le "1" ] || return
+    [ "$prefnum" -le "2" ] || return
+    prefixenable=`config get cwmp_IPv6Prefix_Enable`
+    if [ $prefixenable = 1 ] ; then
+        [ "$prefnum" = "2" ] && echo "fe80::/64" && return
+        isdhcpv6=`config get cwmp_IPv6Prefix_Origin`
+        if [ "$isdhcpv6" = "RouterAdvertisement" ] ; then
+	    [ ! -f "/tmp/ipv6_ra_prefix" ] && return
+            prefix=`cat /tmp/ipv6_ra_prefix| grep 'prefix' |awk '{print $2}'`
+        else
+            return
+        fi
+        echo $prefix
+    fi
+}
+
+D_IP_INUMBER_IPv6Prefix_INUMBER_StaticType()
+{
+        return
+}
+
+#For 4300TN, it don't support ChildPrefix to next network.
+D_IP_INUMBER_IPv6Prefix_INUMBER_ChildPrefixBits()
+{
+        return
+}
+
+D_IP_INUMBER_IPv6Prefix_INUMBER_ParentPrefix()
+{
+        return
+}
+
+D_IP_INUMBER_IPv6Prefix_INUMBER_ValidLifetime()
+{
+    inumber=`echo $2 | awk -F '.' '{print $4}'`
+    prefnum=`echo $2 | awk -F '.' '{print $6}'`
+    [ "$inumber" -le "1" ] || return
+    [ "$prefnum" -le "2" ] || return
+    prefixenable=`config get cwmp_IPv6Prefix_Enable`
+    if [ $prefixenable = 1 ] ; then
+	[ "$prefnum" = "2" ] && return
+        isdhcpv6=`config get cwmp_IPv6Prefix_Origin`
+        if [ "$isdhcpv6" = "RouterAdvertisement" ] ; then
+	    [ ! -f "/tmp/ipv6_ra_prefix" ] && echo "0" && return
+            vltime=`cat /tmp/ipv6_ra_prefix | grep 'Valid_time' |awk '{print $2}'`
+        else
+            return
+        fi
+        echo $vltime
+    fi
+}
+
+D_DHCPv4_C_INUMBER_RO_EXIST()
+{
+       inumber=`echo $1 | awk -F '.' '{print $6}'`
+        if [ "$inumber" -le "1" ]; then
+               echo "1" && return 1
+        else
+                echo "0" && return 0
+        fi
+}
+
+D_DHCPv4_C_INUMBER_SO_EXIST()
+{
+        inumber=`echo $1 | awk -F '.' '{print $6}'`
+        if [ "$inumber" -le "1" ]; then
+                echo "1" && return 1
+        else
+                echo "0" && return 0
+        fi
+}
+
+D_DHCPv4_C_INUMBER_SO_INUMBER()
+{
+        if [ "x$2" = "x1" ]; then
+                 echo "1" && return 1
+         else
+                 echo "0" && return 0
+         fi
+}
+
+D_DHCPv4_C_INUMBER_RO_INUMBER()
+{
+       if [ "x$2" = "x1" ]; then
+                echo "1" && return 1
+        else
+                echo "0" && return 0
+        fi
+}
+
+D_DHCPv4_C_INUMBER_SO_INUMBER_Alias()
+{
+       inumber=`echo $2 | awk -F '.' '{print $6}'`
+       tmp=`config get opt_s_list_"$inumber"`
+       tmp_e=`echo $tmp | cut -d \* -f 1`
+       tmp_a=`echo $tmp | cut -d \* -f 2`
+       tmp_tag=`echo $tmp | cut -d \* -f 3`
+       tmp_val=`echo $tmp | cut -d \* -f 4`
+       if [ "$1" = "set" ]; then
+               [ "X$tmp_tag" = "X" -o "$tmp_tag" = "35" -o "X$3" = "X" ] && return
+               val="$tmp_e"*"$3"*"$tmp_tag"*"$tmp_val"
+               eval config set opt_s_list_"$inumber"=\""\$val"\"
+       else
+               echo "$tmp_a"
+       fi
+}
+
+opt_list_enable()
+{
+       en="$1"
+       i=1
+       num=`DHCP_opt_tool Rn`
+
+       while [ $i -le $num ]; do
+               tmp=`config get opt_r_list_"$i"`
+               tmp_last=`echo ${tmp#*\*}`
+               val="$en"*"$tmp_last"
+               eval config set opt_r_list_"$i"=\""\$val"\"
+               let i=$i+1
+       done
+}
+
+D_DHCPv4_C_INUMBER_SO_INUMBER_Enable()
+{
+        inumber=`echo $2 | awk -F '.' '{print $6}'`
+        tmp=`config get opt_s_list_"$inumber"`
+        tmp_e=`echo $tmp | cut -d \* -f 1`
+        tmp_a=`echo $tmp | cut -d \* -f 2`
+        tmp_tag=`echo $tmp | cut -d \* -f 3`
+        tmp_val=`echo $tmp | cut -d \* -f 4`
+
+        if [ "$1" = "set" ]; then
+               [ "$(par_true $3)" = "$tmp_e" -o "X$3" = "X" -o "$tmp_tag" = "35" ] && return
+               if [ "$tmp_tag" = "37" ]; then
+                       val="$(par_true $3)"*"$tmp_a"*"$tmp_tag"*"$tmp_val"
+                       eval config set opt_s_list_"$inumber"=\""\$val"\"
+                       opt_list_enable "$(par_true $3)"
+               else
+                       val="$(par_true 3)"*"$tmp_a"*"$tmp_tag"*"$tmp_val"
+                       eval config set opt_s_list_"$inumber"=\""\$val"\"
+               fi
+       else
+               echo "$tmp_e"
+       fi
+}
+
+D_DHCPv4_C_INUMBER_SO_INUMBER_Tag()
+{
+        inumber=`echo $2 | awk -F '.' '{print $6}'`
+        tmp=`config get opt_s_list_"$inumber"`
+        tmp_e=`echo $tmp | cut -d \* -f 1`
+        tmp_a=`echo $tmp | cut -d \* -f 2`
+        tmp_tag=`echo $tmp | cut -d \* -f 3`
+        tmp_val=`echo $tmp | cut -d \* -f 4`
+
+        if [ "$1" = "set" ]; then
+               [ "X$tmp_tag" = "X" -o "$tmp_tag" = "35" -o "X$3" = "X" ] && return
+               val="$tmp_e"*"$tmp_a"*"$3"*"$tmp_val"
+               eval config set opt_s_list_"$inumber"=\""\$val"\"
+       else
+               echo "$tmp_tag"
+       fi
+}
+
+r_list_modify()
+{
+       str="$1"
+       len=`expr length $str`
+       i=1
+       re=""
+       while [ $i -lt $len ]; do
+               [ "X$re" = "X" ] && re="$(echo $str | cut -c $i-$((i+1)))" || \
+                       re="$re","$(echo $str | cut -c $i-$((i+1)))"
+               let i=$i+2
+       done
+
+       echo "$re"
+}
+
+reset_request_list()
+{
+       num=`DHCP_opt_tool Rn`
+       list="$1"
+
+       i=1
+       while [ $i -le $num ]; do
+               eval config unset opt_r_list_"$i"
+               let i=$i+1
+       done
+
+       num=`echo $list | awk -F "," '{print NF}'`
+       i=1
+       while [ $i -le $num ]; do
+               tag=`echo $list | cut -d , -f $i`
+               val="1"*""*"$tag"*""*"$i"
+               eval config set opt_r_list_"$i"=\""\$val"\"
+               let i=$i+1
+       done
+}
+
+D_DHCPv4_C_INUMBER_SO_INUMBER_Value()
+{
+        inumber=`echo $2 | awk -F '.' '{print $6}'`
+        tmp=`config get opt_s_list_"$inumber"`
+        tmp_e=`echo $tmp | cut -d \* -f 1`
+        tmp_a=`echo $tmp | cut -d \* -f 2`
+        tmp_tag=`echo $tmp | cut -d \* -f 3`
+        tmp_val=`echo $tmp | cut -d \* -f 4`
+
+        if [ "$1" = "set" ]; then
+                [ "X$tmp_tag" = "X" -o "$tmp_tag" = "35" -o "X$3" = "X" ] && return
+               if [ "$tmp_tag" = "37" ]; then
+                       len=`expr length $3`
+                       len=$(($len%2))
+                       [ "$len" != "0" ] && return
+                       tmp_val=`echo $(r_list_modify "$3")`
+                       reset_request_list "$tmp_val"
+                       val="$tmp_e"*"$tmp_a"*"$tmp_tag"*"$tmp_val"
+                       eval config set opt_s_list_"$inumber"=\""\$val"\"
+               else
+                       val="$tmp_e"*"$tmp_a"*"$tmp_tag"*"$3"
+                       eval config set opt_s_list_"$inumber"=\""\$val"\"
+               fi
+        else
+               if [ "$tmp_tag" = "37" ]; then
+                       echo $(echo $tmp_val | sed 's/,//g')
+                       return
+               fi
+                echo "$tmp_val"
+        fi
+}
+
+D_DHCPv4_C_INUMBER_RO_INUMBER_Alias()
+{
+        inumber=`echo $2 | awk -F '.' '{print $6}'`
+        tmp=`config get opt_r_list_"$inumber"`
+        tmp_e=`echo $tmp | cut -d \* -f 1`
+        tmp_a=`echo $tmp | cut -d \* -f 2`
+        tmp_tag=`echo $tmp | cut -d \* -f 3`
+        tmp_val=`echo $tmp | cut -d \* -f 4`
+        tmp_ord=`echo $tmp | cut -d \* -f 5`
+        if [ "$1" = "set" ]; then
+                [ "X$tmp_tag" = "X" -o "X$3" = "X" ] && return
+                val="$tmp_e"*"$3"*"$tmp_tag"*"$tmp_val"*"$tmp_ord"
+                eval config set opt_r_list_"$inumber"=\""\$val"\"
+        else
+                echo "$tmp_a"
+        fi
+}
+
+re_sent_list_rm_ad_val()
+{
+       ra="$1"
+       tag="$2"
+       str=""
+
+       tmp=`config show | grep request_list`
+       slist_name=`echo $tmp | awk -F "=" '{print $1}'`
+       tmp=`echo $tmp | awk -F "=" '{print $2}'`
+       val=`echo $tmp | awk -F "*" '{print $NF}'`
+       prefix=`echo ${tmp%\**}`
+
+       if [ "$ra" = "add" ]; then
+               [ "X$val" = "X" ] && val="$tag" || val="$val","$tag"
+               eval config set "$slist_name"=\""\$prefix"*"\$val"\"
+       else
+               len=`echo $val | awk -F "," '{print NF}'`
+               i=1
+               while [ $i -le $len ]; do
+                       tmp_tag=`echo $val | cut -d , -f $i`
+                       let i=$i+1
+                       [ "$tmp_tag" = "$tag" ] && continue
+                       [ "X$str" = "X" ] && str="$tmp_tag" || str="$str","$tmp_tag"
+               done
+
+               eval config set "$slist_name"=\""\$prefix"*"\$str"\"
+       fi
+}
+
+D_DHCPv4_C_INUMBER_RO_INUMBER_Enable()
+{
+        inumber=`echo $2 | awk -F '.' '{print $6}'`
+        tmp=`config get opt_r_list_"$inumber"`
+        tmp_e=`echo $tmp | cut -d \* -f 1`
+        tmp_a=`echo $tmp | cut -d \* -f 2`
+        tmp_tag=`echo $tmp | cut -d \* -f 3`
+        tmp_val=`echo $tmp | cut -d \* -f 4`
+        tmp_ord=`echo $tmp | cut -d \* -f 5`
+        tag="$tmp_tag"
+        if [ "$1" = "set" ]; then
+               [ "X$tmp_tag" = "X" -o "X$3" = "X" -o "$tmp_e" = "$(par_true $3)" ] && return
+               [ "$(par_true $3)" = "1" ] && \
+                       re_sent_list_rm_ad_val "add" "$tmp_tag" || \
+                       re_sent_list_rm_ad_val "del" "$tmp_tag"
+               val="$(par_true $3)"*"$tmp_a"*"$tag"*"$tmp_val"*"$tmp_ord"
+               eval config set opt_r_list_"$inumber"=\""\$val"\"
+       else
+               echo "$tmp_e"
+       fi
+}
+
+D_DHCPv4_C_INUMBER_RO_INUMBER_Order()
+{
+        inumber=`echo $2 | awk -F '.' '{print $6}'`
+        tmp=`config get opt_r_list_"$inumber"`
+        tmp_e=`echo $tmp | cut -d \* -f 1`
+        tmp_a=`echo $tmp | cut -d \* -f 2`
+        tmp_tag=`echo $tmp | cut -d \* -f 3`
+        tmp_val=`echo $tmp | cut -d \* -f 4`
+        tmp_ord=`echo $tmp | cut -d \* -f 5`
+
+        if [ "$1" = "set" ]; then
+               [ "X$tmp_tag" = "X" -o "X$3" = "X" ] && return
+               val="$tmp_e"*"$tmp_a"*"$tmp_tag"*"$tmp_val"*"$3"
+               eval config set opt_r_list_"$inumber"=\""\$val"\"
+        else
+               echo "$tmp_ord"
+        fi
+}
+
+D_DHCPv4_C_INUMBER_RO_INUMBER_Tag()
+{
+        inumber=`echo $2 | awk -F '.' '{print $6}'`
+        tmp=`config get opt_r_list_"$inumber"`
+        tmp_e=`echo $tmp | cut -d \* -f 1`
+        tmp_a=`echo $tmp | cut -d \* -f 2`
+        tmp_tag=`echo $tmp | cut -d \* -f 3`
+        tmp_val=`echo $tmp | cut -d \* -f 4`
+        tmp_ord=`echo $tmp | cut -d \* -f 5`
+
+        if [ "$1" = "set" ]; then
+               [ "X$tmp_tag" = "X" -o "X$3" = "X" ] && return
+               val="$tmp_e"*"$tmp_a"*"$3"*"$tmp_val"*"$tmp_ord"
+               eval config set opt_r_list_"$inumber"=\""\$val"\"
+               re_sent_list_rm_ad_val "del" "$tmp_tag"
+               re_sent_list_rm_ad_val "add" "$3"
+        else
+               echo "$tmp_tag"
+        fi
+}
+
+D_DHCPv4_C_INUMBER_RO_INUMBER_Value()
+{
+       inumber=`echo $2 | awk -F '.' '{print $6}'`
+       tmp=`config get opt_r_list_"$inumber"`
+       tmp_val=`echo $tmp | cut -d \* -f 4`
+
+       echo "$tmp_val"
+}
+
+D_M_I_EXIST()
+{
+	inumber=`echo $1 | awk -F '.' '{print $4}'`
+	if [ "$inumber" -le "1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+
+D_M_I_INUMBER()
+{
+	if [ "x$2" = "x1" ]; then
+		echo "1" && return 1
+	else
+		echo "0" && return 0
+	fi
+}
+D_M_I_Enable()
+{
+		tmp=`clnkmocamib -g Enable`
+		tmp_val=`echo $tmp | awk -F "=" '{print $2}'`
+		tmp_var=`echo $tmp | awk -F "=" '{print $1}'`
+		if [ "$1" = "set" ]; then
+			clnkmocamib $tmp_var -s "$3"
+		else
+			echo "$tmp_val"
+		fi
+}
+
+D_M_I_Status()
+{
+		tmp=`clnkmocamib -g Status`
+		tmp_val=`echo $tmp | awk -F "=" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_Alias()
+{
+		if [ "$1" = "set" ]; then
+			config set moca_alias="$3"
+		else
+			config get moca_alias
+		fi	
+}
+
+D_M_I_Name()
+{
+		tmp=`clnkmocamib -g Name`
+		tmp_val=`echo $tmp | awk -F "=" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_LastChange()
+{
+		tmp=`clnkmocamib -g LinkUpTime`
+		tmp_v=`echo $tmp | awk -F "=" '{print $2}'`
+		tmp_val=`echo $tmp_v | awk -F " " '{print $1}'`
+		echo "$tmp_val"
+}
+
+D_M_I_MACAddress()
+{
+		tmp=`clnkmocamib -g MacAddress`
+		tmp_val=`echo $tmp | awk -F "\"" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_FirmwareVersion()
+{
+		tmp=`clnkmocamib -g SoftwareVersion`
+		tmp_val=`echo $tmp | awk -F "\"" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_MaxBitRate()
+{
+		tmp=`clnkmocamib -g TxGcdRate`
+		tmp_v=`echo $tmp | awk -F "=" '{print $2}'`
+		tmp_val=`echo $tmp_v | awk -F " " '{print $1}'`
+		echo "$tmp_val"
+}
+
+D_M_I_HighestVersion()
+{
+		tmp=`clnkmocamib -g MocaVersion`
+		tmp_val=`echo $tmp | awk -F "=" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_CurrentVersion()
+{
+		tmp=`clnkmocamib -g NetworkVersion`
+		tmp_val=`echo $tmp | awk -F "=" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_NetworkCoordinator()
+{
+		tmp=`clnkmocamib -g NC`
+		tmp_val=`echo $tmp | awk -F "=" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_PrivacyEnabledSetting()
+{
+		tmp=`clnkmocamib -g PrivacyEnable`
+		tmp_val=`echo $tmp | awk -F "=" '{print $2}'`
+		if [ "$1" = "set" ]; then
+			if [ "$3" = "TRUE" ]; then
+				config set coax_encry_abled=1
+			else
+				config set coax_encry_abled=0
+			fi
+			clnkcfg -s --securitymode=$($CONFIG get coax_encry_abled)
+			moca-control.sh apply_change
+			config commit
+		else
+			echo "$tmp_val"
+		fi
+}
+
+D_M_I_PrivacyEnabled()
+{
+		tmp=`clnkmocamib -g PrivacyEnable`
+		tmp_val=`echo $tmp | awk -F "=" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_FreqCurrentMaskSetting()
+{
+		if [ "$1" = "set" ]; then
+			if  [ "$3" = "0xffc00000" ]; then
+				config set coax_channel=0
+			elif [ "$3" = "0x80000000" ]; then
+				config set coax_channel=15
+			elif [ "$3" = "0x40000000" ]; then
+				config set coax_channel=17
+			elif [ "$3" = "0x20000000" ]; then
+				config set coax_channel=19
+			elif [ "$3" = "0x10000000" ]; then
+				config set coax_channel=21
+			elif [ "$3" = "0x8000000" ]; then
+				config set coax_channel=23
+			elif [ "$3" = "0x4000000" ]; then
+				config set coax_channel=25
+			elif [ "$3" = "0x2000000" ]; then
+				config set coax_channel=27
+			elif [ "$3" = "0x1000000" ]; then
+				config set coax_channel=29
+			elif [ "$3" = "0x800000" ]; then
+				config set coax_channel=31
+			elif [ "$3" = "0x400000" ]; then
+				config set coax_channel=33
+			fi
+			moca-control.sh apply_change
+			config commit
+		else
+			config get coax_channel_mask
+		fi	
+}
+
+D_M_I_FreqCurrentMask()
+{
+		tmp=`clnkmocamib -g CurrentChannelMask`
+		tmp_val=`echo $tmp | awk -F "=" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_CurrentOperFreq()
+{
+		tmp=`clnkmocamib -g RFChannel`
+		tmp_v=`echo $tmp | awk -F "=" '{print $2}'`
+		tmp_val=`echo $tmp_v | awk -F " " '{print $1}'`
+		echo "$tmp_val"
+}
+
+D_M_I_KeyPassphrase()
+{
+		tmp=`clnkcfg --mocapassword`
+		tmp_val=`echo $tmp | awk -F " " '{print $3}'`
+		if [ "$1" = "set" ]; then
+			config set coax_encry_key="$3"
+			clnkcfg -s --mocapassword=$($CONFIG get coax_encry_key)
+			moca-control.sh apply_change
+			config commit
+		else	
+			echo "$tmp_val"
+		fi
+}
+
+D_M_I_NodeID()
+{
+		tmp=`clnkmocamib -g NodeID`
+		tmp_val=`echo $tmp | awk -F "=" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_AssociatedDeviceNumberOfEntries()
+{
+		tmp=`clnkmocamib -g NumNodes`
+		tmp_v=`echo $tmp | awk -F "=" '{print $2}'`
+		tmp_val=`echo $tmp_v | awk -F " " '{print $1}'`
+		echo "$tmp_val"
+}
+
+D_M_I_S_BytesSent()
+{
+		tmp=`ifconfig eth0 | grep TX`
+		tmp_v=`echo $tmp | awk -F " " '{print $8}'`
+		tmp_val=`echo $tmp_v | awk -F ":" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_S_BytesReceived()
+{
+		tmp=`ifconfig eth0 | grep RX`
+		tmp_v=`echo $tmp | awk -F " " '{print $12}'`
+		tmp_val=`echo $tmp_v | awk -F ":" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_S_PacketsSent()
+{
+		tmp=`ifconfig eth0 | grep TX`
+		tmp_v=`echo $tmp | awk -F " " '{print $2}'`
+		tmp_val=`echo $tmp_v | awk -F ":" '{print $2}'`
+		echo "$tmp_val"
+}
+
+D_M_I_S_PacketsReceived()
+{
+		tmp=`ifconfig eth0 | grep RX`
+		tmp_v=`echo $tmp | awk -F " " '{print $2}'`
+		tmp_val=`echo $tmp_v | awk -F ":" '{print $2}'`
+		echo "$tmp_val"
+}

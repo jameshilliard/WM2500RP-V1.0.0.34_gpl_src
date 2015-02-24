@@ -1,0 +1,19 @@
+config TARGET_MODELNAME
+    string "Define the model name for wndr3700v4"
+    depends TARGET_r6100
+    default "r6100"
+
+config TARGET_BOARD_HW_ID
+    string "Define the board hw id for wndr3700v4"
+    depends TARGET_r6100
+    default "29763754+4+32"
+
+config TARGET_FW_VERSION
+    string "Define the firmware version"
+    depends TARGET_r6100
+    default "V1.0.0.0"
+
+config TARGET_LG_VERSION
+    string "Define the language table version"
+    depends TARGET_r6100
+    default "V1.0.0.107"

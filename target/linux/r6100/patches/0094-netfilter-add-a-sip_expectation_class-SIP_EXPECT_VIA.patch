@@ -1,0 +1,41 @@
+From f2e5883db3e1cd78d24ff41c8d0f04fe226aecb1 Mon Sep 17 00:00:00 2001
+From: michell.dong <michell.dong@dniserver.dnish.net>
+Date: Thu, 1 Dec 2011 10:09:45 -0500
+Subject: [PATCH 094/137] netfilter: add a sip_expectation_class : SIP_EXPECT_VIA
+
+ Add a sip_expectation_class : SIP_EXPECT_VIA.
+
+Signed-off-by: michell.dong <michell.dong@dniserver.dnish.net>
+---
+ include/linux/netfilter/nf_conntrack_sip.h |    1 +
+ include/net/netfilter/nf_conntrack.h       |    2 +-
+ 2 files changed, 2 insertions(+), 1 deletions(-)
+
+diff --git a/include/linux/netfilter/nf_conntrack_sip.h b/include/linux/netfilter/nf_conntrack_sip.h
+index a0869199..9a96322 100644
+--- a/include/linux/netfilter/nf_conntrack_sip.h
++++ b/include/linux/netfilter/nf_conntrack_sip.h
+@@ -12,6 +12,7 @@ struct nf_ct_sip_master {
+ 
+ enum sip_expectation_classes {
+ 	SIP_EXPECT_SIGNALLING,
++	SIP_EXPECT_VIA,
+ 	SIP_EXPECT_AUDIO,
+ 	SIP_EXPECT_VIDEO,
+ 	__SIP_EXPECT_MAX
+diff --git a/include/net/netfilter/nf_conntrack.h b/include/net/netfilter/nf_conntrack.h
+index ce60f02..cca80f1 100644
+--- a/include/net/netfilter/nf_conntrack.h
++++ b/include/net/netfilter/nf_conntrack.h
+@@ -82,7 +82,7 @@ struct nf_conntrack_helper;
+ 
+ 
+ /* Must be kept in sync with the classes defined by helpers */
+-#define NF_CT_MAX_EXPECT_CLASSES	3
++#define NF_CT_MAX_EXPECT_CLASSES	4
+ 
+ /* nf_conn feature for connections that have a helper */
+ struct nf_conn_help {
+-- 
+1.7.4.1
+

@@ -1,0 +1,37 @@
+From b6bf3f5d5ad5e0c8db26cbc2ee827c27cbf6bf65 Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:46 +0800
+Subject: [PATCH 067/137] netfilter: set IPS_SNATP2P_SRC_DONE_BIT if IPS_SNATP2P_SRC bit is set in conntrack
+
+This will not affect other code segments which don't care about
+IPS_SNATP2P_SRC_DONE_BIT and IPS_SNATP2P_SRC.
+
+Modify the conntrack and nat modules to support SNATP2P.
+
+Patch as referring to bellowing link:
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-January/023084.html
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-March/023585.html
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index 7a4c3fe..1e2e037 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -481,6 +481,9 @@ nf_nat_setup_info(struct nf_conn *ct,
+ 
+ 		set_bit(IPS_DST_NAT_DONE_BIT, &ct->status);
+ 	} else {
++		if (ct->status & IPS_SNATP2P_SRC)
++			set_bit(IPS_SNATP2P_SRC_DONE_BIT, &ct->status);
++
+ 		set_bit(IPS_SRC_NAT_DONE_BIT, &ct->status);
+ 	}
+ 
+-- 
+1.7.4.1
+

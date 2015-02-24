@@ -1,0 +1,44 @@
+config TARGET_MODELNAME
+    string "Define the model name"
+    depends TARGET_x6200
+    default "x6200"
+
+config TARGET_BOARD_HW_ID
+    string "Define the board hw id"
+    depends TARGET_x6200
+    default "2976436100+128+128"
+
+config TARGET_FW_VERSION
+    string "Define the firmware version"
+    depends TARGET_x6200
+    default "V0.0.0.1"
+
+config TARGET_LG_VERSION
+    string "Define the language table version"
+    depends TARGET_x6200
+    default "V1.0.0.117"
+
+config TARGET_MAGIC_NUMBER
+    string "Define the magic number for the firmware"
+    depends TARGET_x6200
+    default "0x36323030"
+
+config TARGET_HEAD_LENGTH
+    string "Define the length of firmware header."
+    depends TARGET_x6200
+    default "128"
+
+config TARGET_KERNEL_SIZE
+    string "Define the kernel size of firmware"
+    depends TARGET_x6200
+    default "1152k"
+
+config TARGET_MAX_KERNEL_SIZE
+    string "Define the max kernel size of firmware"
+    depends TARGET_x6200
+    default "1179648"
+
+config TARGET_MAX_IMAGE_SIZE
+    string "Define the max image size of firmware"
+    depends TARGET_x6200
+    default "25034752"

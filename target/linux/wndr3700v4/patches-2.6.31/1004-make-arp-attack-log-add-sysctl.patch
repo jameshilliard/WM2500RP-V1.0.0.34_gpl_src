@@ -1,0 +1,69 @@
+--- linux-2.6.31.org/include/net/netns/ipv4.h	2012-05-28 12:03:20.000000000 +0800
++++ linux-2.6.31/include/net/netns/ipv4.h	2012-05-28 10:02:37.000000000 +0800
+@@ -53,6 +53,7 @@
+ 	int sysctl_icmp_errors_use_inbound_ifaddr;
+ 	int sysctl_rt_cache_rebuild_count;
+ 	int current_rt_cache_rebuild_count;
++	int sysctl_arp_attack_protect;
+ 
+ 	struct timer_list rt_secret_timer;
+ 	atomic_t rt_genid;
+--- linux-2.6.31.org/net/ipv4/sysctl_net_ipv4.c	2012-05-28 12:01:18.000000000 +0800
++++ linux-2.6.31/net/ipv4/sysctl_net_ipv4.c	2012-05-28 09:21:58.000000000 +0800
+@@ -829,6 +829,14 @@
+ 		.mode		= 0644,
+ 		.proc_handler	= proc_dointvec
+ 	},
++	{
++		.ctl_name	= CTL_UNNUMBERED,
++		.procname	= "arp_attack_protect",
++		.data		= &init_net.ipv4.sysctl_arp_attack_protect,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec
++	},
+ 	{ }
+ };
+ 
+@@ -863,9 +871,13 @@
+ 			&net->ipv4.sysctl_icmp_ratemask;
+ 		table[6].data =
+ 			&net->ipv4.sysctl_rt_cache_rebuild_count;
++		table[7].data =
++			&net->ipv4.sysctl_arp_attack_protect;
+ 	}
+ 
+ 	net->ipv4.sysctl_rt_cache_rebuild_count = 4;
++	/* Dos attack: for log arp attack event */
++	net->ipv4.sysctl_arp_attack_protect = 0;
+ 
+ 	net->ipv4.ipv4_hdr = register_net_sysctl_table(net,
+ 			net_ipv4_ctl_path, table);
+--- linux-2.6.31.org/net/ipv4/arp.c	2012-05-28 12:01:35.000000000 +0800
++++ linux-2.6.31/net/ipv4/arp.c	2012-05-28 11:13:40.000000000 +0800
+@@ -124,7 +124,7 @@
+ static __be32 s_ip = 0;
+ static __be32 t_ip = 0;
+ static struct timer_list expire_timer;
+-
++static int ctl_arp_attack_protect = 0;
+ /*
+  *	Interface to generic neighbour cache.
+  */
+@@ -701,7 +701,7 @@
+  */
+ static void expire_process(unsigned long dummy)
+ {
+-	if(arp_attack_count > 10) {
++	if(arp_attack_count > 10 && ctl_arp_attack_protect == 1) {
+ 		printk("[DoS Attack: ARP Attack] from source: %u.%u.%u.%u,\n", NIPQUAD(s_ip));
+ 	}
+ 	/* empty the data calculate */
+@@ -837,6 +837,7 @@
+ 	if(s_ip == 0 && t_ip == 0) {
+ 		s_ip = sip;
+ 		t_ip = tip;
++		ctl_arp_attack_protect = net->ipv4.sysctl_arp_attack_protect;
+ 		setup_timer(&expire_timer, expire_process, (unsigned long)dev);
+ 		mod_timer(&expire_timer, jiffies + msecs_to_jiffies(1000));
+ 	} else if(s_ip == sip && t_ip == tip) {

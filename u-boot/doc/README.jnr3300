@@ -1,0 +1,21 @@
+GIT repository:
+===============
+
+How to build:
+=============
+#
+# compile u-boot without LSDK v10.1.332
+#
+> export PATH=/path/to/your/toolchain:$PATH
+> OBJS=cpu/mips/start_hw29764530p4p0p32p3x3p0.o UBOOT_GCC_4_3_3_EXTRA_CFLAGS=-fPIC BOARD_TYPE=ap135 ETH_CONFIG=_s27 make hw29764530p4p0p32p3x3p0_config V=1
+> OBJS=cpu/mips/start_hw29764530p4p0p32p3x3p0.o UBOOT_GCC_4_3_3_EXTRA_CFLAGS=-fPIC BOARD_TYPE=ap135 ETH_CONFIG=_s27 make
+
+Steps to upgrade u-boot via console:
+====================================
+
+In the meantime, u-boot takes 4 erase blocks (4*0x10000):
+3 code blocks plus 1 env block.
+
+ath> tftp 0x80060000 u-boot.bin
+ath> crc32 0x80060000 $filesize
+ath> erase 0x9f000000 +40000 && cp.b $fileaddr 0x9f000000 $filesize

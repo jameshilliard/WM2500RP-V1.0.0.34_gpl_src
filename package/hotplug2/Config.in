@@ -1,0 +1,8 @@
+# kmod-e2fs configuration
+config HOTPLUG2_PLATFORM_FILES
+	bool "Use platform files for hotplug"
+	default n
+
+config HOTPLUG2_PLATFORM_PATCHES
+	bool "Use platform patches for hotplug"
+	default n

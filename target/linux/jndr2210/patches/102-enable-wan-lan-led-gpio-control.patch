@@ -1,0 +1,14 @@
+diff -Nur linux-2.6.30.old//drivers/net/rtl819x/AsicDriver/rtl865x_asicL2.c linux-2.6.30/drivers/net/rtl819x/AsicDriver/rtl865x_asicL2.c
+--- linux-2.6.30.old//drivers/net/rtl819x/AsicDriver/rtl865x_asicL2.c	2012-02-14 10:09:33.626459519 -0500
++++ linux-2.6.30/drivers/net/rtl819x/AsicDriver/rtl865x_asicL2.c	2012-02-14 10:10:23.156459532 -0500
+@@ -4393,8 +4393,8 @@
+ 		set mode 0x0
+ 		swwb 0xbb804300 21-20 0x2 19-18 $mode 17-16 $mode 15-14 $mode 13-12 $mode 11-10 $mode 9-8 $mode
+ 	*/	
+-	REG32(PIN_MUX_SEL) &= ~( (3<<8) | (3<<10) | (3<<3) | (1<<15) );  //let P0 to mii mode
+-	REG32(PIN_MUX_SEL2) &= ~ ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
++	REG32(PIN_MUX_SEL) |= ( (3<<8) | (3<<10) | (3<<3) | (1<<15) );  //let P0 to mii mode
++	REG32(PIN_MUX_SEL2) |=  ((3<<0) | (3<<3) | (3<<6) | (3<<9) | (3<<12) | (7<<15) );  //S0-S3, P0-P1
+ 	REG32(LEDCREG)  = (2<<20) | (0<<18) | (0<<16) | (0<<14) | (0<<12) | (0<<10) | (0<<8);  //P0-P5	
+ 
+ #elif defined (CONFIG_RTL_8196C) || defined(CONFIG_RTL_8198)

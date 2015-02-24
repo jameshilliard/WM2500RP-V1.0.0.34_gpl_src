@@ -1,0 +1,7 @@
+# Put your custom commands here that should be executed once
+# the system init finished. By default this file does nothing.
+
+insmod ipt_CONENAT htable_size=`[ -f /sys/module/nf_conntrack/parameters/hashsize ] && cat /sys/module/nf_conntrack/parameters/hashsize || echo 1024`
+insmod ip6t_CONE htable_size=`[ -f /sys/module/nf_conntrack/parameters/hashsize ] && cat /sys/module/nf_conntrack/parameters/hashsize || echo 1024`
+
+exit 0

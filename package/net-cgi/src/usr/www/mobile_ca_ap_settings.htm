@@ -1,0 +1,909 @@
+<% http_header("style/form.css", "/funcs.js", "/wlan.js") %>
+<% nohelp_header("mobile_wait_for_ca_connect.htm", "ca_wlan_setting") %>
+
+<style type="text/css">
+H1 {
+	FONT-WEIGHT: bold; FONT-SIZE: 36px; BACKGROUND: white; COLOR: #9d98ff; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+TD {
+	FONT-SIZE: 30px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+input[type="text"] {
+  height: 25px;
+  FONT-SIZE: 20px;
+}
+.mobile_button{ height: 44px; color: #f2f2f2; font-family: Arial; font-weight: Bold; font-size: 28px; background-color: transparent; border: none; cursor: pointer; padding-bottom: 4px;width:198px; background: url(../test_2x.gif) no-repeat;}
+</style>
+<script>
+var mobile_tag="<% cfg_get("mobile_tag") %>";
+var wl_temp_keyno="<% cfg_get("wl0_key") %>";
+var get_wpa1=xss_replace("<% cfg_sed_passphrase("wl_temp_wpa1_psk") %>");
+var get_wpa_aes=xss_replace("<% cfg_sed_passphrase("wl_temp_wpa_aes_psk") %>");
+var get_wpa2_tkip=xss_replace("<% cfg_sed_passphrase("wl_temp_wpa2_tkip_psk") %>");
+var get_wpa2=xss_replace("<% cfg_sed_passphrase("wl_temp_wpa2_psk") %>");
+var get_wpas=xss_replace("<% cfg_sed_passphrase("wl_temp_wpas_psk") %>");
+
+var ap_get_wpa1=xss_replace("<% cfg_sed_passphrase("wl_wpa1_psk") %>");
+var ap_get_wpa_aes=xss_replace("<% cfg_sed_passphrase("wl_wpa_aes_psk") %>");
+var ap_get_wpa2_tkip=xss_replace("<% cfg_sed_passphrase("wl_wpa2_tkip_psk") %>");
+var ap_get_wpa2=xss_replace("<% cfg_sed_passphrase("wl_wpa2_psk") %>");
+var ap_get_wpas=xss_replace("<% cfg_sed_passphrase("wl_wpas_psk") %>");
+
+var link_status="<% cat_file("/tmp/link_status" %>";
+var sta_list = "<% cat_file("/tmp/check_link") %>";
+var dns_hijack="<% cfg_get("dns_hijack") %>";
+var setup_wizard_tag="<% cfg_get("setup_wizard_tag") %>";
+
+var gui_region="<% cfg_get("GUI_Region") %>";
+
+var key_length = "<% cfg_get("key_temp_length") %>";
+var wl_key1 = xss_replace("<% cfg_sed_passphrase("wl_temp_key1") %>");
+var wl_key2 = xss_replace("<% cfg_sed_passphrase("wl_temp_key2") %>");
+var wl_key3 = xss_replace("<% cfg_sed_passphrase("wl_temp_key3") %>");
+var wl_key4 = xss_replace("<% cfg_sed_passphrase("wl_temp_key4") %>");
+
+var wep_64_key1 = xss_replace("<% cfg_sed_passphrase("wep_temp_64_key1") %>");
+var wep_64_key2 = xss_replace("<% cfg_sed_passphrase("wep_temp_64_key2") %>");
+var wep_64_key3 = xss_replace("<% cfg_sed_passphrase("wep_temp_64_key3") %>");
+var wep_64_key4 = xss_replace("<% cfg_sed_passphrase("wep_temp_64_key4") %>");
+
+var wep_128_key1 = xss_replace("<% cfg_sed_passphrase("wep_temp_128_key1") %>");
+var wep_128_key2 = xss_replace("<% cfg_sed_passphrase("wep_temp_128_key2") %>");
+var wep_128_key3 = xss_replace("<% cfg_sed_passphrase("wep_temp_128_key3") %>");
+var wep_128_key4 = xss_replace("<% cfg_sed_passphrase("wep_temp_128_key4") %>");
+
+var ap_wl_key1 = xss_replace("<% cfg_sed_passphrase("wl_key1") %>");
+var ap_wl_key2 = xss_replace("<% cfg_sed_passphrase("wl_key2") %>");
+var ap_wl_key3 = xss_replace("<% cfg_sed_passphrase("wl_key3") %>");
+var ap_wl_key4 = xss_replace("<% cfg_sed_passphrase("wl_key4") %>");
+
+var ap_wep_64_key1 = xss_replace("<% cfg_sed_passphrase("wep_64_key1") %>");
+var ap_wep_64_key2 = xss_replace("<% cfg_sed_passphrase("wep_64_key2") %>");
+var ap_wep_64_key3 = xss_replace("<% cfg_sed_passphrase("wep_64_key3") %>");
+var ap_wep_64_key4 = xss_replace("<% cfg_sed_passphrase("wep_64_key4") %>");
+
+var ap_wep_128_key1 = xss_replace("<% cfg_sed_passphrase("wep_128_key1") %>");
+var ap_wep_128_key2 = xss_replace("<% cfg_sed_passphrase("wep_128_key2") %>");
+var ap_wep_128_key3 = xss_replace("<% cfg_sed_passphrase("wep_128_key3") %>");
+var ap_wep_128_key4 = xss_replace("<% cfg_sed_passphrase("wep_128_key4") %>");
+
+var wl_same_sec = "<% cfg_get("wl_same_sec") %>";
+
+var str_none="";
+var str_wep="";
+var str_wpa="";
+var str_wpa_aes="";
+var str_wpa2_tkip="";
+var str_wpa2="";
+var str_wpas="";
+var str_ap_none="";
+var str_ap_wep="";
+var str_ap_wpa="";
+var str_ap_wpa_aes="";
+var str_ap_wpa2_tkip="";
+var str_ap_wpa2="";
+var str_ap_wpas="";
+var old_ssid=xss_replace("<% cfg_sed_passphrase("wl_temp_ssid") %>");
+var old_sectype="<% cfg_get("wl_temp_sectype") %>";
+var GUI_Region="<% cfg_get("GUI_Region") %>";
+var mode="<% cfg_get("wl_simple_mode") %>";
+var endis_ssid_broadcast="<% cfg_get("endis_ssid_broadcast") %>";
+var ap_sectype="<% cfg_get("sta_wl_sectype") %>";
+var key_type="<% cfg_get("sta_wl_key_type") %>";
+
+var set_from_index="<% cfg_get("set_from_index") %>";
+/*
+for bug19083 When user run setup wizard again, the ssid should be like the CA behavior
+so the set_from_index is useless. set it's value should always be 0
+*/
+set_from_index = 0;
+
+var ap_old_ssid=xss_replace("<% cfg_sed_passphrase("wl_ssid") %>");
+var ap_old_sectype="<% cfg_get("wl_sectype") %>";
+
+function select_radio(num)
+{
+	if(num == 1)
+	{
+		if(document.getElementById("img1_2").style.display == "none")
+		{
+			return false;
+		}
+		else
+		{
+			document.getElementById("img1_1").style.display = "block";
+			document.getElementById("img1_2").style.display = "none";
+			document.getElementById("img2_1").style.display = "none";
+			document.getElementById("img2_2").style.display = "block";
+			document.getElementById("img3_1").style.display = "none";
+			document.getElementById("img3_2").style.display = "block";
+			document.getElementById("img4_1").style.display = "none";
+			document.getElementById("img4_2").style.display = "block";
+			document.getElementById("img6_1").style.display = "none";
+			document.getElementById("img6_2").style.display = "block";
+			document.getElementById("img7_1").style.display = "none";
+			document.getElementById("img7_2").style.display = "block";
+		}
+	}
+	else if(num == 2)
+	{
+		if(document.getElementById("img2_2").style.display == "none")
+		{
+			return false;
+		}
+		else
+		{
+			document.getElementById("img2_1").style.display = "block";
+			document.getElementById("img2_2").style.display = "none";
+			document.getElementById("img1_1").style.display = "none";
+			document.getElementById("img1_2").style.display = "block";
+			document.getElementById("img3_1").style.display = "none";
+			document.getElementById("img3_2").style.display = "block";
+			document.getElementById("img4_1").style.display = "none";
+			document.getElementById("img4_2").style.display = "block";
+			document.getElementById("img6_1").style.display = "none";
+			document.getElementById("img6_2").style.display = "block";
+			document.getElementById("img7_1").style.display = "none";
+			document.getElementById("img7_2").style.display = "block";
+		}
+	}
+	else if(num == 3)
+	{
+		if(document.getElementById("img3_2").style.display == "none")
+		{
+			return false;
+		}
+		else
+		{
+			document.getElementById("img3_1").style.display = "block";
+			document.getElementById("img3_2").style.display = "none";
+			document.getElementById("img1_1").style.display = "none";
+			document.getElementById("img1_2").style.display = "block";
+			document.getElementById("img2_1").style.display = "none";
+			document.getElementById("img2_2").style.display = "block";
+			document.getElementById("img4_1").style.display = "none";
+			document.getElementById("img4_2").style.display = "block";
+			document.getElementById("img6_1").style.display = "none";
+			document.getElementById("img6_2").style.display = "block";
+			document.getElementById("img7_1").style.display = "none";
+			document.getElementById("img7_2").style.display = "block";
+		}
+	}	
+	else if(num == 4)
+	{
+		if(document.getElementById("img4_2").style.display == "none")
+		{
+			return false;
+		}
+		else
+		{
+			document.getElementById("img4_1").style.display = "block";
+			document.getElementById("img4_2").style.display = "none";
+			document.getElementById("img1_1").style.display = "none";
+			document.getElementById("img1_2").style.display = "block";
+			document.getElementById("img2_1").style.display = "none";
+			document.getElementById("img2_2").style.display = "block";
+			document.getElementById("img3_1").style.display = "none";
+			document.getElementById("img3_2").style.display = "block";
+			document.getElementById("img6_1").style.display = "none";
+			document.getElementById("img6_2").style.display = "block";
+			document.getElementById("img7_1").style.display = "none";
+			document.getElementById("img7_2").style.display = "block";
+		}
+	}	
+	else if(num == 5 || num == 6)
+	{
+		if(document.getElementById("img6_2").style.display == "none")
+		{
+			return false;
+		}
+		else
+		{
+			document.getElementById("img6_1").style.display = "block";
+			document.getElementById("img6_2").style.display = "none";
+			document.getElementById("img1_1").style.display = "none";
+			document.getElementById("img1_2").style.display = "block";
+			document.getElementById("img2_1").style.display = "none";
+			document.getElementById("img2_2").style.display = "block";
+			document.getElementById("img3_1").style.display = "none";
+			document.getElementById("img3_2").style.display = "block";
+			document.getElementById("img4_1").style.display = "none";
+			document.getElementById("img4_2").style.display = "block";
+			document.getElementById("img7_1").style.display = "none";
+			document.getElementById("img7_2").style.display = "block";
+		}
+	}	
+	else if(num == 7)
+	{
+		if(document.getElementById("img7_2").style.display == "none")
+		{
+			return false;
+		}
+		else
+		{
+			document.getElementById("img7_1").style.display = "block";
+			document.getElementById("img7_2").style.display = "none";
+			document.getElementById("img1_1").style.display = "none";
+			document.getElementById("img1_2").style.display = "block";
+			document.getElementById("img2_1").style.display = "none";
+			document.getElementById("img2_2").style.display = "block";
+			document.getElementById("img3_1").style.display = "none";
+			document.getElementById("img3_2").style.display = "block";
+			document.getElementById("img4_1").style.display = "none";
+			document.getElementById("img4_2").style.display = "block";
+			document.getElementById("img6_1").style.display = "none";
+			document.getElementById("img6_2").style.display = "block";
+		}
+	}
+}
+
+function select_key_radio(num)
+{
+	if(num == 1)
+	{
+		if(document.getElementById("key1_2").style.display == "none")
+		{
+				return false;
+		}
+		else
+		{
+			getObj("wepkeyno_id1").checked = true;
+			document.getElementById("key1_1").style.display = "block";
+			document.getElementById("key1_2").style.display = "none";
+			document.getElementById("key2_1").style.display = "none";
+			document.getElementById("key2_2").style.display = "block";
+			document.getElementById("key3_1").style.display = "none";
+			document.getElementById("key3_2").style.display = "block";
+			document.getElementById("key4_1").style.display = "none";
+			document.getElementById("key4_2").style.display = "block";
+		}
+	}
+	else if(num == 2)
+	{
+		if(document.getElementById("key2_2").style.display == "none")
+		{
+			return false;
+		}
+		else
+		{
+			getObj("wepkeyno_id2").checked = true;
+			document.getElementById("key2_1").style.display = "block";
+			document.getElementById("key2_2").style.display = "none";
+			document.getElementById("key1_1").style.display = "none";
+			document.getElementById("key1_2").style.display = "block";
+			document.getElementById("key3_1").style.display = "none";
+			document.getElementById("key3_2").style.display = "block";
+			document.getElementById("key4_1").style.display = "none";
+			document.getElementById("key4_2").style.display = "block";
+		}
+	}
+	else if(num == 3)
+	{
+		if(document.getElementById("key3_2").style.display == "none")
+		{
+			return false;
+		}
+		else
+		{
+			getObj("wepkeyno_id3").checked = true;
+			document.getElementById("key3_1").style.display = "block";
+			document.getElementById("key3_2").style.display = "none";
+			document.getElementById("key1_1").style.display = "none";
+			document.getElementById("key1_2").style.display = "block";
+			document.getElementById("key2_1").style.display = "none";
+			document.getElementById("key2_2").style.display = "block";
+			document.getElementById("key4_1").style.display = "none";
+			document.getElementById("key4_2").style.display = "block";
+		}
+	}	
+	else if(num == 4)
+	{
+		if(document.getElementById("key4_2").style.display == "none")
+		{
+			return false;
+		}
+		else
+		{
+			getObj("wepkeyno_id4").checked = true;
+			document.getElementById("key4_1").style.display = "block";
+			document.getElementById("key4_2").style.display = "none";
+			document.getElementById("key1_1").style.display = "none";
+			document.getElementById("key1_2").style.display = "block";
+			document.getElementById("key2_1").style.display = "none";
+			document.getElementById("key2_2").style.display = "block";
+			document.getElementById("key3_1").style.display = "none";
+			document.getElementById("key3_2").style.display = "block";
+		}
+	}	
+}
+</script>
+<input type="hidden" name="refresh_url">
+<input type="hidden" name="refresh_page">
+<input type="hidden" name="hidden_wlan_mode" value=3>
+<input type="hidden" name="generate_flag">
+<input type="hidden" name="ap_generate_flag">
+<input type="hidden" name="old_length">
+<input type="hidden" name="ap_old_length">
+<input type="hidden" name="sec_wpaphrase_len">
+<input type="hidden" name="ap_sec_wpaphrase_len">
+<input type="hidden" name="hidden_wpa_psk">
+<input type="hidden" name="hidden_wpa_ap_psk">
+<input type="hidden" name="hidden_sec_type">
+<input type="hidden" name="hidden_sec_ap_type">
+<input type="hidden" name="wep_press_flag">
+<input type="hidden" name="ap_wep_press_flag">
+<input type="hidden" name="pass_press_flag" value=0>
+<input type="hidden" name="wpa1_press_flag" value=0>
+<input type="hidden" name="wpa2_press_flag" value=0>
+<input type="hidden" name="wpa3_press_flag" value=0>
+<input type="hidden" name="wpas_press_flag" value=0>
+<input type="hidden" name="ap_wpa1_press_flag" value=0>
+<input type="hidden" name="ap_wpa2_press_flag" value=0>
+<input type="hidden" name="ap_wpas_press_flag" value=0>
+<input type="hidden" name="wps_change_flag" value="<% cfg_get("wps_status") %>">
+<input type="hidden" name="hidden_wlan_ssid" value="">
+<input type="hidden" name="hidden_wlan_coun" value="">
+<input type="hidden" name="hidden_wlan_chan" value="">
+<input type="hidden" name="hidden_sec_auth" value="2">
+<input type="hidden" name="sec_auth" value="2">
+<input type="hidden" name="hidden_sec_keylen" value="">
+<input type="hidden" name="hidden_wepkeyno" value="">
+<input type="hidden" name="hidden_wepkey1" value="">
+<input type="hidden" name="hidden_wepkey2" value="">
+<input type="hidden" name="hidden_wepkey3" value="">
+<input type="hidden" name="hidden_wepkey4" value="">
+<input type="hidden" name="hidden_weppassphrase" value="<% cfg_sed_xss("sta_wl_weppassphrase") %>">
+<input type="hidden" name="hidden_enable_ap_transmit" value="0">
+<input type="hidden" name="hidden_endis_ssid_broadcast" value="">
+<input type="hidden" name="hidden_endis_wps" value="">
+<input type="hidden" name="hidden_keep_exist" value="">
+<input type="hidden" name="hidden_wlan_ap_wifi" value="">
+<input type="hidden" name="hidden_same_sec">
+<input type="hidden" name="key_type">
+<input type="hidden" name="hidden_mobile_tag" value="1">
+<table width=100%>
+<tr>
+<td colSpan=2>
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<TR><TD colSpan=2><H1>$ca_apsetting_head</H1></TD></TR>
+<TR><TD colSpan=2></TD></TR><TR><td colspan=2><img src=/liteblue.gif width=100% height=12></td></TR>
+   
+    <table width=100%> 
+	    <tr> 
+	    <td nowrap width=35%>$wlan_mark_ssid:</td>
+<script>
+var have_alert=0;
+</script>
+	    <td nowrap> <input type="text" id="ESSID" name="wlan_ssid" value="" size="20" maxlength="32" onClick="if( have_alert==0 ){ alert('$keep_ssid_warning'); this.select(); have_alert = 1; }" onkeydown="if(event.keyCode==13){return false;}"></td>
+	    </tr>
+	    <tr>
+	    	<td colspan=2>
+				<table>
+					<tr><td><input type="checkbox" name="use_same_sec" style="display:none">
+						<img id="img1" src="/image/select_checkbox.gif" onClick="use_ornot_same_sec(1);" style="display:none">
+						<img id="img2" src="/image/unselect_checkbox.gif" onClick="use_ornot_same_sec(0);"></td>
+						<td>$ca_ap_use_same_sec</td>
+					</tr>
+				</table>
+		</td></tr>
+     </table>
+     <div id=sec_opt style="display:none">
+	 <TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+		<tr><td nowrap colspan=2>  <a tabindex=-1 href="javascript:loadhelp('_wlan','security')"><b>$sec_type</b></a></td></tr>
+		<tr><td nowrap colspan=2><input style="display:none" type="radio" name="sec_type" id="type_id1" value="1" onClick=setSecurity(1)>
+			<table>
+			<tr>
+				<td>
+				<img id="img1_1" width=23 height=23 src="/image/select_radio.gif" onclick="select_radio(1)">
+      				<img id="img1_2" width=23 height=23 src="/image/noselect_radio.gif" onclick="select_radio(1);setSecurity(1)" style="display:none">
+				</TD>
+				<td>$sec_off</td>
+			</tr>
+			</table>
+		</td></tr>
+		<tr><td nowrap colspan=2><input style="display:none" type="radio" name="sec_type" id="type_id2" value="2" onClick=setSecurity(2)>
+			<table><tr><td>
+				<img id="img2_1" width=23 height=23 src="/image/select_radio.gif" onclick="select_radio(2)" style="display:none">
+				<img id="img2_2" width=23 height=23 src="/image/noselect_radio.gif" onclick="select_radio(2);setSecurity(2)">
+				</TD>
+				<td>$sec_wep</td></tr>
+			</table>
+		</td></tr>
+		<tr><td nowrap colspan=2><input style="display:none" type="radio" name="sec_type" id="type_id3" value="3" onClick=setSecurity(3) >
+			<table><tr><td>
+				<img id="img3_1" width=23 height=23 src="/image/select_radio.gif" onclick="select_radio(3)" style="display:none">
+				<img id="img3_2" width=23 height=23 src="/image/noselect_radio.gif" onclick="select_radio(3);setSecurity(3)">
+			</TD>
+			<td>$sec_wpa</td></tr>
+			</table>
+		</td></tr>
+		<tr style="display:none"><td nowrap colspan=2><input style="display:none" type="radio" name="sec_type" id="type_id4" value="4" onClick=setSecurity(4) >
+			<table><tr><td>
+				<img id="img4_1" width=23 height=23 src="/image/select_radio.gif" onclick="select_radio(4)" style="display:none">
+				<img id="img4_2" width=23 height=23 src="/image/noselect_radio.gif" onclick="select_radio(4);setSecurity(4)">
+				</TD>
+				<td>$sec_wpa_aes</td></tr>
+			</table>
+		</td></tr>
+		<tr><td nowrap colspan=2><input style="display:none" type="radio" name="sec_type" id="type_id6" value="6" onClick=setSecurity(6) >
+			<table><tr><td>
+				<img id="img6_1" width=23 height=23 src="/image/select_radio.gif" onclick="select_radio(6)" style="display:none">
+				<img id="img6_2" width=23 height=23 src="/image/noselect_radio.gif" onclick="select_radio(6);setSecurity(6)"></TD>
+			<td>$sec_wpa2</td></tr>
+			</table>
+		</td></tr>
+		<tr><td nowrap colspan=2><input style="display:none" type="radio" name="sec_type" id="type_id7" value="7" onClick=setSecurity(7) >
+			<table><tr><td>
+				<img id="img7_1" width=23 height=23 src="/image/select_radio.gif" onclick="select_radio(7)" style="display:none">
+				<img id="img7_2" width=23 height=23 src="/image/noselect_radio.gif" onclick="select_radio(7);setSecurity(7)"></TD>
+			<td>$sec_wpas</td></tr>
+			</table>
+		</td></tr>
+	 </table>
+    </div>
+    <div id=view>
+    </div>
+		<!------ none DIV Start ------>
+		<div align="center" ID="none" style="position:absolute;top:0;left:0;visibility:hidden">
+			<TABLE cellspacing=5 cellPadding=0 width=100% border=0><tr><td nowrap colspan=2> </td></tr></table>
+		</div>   
+		<!------ none DIV End ------>
+		<!------ WEP DIV Start ------>
+		<div align="center" ID="wep" style="position:absolute;top:0;left:0;visibility:hidden">
+		    <TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+		    	<TR><TD colSpan=2></TD></TR><TR><td colspan=2><img src=/liteblue.gif width=100% height=12></td></TR>
+			<tr>
+				<td nowrap colspan=2><img src="/spacer.gif" width="35" height="18" border="0" alt="" /><a tabindex=-1 href="javascript:loadhelp('_wlan','wep_auth')"><b>$sec_enc_head</b></a></td>
+			</tr>
+			<TR>
+			  <td nowrap><img src="/spacer.gif" width="35" height="18" border="0" alt="" /> $sec_enc</TD>
+			  <td nowrap> <img src="/spacer.gif" width="35" height="18" border="0" alt="" />
+			    <select style="height:30px;FONT-SIZE:20px" NAME="sec_keylen" size="1" id="keylen_id" onChange="changekeylen(document.forms[0]);">
+				<option value=1 <% select_check("key_length", "5") %>> $sec_64 </option>
+				<option value=1 <% select_check("key_length", "13") %>> $sec_128 </option>
+			    </select></TD>
+			</TR>
+			<TR><TD colSpan=2></TD></TR><TR><td colspan=2><img src=/liteblue.gif width=100% height=12></td></TR>
+			<tr>
+			  <td nowrap colspan=2> <img src="/spacer.gif" width="35" height="18" border="0" alt="" /><a tabindex=-1 href="javascript:loadhelp('_wlan','wepkey')"><b>$sec_key</b></a></td>
+			</tr>
+			<tr>
+			  <td nowrap colspan=2><img src="/spacer.gif" width="35" height="18" border="0" alt="" />&nbsp;$sec_phr &nbsp;
+			  <input type="text" size="16" maxlength="32" NAME="weppassphrase" VALUE="" id="weppassphrase_id" onFocus="document.forms[0].pass_press_flag.value=1" onKeyPress="document.forms[0].pass_press_flag.value=1" onblur="key_value(document.forms[0])" onkeydown="if(event.keyCode==13){return false;}">&nbsp;&nbsp;
+			  <input class='mobile_short_common_bt' type='button' name='gen' id='gen_id' VALUE='$gen_value' OnClick='clickgenerate(document.forms[0]);key_value(document.forms[0])'>
+			  </td>
+			</tr>
+			<TR>
+			  <td nowrap>
+			  <table>
+			    <tr>
+			      <td nowrap><table><tr><td><img src="/spacer.gif" width="35" height="18" border="0" alt="" /> $sec_key1:</td><td>
+			      <input style="display:none" type=radio NAME=wepkeyno id="wepkeyno_id1" checked value="1">
+				<img id="key1_1" width=23 height=23 src="/image/select_radio.gif" onclick="select_key_radio(1)">
+				<img id="key1_2" width=23 height=23 src="/image/noselect_radio.gif" onclick="select_key_radio(1)" style="display:none">
+				<img id="key1_3" width=23 height=23 src="/image/disable_radios.gif" style="display:none">
+				</TD>
+				</tr>
+			   </table>
+			   </td>
+			   <td nowrap> <img src="/spacer.gif" width="35" height="18" border="0" alt="" /><input TYPE="TEXT" id="key1_id" SIZE="getObj('keylen_id').value*2+2" MAXLENGTH="32" NAME="wepkey1" VALUE="" OnFocus="this.maxLength=getObj('keylen_id').value*2;this.size=getObj('keylen_id').value*2+2;" onKeyPress="return getkey('wep1', event)" onblur="key_value(document.forms[0])"></TD>
+			    </TR>
+			    <TR>
+			      <td nowrap><table><tr><td><img src="/spacer.gif" width="35" height="18" border="0" alt="" /> $sec_key2:</td><td>
+				<input style="display:none" type=radio NAME=wepkeyno id="wepkeyno_id2" value="2">
+				<img id="key2_1" width=23 height=23 src="/image/select_radio.gif" onclick="select_key_radio(2)" style="display:none">
+				<img id="key2_2" width=23 height=23 src="/image/noselect_radio.gif" onclick="select_key_radio(2)">
+				<img id="key2_3" width=23 height=23 src="/image/disable_radio.gif" style="display:none">
+					</TD></tr></table>
+				</td>
+				<td nowrap> <img src="/spacer.gif" width="35" height="18" border="0" alt="" /><input TYPE="TEXT" id="key2_id" SIZE="getObj('keylen_id').value*2+2" MAXLENGTH="32" NAME="wepkey2" VALUE="" OnFocus="this.maxLength=getObj('keylen_id').value*2;this.size=getObj('keylen_id').value*2+2;" onKeyPress="return getkey('wep2', event)" onblur="key_value(document.forms[0])"></TD>          
+			    </TR>
+			    <TR>
+			      <td nowrap><table><tr><td><img src="/spacer.gif" width="35" height="18" border="0" alt="" /> $sec_key3:</td><td>
+			      <input style="display:none" type=radio NAME=wepkeyno id="wepkeyno_id3" value="3">
+			      <img id="key3_1" width=23 height=23 src="/image/select_radio.gif" onclick="select_key_radio(3)" style="display:none">
+      <img id="key3_2" width=23 height=23 src="/image/noselect_radio.gif" onclick="select_key_radio(3)">
+		<img id="key3_3" width=23 height=23 src="/image/disable_radio.gif" style="display:none">
+	</TD></tr></table></td>
+			      <td nowrap> <img src="/spacer.gif" width="35" height="18" border="0" alt="" /><input TYPE="TEXT" id="key3_id" SIZE="getObj('keylen_id').value*2+2" MAXLENGTH="32" NAME="wepkey3" VALUE="" OnFocus="this.maxLength=getObj('keylen_id').value*2;this.size=getObj('keylen_id').value*2+2;" onKeyPress="return getkey('wep3', event)" onblur="key_value(document.forms[0])"></TD>
+			    </TR>
+			    <TR>
+			      <td nowrap><table><tr><td><img src="/spacer.gif" width="35" height="18" border="0" alt="" /> $sec_key4:</td><td>
+				<input style="display:none" type=radio NAME=wepkeyno id="wepkeyno_id4" value="4">
+				<img id="key4_1" width=23 height=23 src="/image/select_radio.gif" onclick="select_key_radio(4)" style="display:none">
+				<img id="key4_2" width=23 height=23 src="/image/noselect_radio.gif" onclick="select_key_radio(4)">
+				<img id="key4_3" width=23 height=23 src="/image/disable_radio.gif" style="display:none">
+				</TD></tr></table></td>
+			      <td nowrap> <img src="/spacer.gif" width="35" height="18" border="0" alt="" /><input TYPE="TEXT" id="key4_id" SIZE="getObj('keylen_id').value*2+2" MAXLENGTH="32" NAME="wepkey4" VALUE=""  OnFocus="this.maxLength=getObj('keylen_id').value*2;this.size=getObj('keylen_id').value*2+2;" onKeyPress="return getkey('wep4', event)" onblur="key_value(document.forms[0])"></td>
+			    </tr>
+			  </table>
+			  </td>
+			</TR>
+		</table>
+		</div>
+		<!------ WEP DIV End ------>
+		<!------ PSK DIV Start ------>
+		<div align="center" ID="wpa" style="position:absolute;top:0;left:0;visibility:hidden">
+		<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+			<TR><TD colSpan=2></TD></TR><TR><td colspan=2><img src=/liteblue.gif width=100% height=12></td></TR>
+			<tr><td nowrap colspan=2><img src="/spacer.gif" width="35" height="18" border="0" alt="" /><a tabindex=-1 href="javascript:loadhelp('_wlan','wpa-psk')"><b>$sec_pr_wpa</b></a></td></tr>
+			<tr>
+		        <td nowrap><img src="/spacer.gif" width="35" height="18" border="0" alt="" /> $sec_phr</td>
+		        <td nowrap> <img src="/spacer.gif" width="35" height="18" border="0" alt="" /><input type="text" id="textWpaPwdPhrase1" size="20" maxlength="64" name="sec_wpaphrase1" value="" onFocus="document.forms[0].wpa1_press_flag.value=1" onKeyPress="document.forms[0].wpa1_press_flag.value=1" onblur="key_value(document.forms[0])" onkeydown="if(event.keyCode==13){return false;}">  <span class="optiondesc" id="wpaPwdPhrExtText">$sec_863_or_64h</span></td>
+			</tr>
+		</table>
+		</div>
+		<!------ PSK DIV End ------>
+
+		<!------ WPA-PSK[AES] DIV Start ------>
+		<div align="center" ID="wpa_aes" style="position:absolute;top:0;left:0;visibility:hidden">
+		<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+			<TR><TD colSpan=2></TD></TR><TR><td colspan=2><img src=/liteblue.gif width=100% height=12></td></TR>
+			<tr><td nowrap colspan=2><img src="/spacer.gif" width="35" height="18" border="0" alt="" /><a tabindex=-1 href="javascript:loadhelp('_wlan','wpa-psk')"><b>$sec_pr_wpa</b></a></td></tr>
+			<tr>
+		        <td nowrap><img src="/spacer.gif" width="35" height="18" border="0" alt="" /> $sec_phr</td>
+		        <td nowrap> <img src="/spacer.gif" width="35" height="18" border="0" alt="" /><input type="text" id="textWpaPwdPhrase2" size="20" maxlength="64" name="sec_wpaphrase2" value="" onFocus="document.forms[0].wpa2_press_flag.value=1" onKeyPress="document.forms[0].wpa2_press_flag.value=1" onblur="key_value(document.forms[0])" onkeydown="if(event.keyCode==13){return false;}">  <span class="optiondesc" id="wpaPwdPhrExtText">$sec_863_or_64h</span></td>
+			</tr>
+		</table>
+		</div>
+		<!------ WPA-PSK[AES] DIV End ------>
+
+		
+		<!------ WPA2 DIV Start ------>  
+		<div align="center" ID="wpa2" style="position:absolute;top:0;left:0;visibility:hidden">  
+		<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+		  <TR><TD colSpan=2></TD></TR><TR><td colspan=2><img src=/liteblue.gif width=100% height=12></td></TR>
+		  <tr><td nowrap colspan=2> <img src="/spacer.gif" width="35" height="18" border="0" alt="" /><a tabindex=-1 href="javascript:loadhelp('_wlan','wpa-psk')"><b>$sec_pr_wpa2</b></a></td></tr>
+		    <tr>
+		        <td nowrap><img src="/spacer.gif" width="35" height="18" border="0" alt="" /> <span class="optiondesc" id="wpaPwdPhraseText">$sec_phr</span></td>
+		        <td nowrap><img src="/spacer.gif" width="35" height="18" border="0" alt="" /> <input type="text" id="textWpaPwdPhrase3" maxlength="64" size="20" name="sec_wpaphrase3" value="" onFocus="document.forms[0].wpa3_press_flag.value=1" onKeyPress="document.forms[0].wpa3_press_flag.value=1" onblur="key_value(document.forms[0])" onkeydown="if(event.keyCode==13){return false;}"><span class="optiondesc" id="wpaPwdPhrExtText">$sec_863_or_64h</span></td>
+			</tr>
+		</table>
+		</div>
+		<!------ WPA2 DIV End ------>
+
+		<!------ WPA2 Mixed DIV Start ------> 
+		<div align="center" ID="wpas" style="position:absolute;top:0;left:0;visibility:hidden">
+			<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+				<TR><TD colSpan=2></TD></TR><TR><td colspan=2><img src=/liteblue.gif width=100% height=12></td></TR>
+				<tr><td nowrap colspan=2><img src="/spacer.gif" width="35" height="18" border="0" alt="" /><a tabindex=-1 href="javascript:loadhelp('_wlan','wpa-psk')"><b>$sec_pr_wpas</b></a></td></tr>
+				<tr>
+			        <td nowrap><img src="/spacer.gif" width="35" height="18" border="0" alt="" /> <span class="optiondesc" id="wpaPwdPhraseText">$sec_phr</span></td>
+			        <td nowrap><img src="/spacer.gif" width="35" height="18" border="0" alt="" /> <input type="text" id="textWpaPwdPhrase4" size="20" maxlength="64" name="sec_wpaphrase4" value="" onFocus="document.forms[0].wpas_press_flag.value=1" onKeyPress="document.forms[0].wpas_press_flag.value=1" onblur="key_value(document.forms[0])" onkeydown="if(event.keyCode==13){return false;}"> <span class="optiondesc" id="wpaPwdPhrExtText">$sec_863_or_64h</span></td>	  
+				</tr>
+			</table>
+		</div>
+<!------ WPA2 Mixed DIV End ------>
+
+<TR><TD colSpan=2></TD></TR><TR><td colspan=2><img src=/liteblue.gif width=100% height=12></td></TR>
+   <tr> 
+	<td align=left>
+	<input class='mobile_short_common_bt' type='button' value='$remove_mark' onclick='location.href="mobile_ca_wl_network.htm"'>&nbsp;&nbsp;&nbsp;
+	</td>
+	<td align=right>
+	<input class='mobile_short_common_bt' type='submit' value='$next_mark'onclick='url_change_ornot();return check_ca_wlan()'>&nbsp;&nbsp;&nbsp;
+	</td>
+   </tr>
+</TD>
+</TR>
+</table>
+</table>
+</FORM>
+<script>
+function getObj(name)
+{
+    if (document.getElementById)
+    {
+        return document.getElementById(name);
+    }
+    else if (document.all)
+    {
+        return document.all[name];
+    }
+    else if (document.layers)
+    {
+        return document.layers[name];
+    }
+}
+
+function url_change_ornot ()
+{
+	var browser=eval ( '"' + top.location + '"' );
+	if  ( "<% cfg_get("lan_dhcp") %>" == "1")
+	{
+		judge_browser(document.forms[0],browser);
+	}
+}
+
+function changekeylen(form)
+{
+    if(getObj("keylen_id").options[0].selected == true)
+    {
+        getObj("key1_id").size=getObj("key2_id").size=getObj("key3_id").size=getObj("key4_id").size=12;
+	if( set_from_index == 1 )
+	{
+        form.wepkey1.value = ap_wep_64_key1;
+        form.wepkey2.value = ap_wep_64_key2;
+        form.wepkey3.value = ap_wep_64_key3;
+        form.wepkey4.value = ap_wep_64_key4;                 
+	}
+	else
+	{
+        form.wepkey1.value = wep_64_key1;
+       form.wepkey2.value = wep_64_key2;
+       form.wepkey3.value = wep_64_key3;
+       form.wepkey4.value = wep_64_key4;
+	}
+    }
+    else
+    {
+        getObj("key1_id").size=getObj("key2_id").size=getObj("key3_id").size=getObj("key4_id").size=28;
+	if( set_from_index == 1 )
+	{
+        getObj("key1_id").value = ap_wep_128_key1;
+       getObj("key2_id").value = ap_wep_128_key2;
+       getObj("key3_id").value = ap_wep_128_key3;
+       getObj("key4_id").value = ap_wep_128_key4;
+	}
+	else
+	{
+        getObj("key1_id").value = wep_128_key1;
+        getObj("key2_id").value = wep_128_key2;
+        getObj("key3_id").value = wep_128_key3;
+        getObj("key4_id").value = wep_128_key4;
+	}
+    }
+    form.generate_flag.value=0;
+}
+
+function setSecurity(num)
+{
+	var form=document.forms[0];
+	form.pass_press_flag.value=0;
+	form.wpa1_press_flag.value=0;
+	form.wpa2_press_flag.value=0;
+	form.wpa3_press_flag.value=0;
+	form.wpas_press_flag.value=0;
+	form.hidden_sec_type.value=num;
+	
+	if( set_from_index == 1 )
+	{
+		if(num==2)
+		{
+			var i=0;
+			while(i<2){
+				getObj("view").innerHTML=getObj("wep").innerHTML;
+				var form=document.forms[0];
+	        	var keyno='<% cfg_get("wl_key") %>';
+        		var key_length='<% cfg_get("key_length") %>';
+				//getObj("keylen_id").value=key_length;
+				getObj("type_id2").checked=true;
+				getObj("key1_id").value=ap_wl_key1;
+        		getObj("key2_id").value=ap_wl_key2;
+        		getObj("key3_id").value=ap_wl_key3;
+        		getObj("key4_id").value=ap_wl_key4;
+        		document.getElementsByName("wepkey1")[0].value=ap_wl_key1;
+        		document.getElementsByName("wepkey2")[0].value=ap_wl_key2;
+        		document.getElementsByName("wepkey3")[0].value=ap_wl_key3;
+        		document.getElementsByName("wepkey4")[0].value=ap_wl_key4;
+				form.old_length.value=key_length;
+			//	if_both_wep();
+		  i++;
+			}
+		}
+		else if(num==3)
+		{
+			getObj("view").innerHTML=getObj("wpa").innerHTML;;
+			getObj("type_id3").checked=true;
+        		getObj("textWpaPwdPhrase1").value=ap_get_wpa1;
+		}
+		else if(num==4)
+		{
+			getObj("view").innerHTML=getObj("wpa_aes").innerHTML;
+			getObj("type_id4").checked=true;
+        		getObj("textWpaPwdPhrase2").value=ap_get_wpa_aes;
+		}
+		else if(num==5)
+		{
+			getObj("view").innerHTML=getObj("wpa2").innerHTML;
+			getObj("type_id6").checked=true;
+			getObj("textWpaPwdPhrase3").value=ap_get_wpa2_tkip;
+		}
+		else if(num==6)
+		{
+			getObj("view").innerHTML=getObj("wpa2").innerHTML;
+			getObj("type_id6").checked=true;
+			getObj("textWpaPwdPhrase3").value=ap_get_wpa2;
+		}
+		else if(num==7)
+		{
+			getObj("view").innerHTML=getObj("wpas").innerHTML;
+			getObj("type_id7").checked=true;
+			getObj("textWpaPwdPhrase4").value=ap_get_wpas;
+		}
+		else
+		{
+			getObj("view").innerHTML=getObj("none").innerHTML;
+			getObj("type_id1").checked=true;
+		}
+	}
+	else
+	{
+                if(num==2)
+                {
+                    var i=0;
+										while(i<2){
+                        getObj("view").innerHTML=getObj("wep").innerHTML;
+                        var form=document.forms[0];
+                        var keyno='<% cfg_get("wl_temp_key") %>';
+                        var key_length='<% cfg_get("key_temp_length") %>';
+                        //getObj("keylen_id").value=key_length;
+                        getObj("type_id2").checked=true;
+                        getObj("key1_id").value=wl_key1;
+                        getObj("key2_id").value=wl_key2;
+                        getObj("key3_id").value=wl_key3;
+                        getObj("key4_id").value=wl_key4;
+                        document.getElementsByName("wepkey1")[0].value=wl_key1;
+                        document.getElementsByName("wepkey2")[0].value=wl_key2;
+                        document.getElementsByName("wepkey3")[0].value=wl_key3;
+                        document.getElementsByName("wepkey4")[0].value=wl_key4;
+                         form.old_length.value=key_length;
+					//	if_both_wep();
+                	 i++;
+									 }
+                }
+                else if(num==3)
+                {
+                        getObj("view").innerHTML=getObj("wpa").innerHTML;;
+                        getObj("type_id3").checked=true;
+                        getObj("textWpaPwdPhrase1").value=get_wpa1;
+                }
+                else if(num==4)
+                {
+                        getObj("view").innerHTML=getObj("wpa_aes").innerHTML;
+                        getObj("type_id4").checked=true;
+                        getObj("textWpaPwdPhrase2").value=get_wpa_aes;
+                }
+                else if(num==5)
+                {
+                        getObj("view").innerHTML=getObj("wpa2").innerHTML;
+                        getObj("type_id6").checked=true;
+                        getObj("textWpaPwdPhrase3").value=get_wpa2_tkip;
+                }
+				else if(num==6)
+                {
+                        getObj("view").innerHTML=getObj("wpa2").innerHTML;
+                        getObj("type_id6").checked=true;
+                        getObj("textWpaPwdPhrase3").value=get_wpa2;
+                }
+				else if(num==7)
+                {
+                        getObj("view").innerHTML=getObj("wpas").innerHTML;
+                        getObj("type_id7").checked=true;
+                        getObj("textWpaPwdPhrase4").value=get_wpas;
+                }
+                else
+                {
+                        getObj("view").innerHTML=getObj("none").innerHTML;
+                        getObj("type_id1").checked=true;
+                }
+	}
+}
+
+
+function if_both_wep()
+{
+	if(ap_sectype==2)
+	{
+		var form=document.forms[0];
+		getObj("weppassphrase_id").disabled=true;
+		getObj("keylen_id").disabled=true;
+		setDisabled(true,getObj("key1_id"),getObj("key2_id"),getObj("key3_id"),getObj("key4_id"));				
+		setDisabled(true,getObj("wepkeyno_id1"),getObj("wepkeyno_id2"),getObj("wepkeyno_id3"),getObj("wepkeyno_id4"));
+	
+		document.getElementById("key1_1").style.display = "none";
+		document.getElementById("key1_2").style.display = "none";
+		document.getElementById("key2_1").style.display = "none";
+		document.getElementById("key2_2").style.display = "none";
+		document.getElementById("key3_1").style.display = "none";
+		document.getElementById("key3_2").style.display = "none";
+		document.getElementById("key4_1").style.display = "none";
+		document.getElementById("key4_2").style.display = "none";
+		document.getElementById("key1_3").style.display = "block";
+		document.getElementById("key2_3").style.display = "block";
+		document.getElementById("key3_3").style.display = "block";
+		document.getElementById("key4_3").style.display = "block";
+	}
+}
+
+function loadvalue()
+{	
+	var form=document.forms[0];
+
+	if( set_from_index == 1 )
+	{
+                getObj("ESSID").value = ap_old_ssid;
+                document.forms[0].hidden_wlan_ssid.value = ap_old_ssid;
+
+	}
+	else
+	{	
+		getObj("ESSID").value = old_ssid;
+		document.forms[0].hidden_wlan_ssid.value = old_ssid;
+	}
+	if(wl_same_sec == "1")
+	{
+		form.use_same_sec.checked = true;
+		document.getElementById("img1").style.display="block";
+		document.getElementById("img2").style.display="none";
+		document.getElementById("sec_opt").style.display="none";
+		getObj("view").innerHTML="";
+	}
+	else
+	{
+		form.use_same_sec.checked = false;
+		document.getElementById("img1").style.display="none";
+		document.getElementById("img2").style.display="block";
+		document.getElementById("sec_opt").style.display="block";
+
+		if( set_from_index == 1 )
+		{
+			setSecurity(ap_old_sectype);
+			select_radio(ap_old_sectype);
+		}
+		else
+		{
+			setSecurity(old_sectype);
+			select_radio(old_sectype);
+		}
+	}
+
+	if ( parseInt(mode) >= 3 )
+		mode=3;
+	/*if( mode == '1')
+		getObj("mode_id").options[0].selected = true;
+	else if(mode == '2')
+		getObj("mode_id").options[1].selected = true;
+	else
+		getObj("mode_id").options[2].selected = true;	
+	*/
+	
+	if( set_from_index == 1 )
+		form.hidden_sec_type.value=ap_old_sectype;
+	else	
+		form.hidden_sec_type.value=old_sectype;
+}
+
+function use_ornot_same_sec(tag)
+{
+	var form=document.forms[0];
+	if(tag == 0)
+	{
+		form.use_same_sec.checked = true
+		document.getElementById("img1").style.display="block";
+		document.getElementById("img2").style.display="none";
+		document.getElementById("sec_opt").style.display="none";	
+		getObj("view").innerHTML="";
+	}
+	else
+	{
+		form.use_same_sec.checked = false
+		document.getElementById("img1").style.display="none";
+		document.getElementById("img2").style.display="block";
+		document.getElementById("sec_opt").style.display="block";
+
+                if( set_from_index == 1 )
+				{
+                        setSecurity(ap_old_sectype);
+						select_radio(ap_old_sectype);
+				}
+                else
+				{
+                        setSecurity(old_sectype);
+						select_radio(old_sectype);
+				}
+	}
+}
+</script>
+</body>
+</html>

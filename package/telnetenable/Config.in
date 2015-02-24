@@ -1,0 +1,20 @@
+config TELNETENABLE_GIT_TREEISH
+	string
+	prompt "treeish of telnetenable git repository"
+	default "telnetenable-dni1"
+	help
+	  input the treeish of telnetenable git repository which you want to build
+
+config TELNETENABLE_GIT_REPOSITORY
+	string
+	prompt "name of telnetenable git repository"
+	default "telnetenable.git"
+	help
+	  input the name of telnetenable git repository which you want to build
+
+config TELNETENABLE_GIT_URL
+	string
+	prompt "url of telnetenable git repository"
+	default "ssh://dniserver/scm/dnigit/common/apps/telnetenable.git"
+	help
+	  input the url of telnetenable git repository which you want to build

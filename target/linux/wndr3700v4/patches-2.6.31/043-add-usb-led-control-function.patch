@@ -1,0 +1,75 @@
+--- a/arch/mips/atheros/setup.c	2011-04-11 12:19:24.000000000 +0800
++++ b/arch/mips/atheros/setup.c	2011-04-11 13:58:14.000000000 +0800
+@@ -391,6 +391,10 @@
+       write:ath_ioc_write,
+ };
+ 
++
++static int usbled_state = 0;
++static struct semaphore usbled_sem;
++
+ /*
+  * General purpose ioctl i/f
+  */
+@@ -406,7 +410,61 @@
+ 	}
+ 
+ 	printk("ATH GPIOC major %d\n", _mymajor);
++	printk("Initializing usb led semaphore\n");
++	init_MUTEX(&usbled_sem);
++
+ 	return 0;
+ }
+ 
++void turn_on_usbled(void)
++{
++	down(&usbled_sem);
++	usbled_state = 1;
++	ap_usb_led_on();
++	up(&usbled_sem);
++}
++EXPORT_SYMBOL(turn_on_usbled);
++
++void turn_off_usbled(void)
++{
++	down(&usbled_sem);
++	usbled_state = 0;
++	ap_usb_led_off();
++	up(&usbled_sem);
++}
++EXPORT_SYMBOL(turn_off_usbled);
++
++void toggle_usbled(const unsigned int round)
++{
++	static unsigned int count=0;
++
++	count++;
++	if (count < round) {
++		return;
++	}
++	/* now count >= round and then reset it to 0 */
++	count=0;
++	down(&usbled_sem);
++	if (usbled_state) { /* usbled is on */
++		usbled_state = 0;
++		ap_usb_led_off();
++	}
++	else { /* usbled is off */
++		usbled_state = 1;
++		ap_usb_led_on();
++	}
++	up(&usbled_sem);
++}
++EXPORT_SYMBOL(toggle_usbled);
++
++int get_usbled_state(void)
++{
++	int ret;
++	down(&usbled_sem);
++	ret = usbled_state;
++	up(&usbled_sem);
++	return ret;
++}
++EXPORT_SYMBOL(get_usbled_state);
++
+ device_initcall(ath_init_ioc);

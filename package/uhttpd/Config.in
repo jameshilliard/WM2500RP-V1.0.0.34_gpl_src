@@ -1,0 +1,40 @@
+config UHTTPD_GIT_TREEISH
+	string
+	prompt "treeish of uhttpd git repository"
+	default "uhttpd-dni001"
+	help
+           Input the treeish of uhttpd git repository which you want to build
+
+config UHTTPD_GIT_REPOSITORY
+        string
+        prompt "name of uhttpd git repository"
+        default "uhttpd.git"
+        help
+           Input the name of uhttpd git repository which you want to build
+
+config UHTTPD_GIT_URL
+	string
+	prompt "url of uhttpd git repository"
+	default "ssh://dniserver/scm/dnigit/common/apps/uhttpd.git"
+	help
+	  input the url of uhttpd git repository which you want to build
+
+config UHTTPD_PLATFORM_PATCH
+	bool "Apply platform specific patches"
+	default n
+
+config uhttpd-mod-cgi
+	bool "The CGI support to uHTTPd."
+	default y
+
+config uhttpd-mod-lua
+	bool "The Lua plugin adds a CGI-like Lua runtime interface to uHTTPd."
+	default n
+
+config uhttpd-mod-tls_cyassl
+	bool "The cyassl TLS plugin adds HTTPS support to uHTTPd."
+	default y
+
+config uhttpd-mod-tls_openssl
+	bool "The openssl TLS plugin adds HTTPS support to uHTTPd."
+	default n

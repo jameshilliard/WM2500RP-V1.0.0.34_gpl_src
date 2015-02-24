@@ -1,0 +1,38 @@
+From 66620ae151b1ce3f1ee809bd91f91d642b7395a2 Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:46 +0800
+Subject: [PATCH 063/137] Cosmetic changes
+
+Modify the conntrack and nat modules to support SNATP2P
+
+Patch as referring to bellowing link:
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-January/023084.html
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-March/023585.html
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |    5 +++--
+ 1 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index d287623..551c4b7 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -475,10 +475,11 @@ nf_nat_setup_info(struct nf_conn *ct,
+ 	}
+ 
+ 	/* It's done. */
+-	if (maniptype == IP_NAT_MANIP_DST)
++	if (maniptype == IP_NAT_MANIP_DST) {
+ 		set_bit(IPS_DST_NAT_DONE_BIT, &ct->status);
+-	else
++	} else {
+ 		set_bit(IPS_SRC_NAT_DONE_BIT, &ct->status);
++	}
+ 
+ 	return NF_ACCEPT;
+ }
+-- 
+1.7.4.1
+

@@ -1,0 +1,28 @@
+From d677f2468fd12b52aa6dd9fdc6b7d31b5e2f7ad8 Mon Sep 17 00:00:00 2001
+From: Jonathan Chang <jonathan@dniserver.dnish.net>
+Date: Wed, 17 Nov 2010 16:28:07 +0800
+Subject: [PATCH 083/137] ipv4: discard this change since it belongs to linux-2.6 module, instead of netfilter
+
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netns/ipv4.h |    4 ----
+ 1 files changed, 0 insertions(+), 4 deletions(-)
+
+diff --git a/include/net/netns/ipv4.h b/include/net/netns/ipv4.h
+index f4c649f..2eb3814 100644
+--- a/include/net/netns/ipv4.h
++++ b/include/net/netns/ipv4.h
+@@ -40,10 +40,6 @@ struct netns_ipv4 {
+ 	struct xt_table		*iptable_security;
+ 	struct xt_table		*nat_table;
+ 	struct hlist_head	*nat_bysource;
+-	#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+-	struct hlist_head	*nat_by_modified_source;
+-	int			nat_modified_vmalloced;
+-	#endif
+ 	int			nat_vmalloced;
+ #endif
+ 
+-- 
+1.7.4.1
+

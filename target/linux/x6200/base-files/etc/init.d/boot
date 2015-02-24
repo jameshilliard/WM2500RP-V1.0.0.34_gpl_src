@@ -1,0 +1,92 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006 OpenWrt.org
+
+START=10
+
+start() {
+	mkdir -p /var/run
+	mkdir -p /var/log
+	mkdir -p /var/lock
+	mkdir -p /var/state
+	touch /var/log/wtmp
+	touch /var/log/lastlog
+	touch /var/log/log-message
+	ln -sf /tmp/resolv.conf.auto /tmp/resolv.conf
+
+	# This should be placed in /etc/init.d/usb, I think. ----FixMe?
+	mkdir -p /tmp/mnt
+	# create /dev/root if it doesn't exist
+	[ -e /dev/root ] || {
+		ln -s 31:02 /dev/root
+	}
+
+	klogd
+
+	ifconfig lo 127.0.0.1 up
+
+	# if need nvram default
+	[ "x`nvram get dni_restore`" != "x0" ] && nvram default
+
+	# set default mac
+	artmtd -r mac
+	[ -f /tmp/lan_mac ] && nvram set et0macaddr=`cat /tmp/lan_mac`
+	[ -f /tmp/wan_mac ] && nvram set 0:macaddr=`cat /tmp/wan_mac`
+	[ -f /tmp/wla_mac ] && nvram set 1:macaddr=`cat /tmp/wla_mac`
+	# fix wl0.1 wl1.1 _hwaddr
+	nvram set wl0.1_hwaddr=`nvram get 0:macaddr`
+	nvram set wl1.1_hwaddr=`nvram get 1:macaddr`
+	# set wps pin
+	artmtd -r wpspin
+	[ -f /tmp/wpspin ] && nvram set wps_device_pin=`cat /tmp/wpspin`
+
+	nvram commit
+
+	#insmod /lib/modules/2.6.22/bcm57xx.ko
+#	insmod /lib/modules/2.6.22/ctf.ko
+	insmod /lib/modules/2.6.36/ctf.ko
+	insmod /lib/modules/2.6.36/et.ko
+	insmod /lib/modules/2.6.36/emf.ko
+	insmod /lib/modules/2.6.36/igs.ko
+	insmod /lib/modules/2.6.36/dpsta.ko
+	insmod /lib/modules/2.6.36/proxyarp.ko
+	insmod /lib/modules/2.6.36/wl.ko
+
+	# Config the hostname into kernel
+	echo "$($CONFIG get netbiosname)" > /proc/sys/kernel/hostname
+
+	# Set the DUT's wan name in case older board set it as other value
+	# For instance of wnr2000v3:
+	# 	V1.1.1.35: eth0
+	# 	V1.1.1.36: br1
+	#/bin/config set wan_ifname="br1"
+
+	/sbin/printhosts
+
+	#set ipv6 proc file
+#	/etc/net6conf/6proc start
+
+	load_modules /etc/modules.d/*
+
+	# generate the firewall rule file after loading the configuration data.
+	#/usr/sbin/net-wall rule
+
+	# start SIP ALG module
+#	/sbin/cmd_sipalg
+
+	# indicate the system first boot for first log
+	#/bin/config set syslog_up_first=0
+
+	# Load Default QoS rules if needed.
+	#read serial number from flash to /tmp/Seria_Number
+	/sbin/artmtd -r sn
+	#read wan mac from flash to /tmp/wan_mac
+	/sbin/artmtd -r mac
+
+	# Check the Board Data region and reset Time Zone & Wirless Region & GUI Region.
+	if [ "x$(/bin/config get board_region_default)" = "x1" ]; then
+		#read board region from flash to /tmp/firmware_region
+		/sbin/artmtd -r region
+		BOARD_REGION=`cat /tmp/firmware_region`
+	fi
+
+}

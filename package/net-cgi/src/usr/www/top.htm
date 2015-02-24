@@ -1,0 +1,64 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<% http_header("style/top.css", "funcs.js", "top.js") %>
+<% top_body_header("lang_check.htm", "select_language") %>
+
+<script>
+var wan_status = "<% detwan_valid() %>";
+var config_status = <% autoup_status() %>;
+<% check_version() %>
+<% auto_detwan() %>
+var language_oriArray = "<% lang_en() %>".split(" ");
+var language_showArray="<% lang_show() %>".split(" ");
+var browser_lang = "<% get_browser_language() %>";
+var lang_select="<% cfg_get("Language_Selection") %>";
+var gui_region="<% cfg_get("GUI_Region") %>";
+var dis_lang_crl = "<% cfg_get("Enable_GUIStringTable") %>";
+function loadvalue()
+{
+	form=document.forms[0];
+	load_top_value();
+	/*if(lang_select != "Auto")
+		lang_select = gui_region;	
+	form.lang_avi.value = lang_select;
+	
+	if( dis_lang_crl == "0" )
+		form.lang_avi.disabled = true;
+	else
+	{
+		/* if select is "Auto", change languae to browser_langauge */
+/*		if(lang_select == "Auto" && browser_lang != gui_region)
+		{
+			var form = document.forms[0];
+			top.auto_change_lang = 1;
+	        form.lang_avi.disabled=true;
+        	form.hidden_lang_avi.value=form.lang_avi.value;
+            form.target="formframe";
+            form.submit();
+		
+		}
+
+	}*/
+}
+</script>
+<input type=hidden name=hidden_lang_avi>
+<input type=hidden name=browser_or_top>
+
+<div id="logo"></div>
+<div id="logout" class="logout_bt" onclick='top.location.href="logout.htm";'><b>$logout_head</b></div>
+<div id="router-name"><% cat_file("/hardware_version") %></div>
+<div id="firm_version">$info_mark_ver<br /><% cat_file("/firmware_version") %></div>
+<div id="update_info" class="update_info_down" onclick="firmwareUpgrade();">
+	<div id="update_info_left"></div>
+	<div id="update_info_middle"><i>$firmware_upgrade_is_available_click_to_get</i></div>
+	<div id="update_info_right"></div>
+</div>
+<!--<div id="update_info" class="update_info_down" onclick="firmwareUpgrade();">
+	<i class="i_normal"><script>document.write(firmware_upgrade_is_available_click_to_get)</script></i></div>-->
+<div id="select_language" align=right style="display:none">
+	<select align=right id="language" name="lang_avi" size=1 onChange="doDisable()">
+		<script>languageShowlist();</script>
+	</select>
+</div>
+</form>
+</body>
+</html>

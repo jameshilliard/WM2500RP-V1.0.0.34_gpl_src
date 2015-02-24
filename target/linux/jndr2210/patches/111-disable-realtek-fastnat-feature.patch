@@ -1,0 +1,11 @@
+--- linux-2.6.30/net/rtl/fastpath/fastpath_common.c.old	2012-03-16 10:48:11.627099446 -0400
++++ linux-2.6.30/net/rtl/fastpath/fastpath_common.c	2012-03-16 10:49:15.157099461 -0400
+@@ -29,7 +29,7 @@
+ #if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
+ static int	rtl_fp_gc_rx_threshold;
+ #endif
+-static int fast_nat_fw = 1;
++static int fast_nat_fw = 0;
+ 
+ 
+ #if defined(IMPROVE_QOS) || defined(CONFIG_RTL_HW_QOS_SUPPORT)

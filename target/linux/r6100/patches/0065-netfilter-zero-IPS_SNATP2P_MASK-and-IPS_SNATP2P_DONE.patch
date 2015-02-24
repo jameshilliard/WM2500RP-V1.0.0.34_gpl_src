@@ -1,0 +1,32 @@
+From b9f796022f0bb4e69c6fd14d344e1436be18c070 Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:46 +0800
+Subject: [PATCH 065/137] netfilter: zero IPS_SNATP2P_MASK and IPS_SNATP2P_DONE_MASK bits in clean_nat()
+
+Modift the conntrack and nat modules to support SNATP2P
+
+Patch as referring to bellowing link:
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-January/023084.html
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-March/023585.html
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index 6b7c1bf..187aa54 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -843,6 +843,7 @@ static int clean_nat(struct nf_conn *i, void *data)
+ 		return 0;
+ 	memset(nat, 0, sizeof(*nat));
+ 	i->status &= ~(IPS_NAT_MASK | IPS_NAT_DONE_MASK | IPS_SEQ_ADJUST);
++	i->status &= ~(IPS_SNATP2P_MASK | IPS_SNATP2P_DONE_MASK);
+ 	return 0;
+ }
+ 
+-- 
+1.7.4.1
+

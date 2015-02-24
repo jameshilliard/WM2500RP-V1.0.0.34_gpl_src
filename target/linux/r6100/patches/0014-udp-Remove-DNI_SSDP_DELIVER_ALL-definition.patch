@@ -1,0 +1,88 @@
+From 99bc9e502ac8c9824e92d477fb38b203877ba413 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Tue, 7 Dec 2010 11:29:55 +0800
+Subject: [PATCH 014/137] udp: Remove DNI_SSDP_DELIVER_ALL definition
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/udp.c |    8 --------
+ 1 files changed, 0 insertions(+), 8 deletions(-)
+
+diff --git a/net/ipv4/udp.c b/net/ipv4/udp.c
+index bf2cca0..c0ee53d 100644
+--- a/net/ipv4/udp.c
++++ b/net/ipv4/udp.c
+@@ -118,11 +118,8 @@ int sysctl_udp_mem[3] __read_mostly;
+ int sysctl_udp_rmem_min __read_mostly;
+ int sysctl_udp_wmem_min __read_mostly;
+ 
+-#define DNI_SSDP_DELIVER_ALL
+ #define SSDP_PORT		1900
+-#ifdef DNI_SSDP_DELIVER_ALL
+ int sysctl_udp_ssdp_deliver_all = 0;
+-#endif
+ 
+ EXPORT_SYMBOL(sysctl_udp_mem);
+ EXPORT_SYMBOL(sysctl_udp_rmem_min);
+@@ -1285,7 +1282,6 @@ static inline int udp4_csum_init(struct sk_buff *skb, struct udphdr *uh,
+ 	return 0;
+ }
+ 
+-#ifdef DNI_SSDP_DELIVER_ALL
+ /* 
+  * Modified from `__udp4_lib_mcast_deliver` and `__udp4_lib_lookup_skb`, 
+  * send SSDP UDP port 1900 packet to all UPnP related sockets. 
+@@ -1320,8 +1316,6 @@ static int udp_v4_ssdp_deliver(struct net *net, struct sk_buff *skb,
+ 
+ 	return 0;
+ }
+-#endif
+-
+ 
+ /*
+  *	All we need to do is get the socket, and then do a checksum.
+@@ -1375,11 +1369,9 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
+ 		return __udp4_lib_mcast_deliver(net, skb, uh,
+ 				saddr, daddr, udptable);
+ 
+-#ifdef DNI_SSDP_DELIVER_ALL
+ 	if ((uh->dest == __constant_htons(SSDP_PORT))
+ 		&& (sysctl_udp_ssdp_deliver_all != 0))
+ 		return udp_v4_ssdp_deliver(net, skb, udptable);
+-#endif
+ 
+ 	sk = __udp4_lib_lookup_skb(skb, uh->source, uh->dest, udptable);
+ 
+-- 
+1.7.4.1
+

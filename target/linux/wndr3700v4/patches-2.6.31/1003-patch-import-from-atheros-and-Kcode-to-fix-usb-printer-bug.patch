@@ -1,0 +1,11 @@
+--- linux-2.6.31.org/drivers/usb/host/ehci-ath.c	2012-05-10 16:57:43.000000000 +0800
++++ linux-2.6.31/drivers/usb/host/ehci-ath.c	2012-05-10 16:49:50.000000000 +0800
+@@ -138,6 +138,8 @@
+ 	.hub_control = ehci_hub_control,
+ 	.bus_suspend = ehci_bus_suspend,
+ 	.bus_resume = ehci_bus_resume,
++	/* add this line from Kcode to solve readyshare printer bug */
++	.clear_tt_buffer_complete = ehci_clear_tt_buffer_complete,
+ };
+ 
+ #ifndef CONFIG_USB_ATH_OTG

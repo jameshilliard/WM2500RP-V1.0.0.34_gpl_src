@@ -1,0 +1,38 @@
+From ba3e6ae18735cce964788991a06e0e9e29ca4963 Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:46 +0800
+Subject: [PATCH 069/137] Cosmetic changes
+
+Modify the conntrack and nat modules to support SNATP2P.
+
+Patch as referring to bellowing link:
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-January/023084.html
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-March/023585.html
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_rule.c |    7 ++++---
+ 1 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_rule.c b/net/ipv4/netfilter/nf_nat_rule.c
+index 6348a79..799c414 100644
+--- a/net/ipv4/netfilter/nf_nat_rule.c
++++ b/net/ipv4/netfilter/nf_nat_rule.c
+@@ -157,9 +157,10 @@ int nf_nat_rule_find(struct sk_buff *skb,
+ 	ret = ipt_do_table(skb, hooknum, in, out, net->ipv4.nat_table);
+ 
+ 	if (ret == NF_ACCEPT) {
+-		if (!nf_nat_initialized(ct, HOOK2MANIP(hooknum)))
+-			/* NUL mapping */
+-			ret = alloc_null_binding(ct, hooknum);
++		if (!nf_nat_initialized(ct, HOOK2MANIP(hooknum))) {
++				/* NUL mapping */
++				ret = alloc_null_binding(ct, hooknum);
++		}
+ 	}
+ 	return ret;
+ }
+-- 
+1.7.4.1
+

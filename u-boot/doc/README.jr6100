@@ -1,0 +1,33 @@
+GIT repository:
+===============
+
+git://itgserver/pub/scm/boot/u-boot/changcs/u-boot.git
+dni branch
+
+How to build:
+=============
+This u-boot is based on LSDK 9.2.0_U10.1020
+
+#
+# Compressed u-boot without LSDK
+#
+$ export PATH="$PATH:/your/toolchain/path"
+$ UBOOT_GCC_4_3_3_EXTRA_CFLAGS="-fPIC" make hw29764434p0p128p128p2x2p2x2_config V=1
+$ COMPRESSED_UBOOT=1 UBOOT_GCC_4_3_3_EXTRA_CFLAGS="-fPIC" OBJS=cpu/mips/start_hw29764434p0p128p128p2x2p2x2.o make LIBS="lib_generic/libgeneric.a common/libcommon.a board/ar7240/hw29764434p0p128p128p2x2p2x2/libhw29764434p0p128p128p2x2p2x2.a cpu/mips/libmips.a cpu/mips/ar7240/libar7240.a lib_mips/libmips.a drivers/libdrivers.a net/libnet.a rtc/librtc.a" V=1 BOOT_FROM_NAND=1 ETH_CONFIG=_s27 DNI_MAGIC=6000
+$ cd tools/lsdk9.2.0.1017/rom-boot-drv
+$ make BOOT_FROM_NAND=1
+$ ./mk2stage -2 ../../../tuboot.bin
+
+Then compressed u-boot binary can be found at tools/lsdk9.2.0.1017/rom-boot-drv/2fw.bin.
+
+Steps to upgrade u-boot:
+========================
+
+In the meantime, u-boot takes 1 erase blocks (1*0x20000):
+1 code blocks and no env block.
+
+ar7240> tftp 0x80060000 u-boot.bin
+ar7240> crc32 0x80060000 ${filesize}
+ar7240> nand erase 0x0 0x20000
+ar7240> nand write 0x80060000 0x0 ${filesize}
+ar7240> reset

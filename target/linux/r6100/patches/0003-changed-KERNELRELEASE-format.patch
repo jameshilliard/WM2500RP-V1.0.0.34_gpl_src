@@ -1,0 +1,12 @@
+--- linux-2.6.30/Makefile.old	2011-12-06 05:47:30.013461674 -0500
++++ linux-2.6.30/Makefile	2011-12-06 05:48:04.553457496 -0500
+@@ -326,7 +326,8 @@
+ KBUILD_AFLAGS   := -D__ASSEMBLY__
+ 
+ # Read KERNELRELEASE from include/config/kernel.release (if it exists)
+-KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
++#KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
++KERNELRELEASE = $(VERSION).$(PATCHLEVEL).$(SUBLEVEL)
+ KERNELVERSION = $(VERSION).$(PATCHLEVEL).$(SUBLEVEL)$(EXTRAVERSION)
+ 
+ export VERSION PATCHLEVEL SUBLEVEL KERNELRELEASE KERNELVERSION

@@ -1,0 +1,480 @@
+--- linux-2.6.31.org/arch/mips/atheros/gpio.c	2011-11-21 09:28:01.000000000 +0800
++++ linux-2.6.31/arch/mips/atheros/gpio.c	2011-11-21 13:11:25.000000000 +0800
+@@ -31,23 +31,21 @@
+                                    like push button is pressed if WPS was disabled */
+ 
+ /* AR9344 GPIOs */
+-#define WAN_AMBER_LED_GPIO      4
+-#define USB_LED_GPIO            11
+-#define WPS_AMBER_LED_GPIO      12
+-#define WLAN_2G_LED_GPIO        13
+-#define STATUS_LED_GPIO         14
+-#define WPS_GREEN_LED_GPIO      15
+-#define WPS_BUTTON_GPIO         16
+-#define WAN_GREEN_LED_GPIO      21
+-
+-/* AR9380 GPIOs */
+-
+-#define WLAN_5G_LED_GPIO        0
+-#define POWER_LED_GPIO          1
+-#define WLAN_BUTTON_GPIO        3
+-#define WIFI_LED_GPIO           7
+-#define RESET_BUTTON_GPIO       10
+-#define USB_5V_GPIO		13
++#define POWER_LED_GPIO          0
++#define WAN_GREEN_LED_GPIO      1
++#define STATUS_LED_GPIO         2
++#define WAN_AMBER_LED_GPIO      3
++#define WLAN_2G_LED_GPIO        11
++#define WPS_BUTTON_GPIO         12
++#define USB_LED_GPIO            13
++#define WLAN_5G_LED_GPIO        14
++#define WLAN_BUTTON_GPIO        15
++#define WPS_GREEN_LED_GPIO      16
++#define WPS_AMBER_LED_GPIO      17
++#define RESET_BUTTON_GPIO       21
++
++/* AR9580 GPIOs */
++#define USB_5V_GPIO		0
+ 
+ #define frdbg printk
+ 
+@@ -160,12 +158,12 @@
+ static struct proc_dir_entry *scset_entry; /* simple config set entry, configure all GPIOs */
+ #endif
+ 
+-/* AR9380 functions */
+-void ar9380GpioCfgOutput(unsigned int gpio);
+-void ar9380GpioCfgInput(unsigned int gpio);
+-void ar9380GpioSet(unsigned int gpio, int val);
+-u32 ar9380GpioGet(unsigned int gpio);
+-void ar9380DisableJtag(int jtag);
++/* AR9580 functions */
++void ar9580GpioCfgOutput(unsigned int gpio);
++void ar9580GpioCfgInput(unsigned int gpio);
++void ar9580GpioSet(unsigned int gpio, int val);
++u32 ar9580GpioGet(unsigned int gpio);
++void ar9580DisableJtag(int jtag);
+ 
+ void ath_gpio_config_int(int gpio,
+ 			 ath_gpio_int_type_t type,
+@@ -684,8 +682,8 @@
+                                unsigned long count, void *data)
+ {
+ 	/* buf format:
+-	 * 	"set 9344|9380 <pin> in|out <value>"
+-	 * 	"get 9344|9380 <pin>"
++	 * 	"set 9344|9580 <pin> in|out <value>"
++	 * 	"get 9344|9580 <pin>"
+ 	 *  <pin> is the GPIO pin number on chip
+ 	 *  <value> must be 0 or 1, set the GPIO's value
+ 	 **/
+@@ -735,21 +733,21 @@
+ 		} else
+ 			goto SCSET_ERR;
+ 		break;
+-	case 9380:
++	case 9580:
+ 		if (pin > 16 || pin < 0)
+ 			goto SCSET_ERR;
+ 
+ 		if (!strcmp(method, "get")) {
+-			printk("value is: %u\n", (ar9380GpioGet(pin) != 0));
++			printk("value is: %u\n", (ar9580GpioGet(pin) != 0));
+ 		} else if (!strcmp(method, "set")) {
+ 			if (!strcmp(mode, "in")) {
+-				ar9380GpioCfgInput(pin);
++				ar9580GpioCfgInput(pin);
+ 			} else if (!strcmp(mode, "out")) {
+ 				if ((val >> 1) != 0)
+ 					goto SCSET_ERR;
+ 
+-				ar9380GpioCfgOutput(pin);
+-				ar9380GpioSet(pin, val);
++				ar9580GpioCfgOutput(pin);
++				ar9580GpioSet(pin, val);
+ 			} else
+ 				goto SCSET_ERR;
+ 		} else
+@@ -763,10 +761,10 @@
+ 
+ SCSET_ERR:
+ 	printk("Usage:\n"
+-		"  echo \"set 9344|9380 <pin> in|out <value>\" > scset\n"
+-		"  echo \"get 9344|9380 <pin>\" > scset\n"
+-		"    9344|9380 specify the chip you want configure.\n"
+-		"    <pin> is the GPIO pin number on chip, [0~22] for 9344 and [0~16] for 9380.\n"
++		"  echo \"set 9344|9580 <pin> in|out <value>\" > scset\n"
++		"  echo \"get 9344|9580 <pin>\" > scset\n"
++		"    9344|9580 specify the chip you want configure.\n"
++		"    <pin> is the GPIO pin number on chip, [0~22] for 9344 and [0~16] for 9580.\n"
+ 		"    in|out configure GPIO as input or output mode, invalid for get method..\n"
+ 		"    <value> must be 0 or 1, set the GPIO's value, it's invalid for input mode or get method.\n");
+ 	return count;
+@@ -786,9 +784,9 @@
+ 	if (sscanf(buf, "%d", &val) != 1)
+ 		return -EINVAL;
+ 	if (!val) {
+-		ar9380GpioSet(USB_5V_GPIO, 0);
++		ar9580GpioSet(USB_5V_GPIO, 0);
+ 	} else {
+-		ar9380GpioSet(USB_5V_GPIO, 1);
++		ar9580GpioSet(USB_5V_GPIO, 1);
+ 	}
+ 	return count;
+ }
+@@ -817,11 +815,11 @@
+ {
+         static int onoff = 0;
+         if (onoff) {
+-                ar9380GpioSet(POWER_LED_GPIO, LED_OFF);
++                ath_gpio_out_val(POWER_LED_GPIO, LED_OFF);
+                 ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
+                 OS_SET_TIMER(&os_staled_t, TIME_750MSECONDS);
+         } else {
+-                ar9380GpioSet(POWER_LED_GPIO, LED_OFF);
++                ath_gpio_out_val(POWER_LED_GPIO, LED_OFF);
+                 ath_gpio_out_val(STATUS_LED_GPIO, LED_ON);
+                 OS_SET_TIMER(&os_staled_t, TIME_250MSECONDS);
+         }
+@@ -835,8 +833,8 @@
+         static int pushbut_s = 0;
+         static int wlan_count = 0;
+ 
+-        /* AR9380 GPIO3: WIRELESS ON/OFF(Input Pin / Active LOW) */
+-        if (!ar9380GpioGet(WLAN_BUTTON_GPIO)) {
++        /* AR9344 GPIO15: WIRELESS ON/OFF(Input Pin / Active LOW) */
++        if (!ath_gpio_in_val(WLAN_BUTTON_GPIO)) {
+                 wlan_count++;
+                 /* [Bug 24969]According to NTGR's requirement, it should only trigger enabling or
+                  * disabling the wireless radio after the WLAN switch button is pressed and held
+@@ -856,7 +854,7 @@
+                         wifibut_s = 0;
+                 }
+         }
+-        /* AR9344 GPIO16: JUMPSTART (Input Pin / Active LOW) */
++        /* AR9344 GPIO12: WPS SWITCH (Input Pin / Active LOW) */
+         if (!ath_gpio_in_val(WPS_BUTTON_GPIO)) {
+                 if (!pushbut_s) {
+                         pushbut_s = 1;
+@@ -877,12 +875,12 @@
+                 }
+         }
+ 
+-        /* AR9380 GPIO10: RESET SWITCH (Input Pin/Active LOW) */
+-        if (!ar9380GpioGet(RESET_BUTTON_GPIO)) {
++        /* AR9344 GPIO21: RESET SWITCH (Input Pin/Active LOW) */
++        if (!ath_gpio_in_val(RESET_BUTTON_GPIO)) {
+                 rstbut_count++;
+                 /* turn off POWER LED, turn on STATUS LED (amber), set timer, blinking STATUS LED */
+                 if (!staled_s) {
+-                        ar9380GpioSet(POWER_LED_GPIO, LED_OFF);
++                        ath_gpio_out_val(POWER_LED_GPIO, LED_OFF);
+                         ath_gpio_out_val(STATUS_LED_GPIO, LED_ON);
+                         OS_SET_TIMER(&os_staled_t, TIME_5SECONDS);
+                         staled_s = 1;
+@@ -895,7 +893,7 @@
+                 /* turn off POWER & STATUS LEDs, cancel timer */
+                 if (staled_s) {
+                         OS_CANCEL_TIMER(&os_staled_t);
+-                        ar9380GpioSet(POWER_LED_GPIO, LED_OFF);
++                        ath_gpio_out_val(POWER_LED_GPIO, LED_OFF);
+                         ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
+                         staled_s = 0;
+                 }
+@@ -948,8 +946,8 @@
+ void ap_power_led_on(void)
+ {
+ #ifdef POWER_LED_GPIO
+-        ar9380GpioCfgOutput(POWER_LED_GPIO);
+-        ar9380GpioSet(POWER_LED_GPIO, LED_ON);
++        ath_gpio_config_output(POWER_LED_GPIO);
++        ath_gpio_out_val(POWER_LED_GPIO, LED_ON);
+ #endif
+ }
+ EXPORT_SYMBOL(ap_power_led_on);
+@@ -957,8 +955,8 @@
+ void ap_power_led_off(void)
+ {
+ #ifdef POWER_LED_GPIO
+-        ar9380GpioCfgOutput(POWER_LED_GPIO);
+-        ar9380GpioSet(POWER_LED_GPIO, LED_OFF);
++        ath_gpio_config_output(POWER_LED_GPIO);
++        ath_gpio_out_val(POWER_LED_GPIO, LED_OFF);
+ #endif
+ }
+ EXPORT_SYMBOL(ap_power_led_off);
+@@ -990,8 +988,8 @@
+ void ap_wlan_5g_led_on_off(int status)
+ {
+ #ifdef WLAN_5G_LED_GPIO
+-       ar9380GpioCfgOutput(WLAN_5G_LED_GPIO);
+-       ar9380GpioSet(WLAN_5G_LED_GPIO, status);
++       ath_gpio_config_output(WLAN_5G_LED_GPIO);
++       ath_gpio_out_val(WLAN_5G_LED_GPIO, status);
+ #endif
+ }
+ EXPORT_SYMBOL(ap_wlan_5g_led_on_off);
+@@ -1062,8 +1060,8 @@
+ 	usb5v_en->write_proc = usb5v_enable_write;
+ 	usb5v_en->read_proc = usb5v_enable_read;
+ 
+-	/* disable ar9380 JTAG to use GPIO0~GPIO4 */
+-	ar9380DisableJtag(0);
++	/* disable ar9580 JTAG to use GPIO0~GPIO4 */
++	ar9580DisableJtag(0);
+ 
+ 	/* configure gpio as outputs */
+ 	ath_gpio_config_output(WAN_AMBER_LED_GPIO);
+@@ -1073,14 +1071,16 @@
+ 	ath_gpio_config_output(STATUS_LED_GPIO);
+ 	ath_gpio_config_output(WPS_GREEN_LED_GPIO);
+ 	ath_gpio_config_output(WAN_GREEN_LED_GPIO);
+-	ar9380GpioCfgOutput(WLAN_5G_LED_GPIO);
+-	ar9380GpioCfgOutput(POWER_LED_GPIO);
+-	ar9380GpioCfgOutput(USB_5V_GPIO);
++	ath_gpio_config_output(WLAN_5G_LED_GPIO);
++	ath_gpio_config_output(POWER_LED_GPIO);
++	ar9580GpioCfgOutput(USB_5V_GPIO);
+ 
+ 	/* configure gpio as inputs */
+ 	ath_gpio_config_input(WPS_BUTTON_GPIO);
+-	ar9380GpioCfgInput(WLAN_BUTTON_GPIO);
+-	ar9380GpioCfgInput(RESET_BUTTON_GPIO);
++	ath_gpio_config_input(WLAN_BUTTON_GPIO);
++	ath_gpio_config_input(RESET_BUTTON_GPIO);
++	/* configure gpio4 as input for EMI */
++	ath_gpio_config_input(4);
+ 
+ 	/* switch off the led */
+ 	ath_gpio_out_val(WAN_AMBER_LED_GPIO, LED_OFF);
+@@ -1090,8 +1090,8 @@
+ 	ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
+ 	ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_OFF);
+ 	ath_gpio_out_val(WAN_GREEN_LED_GPIO, LED_OFF);
+-	ar9380GpioSet(POWER_LED_GPIO, LED_OFF);
+-	ar9380GpioSet(WLAN_5G_LED_GPIO, LED_OFF);
++	ath_gpio_out_val(POWER_LED_GPIO, LED_OFF);
++	ath_gpio_out_val(WLAN_5G_LED_GPIO, LED_OFF);
+ 	
+ 	/* inital timer */
+ 	OS_INIT_TIMER(NULL, &os_butdet_t, button_detect, &os_butdet_t);
+@@ -1226,14 +1226,17 @@
+ 	ath_gpio_config_output(USB_LED_GPIO);
+ #endif
+ */
+-	/* configure GPIO4 as WAN amber led pin */
++	/* configure GPIO4 as WAN amber led pin
+ 	rddata = ath_reg_rd(ATH_GPIO_OUT_FUNCTION1);
+ 	rddata = rddata & 0xffffff00;
+ 	rddata = rddata | ATH_GPIO_OUT_FUNCTION1_ENABLE_GPIO_4(0x0);
+-	ath_reg_wr(ATH_GPIO_OUT_FUNCTION1, rddata);
++	ath_reg_wr(ATH_GPIO_OUT_FUNCTION1, rddata);*/
+ 
+ 	init_waitqueue_head(&ath_fr_wq);
+ 
++	/* Disable JTAG port functionality to enable GPIO functionality */
++	ath_reg_rmw_set(ATH_GPIO_FUNCTIONS, (1 << 0));
++
+ 	create_simple_config_led_proc_entry();
+ 	return 0;
+ }
+@@ -1247,142 +1250,142 @@
+ late_initcall(ath_simple_config_init);
+ #endif
+ 
+-/*********************** AR9380 ************************/
+-#define AR9380_BASE 0X10000000
++/*********************** AR9580 ************************/
++#define AR9580_BASE 0X10000000
+ 
+-#define AR9380_NUM_GPIO 16
++#define AR9580_NUM_GPIO 16
+ 
+-#define AR9380_GPIO_OUT                              0x4048 // GPIO output register
+-#define AR9380_GPIO_IN                               0x404C // GPIO input register
+-#define AR9380_GPIO_IN_VAL                           0x001FF800
+-#define AR9380_GPIO_IN_VAL_S                         11
+-
+-#define AR9380_GPIO_OE_OUT                           0x4050 // GPIO output enable register
+-#define AR9380_GPIO_OE_OUT_DRV                       0x3    // 2 bit field mask, shifted by 2*bitpos
+-#define AR9380_GPIO_OE_OUT_DRV_NO                    0x0    // tristate
+-#define AR9380_GPIO_OE_OUT_DRV_LOW                   0x1    // drive if low
+-#define AR9380_GPIO_OE_OUT_DRV_HI                    0x2    // drive if high
+-#define AR9380_GPIO_OE_OUT_DRV_ALL                   0x3    // drive always
+-
+-#define AR9380_GPIO_OUTPUT_MUX1                      0x4068
+-#define AR9380_GPIO_OUTPUT_MUX2                      0x406C
+-#define AR9380_GPIO_IE_VALUE                         0x405C // GPIO input enable and value register
+-
+-#define AR9380_GPIO_OUTPUT_MUX_AS_OUTPUT             0
+-#define AR9380_GPIO_OUTPUT_MUX_AS_PCIE_ATTENTION_LED 1
+-#define AR9380_GPIO_OUTPUT_MUX_AS_TX_FRAME           3
+-#define AR9380_GPIO_OUTPUT_MUX_AS_RX_CLEAR_EXTERNAL  28
+-#define AR9380_GPIO_OUTPUT_MUX_AS_MAC_NETWORK_LED    5
+-#define AR9380_GPIO_OUTPUT_MUX_AS_MAC_POWER_LED      6
++#define AR9580_GPIO_OUT                              0x4048 // GPIO output register
++#define AR9580_GPIO_IN                               0x404C // GPIO input register
++#define AR9580_GPIO_IN_VAL                           0x001FF800
++#define AR9580_GPIO_IN_VAL_S                         11
++
++#define AR9580_GPIO_OE_OUT                           0x4050 // GPIO output enable register
++#define AR9580_GPIO_OE_OUT_DRV                       0x3    // 2 bit field mask, shifted by 2*bitpos
++#define AR9580_GPIO_OE_OUT_DRV_NO                    0x0    // tristate
++#define AR9580_GPIO_OE_OUT_DRV_LOW                   0x1    // drive if low
++#define AR9580_GPIO_OE_OUT_DRV_HI                    0x2    // drive if high
++#define AR9580_GPIO_OE_OUT_DRV_ALL                   0x3    // drive always
++
++#define AR9580_GPIO_OUTPUT_MUX1                      0x4068
++#define AR9580_GPIO_OUTPUT_MUX2                      0x406C
++#define AR9580_GPIO_IE_VALUE                         0x405C // GPIO input enable and value register
++
++#define AR9580_GPIO_OUTPUT_MUX_AS_OUTPUT             0
++#define AR9580_GPIO_OUTPUT_MUX_AS_PCIE_ATTENTION_LED 1
++#define AR9580_GPIO_OUTPUT_MUX_AS_TX_FRAME           3
++#define AR9580_GPIO_OUTPUT_MUX_AS_RX_CLEAR_EXTERNAL  28
++#define AR9580_GPIO_OUTPUT_MUX_AS_MAC_NETWORK_LED    5
++#define AR9580_GPIO_OUTPUT_MUX_AS_MAC_POWER_LED      6
+ 
+ #define MS(_v, _f)  (((_v) & _f) >> _f##_S)
+ 
+-#define AR9380_GPIO_BIT(_gpio) (1 << (_gpio))
++#define AR9580_GPIO_BIT(_gpio) (1 << (_gpio))
+ 
+-#define ar9380_reg_wr(_off, _val) ath_reg_wr(((_off) + AR9380_BASE), (_val))
+-#define ar9380_reg_rd(_off) (ath_reg_rd((_off) + AR9380_BASE))
+-#define ar9380_reg_rmw(_off, _set, _clr) do { \
+-            ath_reg_rmw_clear(((_off) + AR9380_BASE), (_clr)); \
+-            ath_reg_rmw_set(((_off) + AR9380_BASE), (_set)); \
++#define ar9580_reg_wr(_off, _val) ath_reg_wr(((_off) + AR9580_BASE), (_val))
++#define ar9580_reg_rd(_off) (ath_reg_rd((_off) + AR9580_BASE))
++#define ar9580_reg_rmw(_off, _set, _clr) do { \
++            ath_reg_rmw_clear(((_off) + AR9580_BASE), (_clr)); \
++            ath_reg_rmw_set(((_off) + AR9580_BASE), (_set)); \
+ } while(0)
+ 
+ /*
+  * Configure GPIO Output Mux control
+  */
+-static void ar9380GpioCfgOutputMux(unsigned int gpio, u32 type)
++static void ar9580GpioCfgOutputMux(unsigned int gpio, u32 type)
+ {
+     int          addr;
+     u32    gpio_shift;
+ 
+     // MUX1 control 6 GPIOs(0-5), MUX2 control 4 GPIOs(6-10).
+     if (gpio > 5) {
+-        addr = AR9380_GPIO_OUTPUT_MUX2;
++        addr = AR9580_GPIO_OUTPUT_MUX2;
+     } else {
+-        addr = AR9380_GPIO_OUTPUT_MUX1;
++        addr = AR9580_GPIO_OUTPUT_MUX1;
+     }
+ 
+     // 5 bits per GPIO pin. Bits 0..4 for 1st pin in that mux, bits 5..9 for 2nd pin, etc.
+     gpio_shift = (gpio % 6) * 5;
+ 
+-    ar9380_reg_rmw(addr, (type << gpio_shift), (0x1f << gpio_shift));
++    ar9580_reg_rmw(addr, (type << gpio_shift), (0x1f << gpio_shift));
+ }
+ 
+ /*
+  * Configure GPIO Output lines
+  */
+-void ar9380GpioCfgOutput(unsigned int gpio)
++void ar9580GpioCfgOutput(unsigned int gpio)
+ {
+     u32    gpio_shift;
+ 
+-    if (gpio >= AR9380_NUM_GPIO) {
++    if (gpio >= AR9580_NUM_GPIO) {
+         printk("Invalid GPIO\n");
+         return;
+     }
+     // Configure the MUX
+-    ar9380GpioCfgOutputMux(gpio, AR9380_GPIO_OUTPUT_MUX_AS_OUTPUT);
++    ar9580GpioCfgOutputMux(gpio, AR9580_GPIO_OUTPUT_MUX_AS_OUTPUT);
+ 
+     // 2 bits per output mode
+     gpio_shift = 2*gpio;
+ 
+-    ar9380_reg_rmw(AR9380_GPIO_OE_OUT,
+-               (AR9380_GPIO_OE_OUT_DRV_ALL << gpio_shift),
+-               (AR9380_GPIO_OE_OUT_DRV << gpio_shift));
++    ar9580_reg_rmw(AR9580_GPIO_OE_OUT,
++               (AR9580_GPIO_OE_OUT_DRV_ALL << gpio_shift),
++               (AR9580_GPIO_OE_OUT_DRV << gpio_shift));
+ }
+ 
+ /*
+  * Configure GPIO Input lines
+  */
+-void ar9380GpioCfgInput(unsigned int gpio)
++void ar9580GpioCfgInput(unsigned int gpio)
+ {
+     u32    gpio_shift;
+ 
+-    if (gpio >= AR9380_NUM_GPIO) {
++    if (gpio >= AR9580_NUM_GPIO) {
+         printk("Invalid GPIO\n");
+         return;
+     }
+-    /* TODO: configure input mux for AR9380 */
++    /* TODO: configure input mux for AR9580 */
+     /* If configured as input, set output to tristate */
+     gpio_shift = 2*gpio;
+ 
+-    ar9380_reg_rmw(AR9380_GPIO_OE_OUT,
+-               (AR9380_GPIO_OE_OUT_DRV_NO << gpio_shift),
+-               (AR9380_GPIO_OE_OUT_DRV << gpio_shift));
++    ar9580_reg_rmw(AR9580_GPIO_OE_OUT,
++               (AR9580_GPIO_OE_OUT_DRV_NO << gpio_shift),
++               (AR9580_GPIO_OE_OUT_DRV << gpio_shift));
+ }
+ 
+ /*
+  * Once configured for I/O - set output lines
+  */
+-void ar9380GpioSet(unsigned int gpio, int val)
++void ar9580GpioSet(unsigned int gpio, int val)
+ {
+-    if (gpio >= AR9380_NUM_GPIO) {
++    if (gpio >= AR9580_NUM_GPIO) {
+         printk("Invalid GPIO\n");
+         return;
+     }
+-    ar9380_reg_rmw(AR9380_GPIO_OUT, ((val&1) << gpio), AR9380_GPIO_BIT(gpio));
++    ar9580_reg_rmw(AR9580_GPIO_OUT, ((val&1) << gpio), AR9580_GPIO_BIT(gpio));
+ }
+ 
+ /*
+  * Once configured for I/O - get input lines
+  */
+-u32 ar9380GpioGet(unsigned int gpio)
++u32 ar9580GpioGet(unsigned int gpio)
+ {
+-    if (gpio >= AR9380_NUM_GPIO) {
++    if (gpio >= AR9580_NUM_GPIO) {
+         printk("Invalid GPIO\n");
+         return 0xffffffff;
+     }
+     // Read output value for all gpio's, shift it left, and verify whether a
+     // specific gpio bit is set.
+-    return (ar9380_reg_rd(AR9380_GPIO_IN) & AR9380_GPIO_BIT(gpio));
++    return (ar9580_reg_rd(AR9580_GPIO_IN) & AR9580_GPIO_BIT(gpio));
+ }
+ 
+ /* enable/disable JTAG before using GPIO[0:4] as input */
+-void ar9380DisableJtag(int jtag)
++void ar9580DisableJtag(int jtag)
+ {
+     if (!jtag) {
+         /* JTAG disable */
+-        ar9380_reg_rmw(AR9380_GPIO_IE_VALUE, 1 << 17, 1 << 17);
++        ar9580_reg_rmw(AR9580_GPIO_IE_VALUE, 1 << 17, 1 << 17);
+     } else {
+         /* JTAG enable */
+-        ar9380_reg_rmw(AR9380_GPIO_IE_VALUE, 0 << 17, 1 << 17);
++        ar9580_reg_rmw(AR9580_GPIO_IE_VALUE, 0 << 17, 1 << 17);
+     }
+ }

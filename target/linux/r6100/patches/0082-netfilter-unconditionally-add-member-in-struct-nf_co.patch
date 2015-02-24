@@ -1,0 +1,39 @@
+From 4242f705c716085df56cf64105c02d332c17274e Mon Sep 17 00:00:00 2001
+From: Jonathan Chang <jonathan@dniserver.dnish.net>
+Date: Wed, 17 Nov 2010 16:24:26 +0800
+Subject: [PATCH 082/137] netfilter: unconditionally add member in struct nf_conn_nat and find_appropriate_p2p_dst() prototype
+
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netfilter/nf_nat.h |    4 ----
+ 1 files changed, 0 insertions(+), 4 deletions(-)
+
+diff --git a/include/net/netfilter/nf_nat.h b/include/net/netfilter/nf_nat.h
+index eb0b8b0..a9f72b1 100644
+--- a/include/net/netfilter/nf_nat.h
++++ b/include/net/netfilter/nf_nat.h
+@@ -69,9 +69,7 @@ struct nf_conn;
+ struct nf_conn_nat
+ {
+ 	struct hlist_node bysource;
+-#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ 	struct hlist_node by_modified_source;
+-#endif
+ 	struct nf_nat_seq seq[IP_CT_DIR_MAX];
+ 	struct nf_conn *ct;
+ 	union nf_conntrack_nat_help help;
+@@ -95,11 +93,9 @@ extern unsigned int nf_nat_setup_info(struct nf_conn *ct,
+ extern int nf_nat_used_tuple(const struct nf_conntrack_tuple *tuple,
+ 			     const struct nf_conn *ignored_conntrack);
+ 
+-#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ extern int find_appropriate_p2p_dst(struct net *net,
+ 				    const struct nf_conntrack_tuple *tuple,
+ 				    struct nf_conntrack_tuple *result);
+-#endif
+ 
+ static inline struct nf_conn_nat *nfct_nat(const struct nf_conn *ct)
+ {
+-- 
+1.7.4.1
+

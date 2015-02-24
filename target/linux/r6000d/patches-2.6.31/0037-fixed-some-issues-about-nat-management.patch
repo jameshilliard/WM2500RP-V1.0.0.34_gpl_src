@@ -1,0 +1,367 @@
+diff -Nur linux-2.6.31/include/net/netfilter/nf_conntrack.h ../linux-2.6.31/include/net/netfilter/nf_conntrack.h
+--- linux-2.6.31/include/net/netfilter/nf_conntrack.h	2011-10-31 11:29:33.413830767 -0400
++++ ../linux-2.6.31/include/net/netfilter/nf_conntrack.h	2011-10-31 09:41:26.513831541 -0400
+@@ -343,8 +343,7 @@
+ 
+ extern void get_wan_traffic_destined_to_router_ports(struct net *net);
+ extern int tuple_initiated_from_inside(const struct nf_conntrack_tuple *tuple);
+-extern int tuple_is_wan_to_router_traffic(struct net *net,
+-					const struct nf_conntrack_tuple *tuple);
++extern int tuple_is_router_traffic(const struct nf_conntrack_tuple *tuple);
+ extern int skb_is_ipv6_packet(struct sk_buff *skb);
+ extern int conntrack_table_really_full(struct net *net);
+ extern u32 lan_ip_of_wan_orig_tuple(struct net *net, struct sk_buff *skb,
+diff -Nurp linux-2.6.31.orig//net/netfilter/dni_netfilter_sysctl.c linux-2.6.31/net/netfilter/dni_netfilter_sysctl.c
+--- linux-2.6.31.orig//net/netfilter/dni_netfilter_sysctl.c	2013-01-22 04:12:04.275221370 -0500
++++ linux-2.6.31/net/netfilter/dni_netfilter_sysctl.c	2013-01-22 04:14:18.385222229 -0500
+@@ -17,6 +17,10 @@ int sysctl_conntrack_refresh_outbound_on
+ int sysctl_do_flush_conntrack = 0;
+ int sysctl_nat_filtering_behavior= 0;
+ 
++/* For storing present lan interface ipv4 address, Inclusive: host order */
++u32 lan_ipv4_address = 0;
++/* For storing present lan interface ipv4 mask, Inclusive: host order */
++u32 lan_ipv4_mask = 0;
+ /* For storing present wan interface ipv4 address, Inclusive: host order */
+ u32 wan_ipv4_address = 0;
+ /* For storing second wan interface ipv4 address, Inclusive: host order */
+@@ -87,6 +91,24 @@ ctl_table dni_table[] = {
+         },
+ #endif
+ 	{
++		.ctl_name       = CTL_UNNUMBERED,
++		.procname       = "lan_ipv4_address",
++		.data           = &lan_ipv4_address,
++		.maxlen         = sizeof(int),
++		.mode           = 0644,
++		.proc_handler   = proc_dointvec,
++		.strategy       = sysctl_intvec,
++	},
++	{
++		.ctl_name       = CTL_UNNUMBERED,
++		.procname       = "lan_ipv4_mask",
++		.data           = &lan_ipv4_mask,
++		.maxlen         = sizeof(int),
++		.mode           = 0644,
++		.proc_handler   = proc_dointvec,
++		.strategy       = sysctl_intvec,
++	},
++	{
+ 		.ctl_name	= CTL_UNNUMBERED,
+ 		.procname	= "nat_filtering_behavior",
+ 		.data		= &sysctl_nat_filtering_behavior,  /* 0:secured mode, 1: open mode */
+diff -Nur linux-2.6.31/net/netfilter/nf_conntrack_core.c ../linux-2.6.31/net/netfilter/nf_conntrack_core.c
+--- linux-2.6.31/net/netfilter/nf_conntrack_core.c	2011-10-31 11:29:33.143830767 -0400
++++ ../linux-2.6.31/net/netfilter/nf_conntrack_core.c	2011-10-31 10:39:54.863831134 -0400
+@@ -641,10 +641,13 @@
+ 	/* We don't want any race condition at early drop stage */
+ 	atomic_inc(&net->ct.count);
+ 
+-	/* Disable NAT Session Management or skb is from netlink (skb is NULL)*/
+-	if (sysctl_enable_nat_management == 0 || skb == NULL || skb_is_ipv6_packet(skb)) {
+-		if (nf_conntrack_max &&
+-		    unlikely(atomic_read(&net->ct.count) > nf_conntrack_max)) {
++	/* According to NETGEAR Spec 2.0, the conntrack table is full should be the first judgement condition. */
++	if (nf_conntrack_max &&
++	    unlikely(atomic_read(&net->ct.count) > nf_conntrack_max)) {
++		/* Disable NAT Session Management or skb is from netlink (skb is NULL)*/
++		if(sysctl_enable_nat_management == 0 || skb == NULL || skb_is_ipv6_packet(skb) || tuple_is_router_traffic(orig)/*Router's traffic still applies kernel original session management*/) 
++		{
++			/* This is the original kernel NAT management. */
+ 			unsigned int hash = hash_conntrack(orig);
+ 			if (!early_drop(net, hash)) {
+ 				atomic_dec(&net->ct.count);
+@@ -659,65 +662,60 @@
+ 				}
+ 				return ERR_PTR(-ENOMEM);
+ 			}
+-		}
+-	} else {
+-	    /* Enable NAT Session Management */
+-		if (!tuple_is_wan_to_router_traffic(net, orig) &&
+-		    nf_conntrack_max &&
+-		    unlikely(atomic_read(&net->ct.count) > nf_conntrack_max)) {
++		} else {
++			/* This is the new NAT management to meet the new requirements of NETGEAR Spec 2.0 */
++
++			/* According to NETGEAR Router Spec 2.0, 
++			 * NAT management should only manage new NAT sessions and existing NAT sessions. */
+ 			unsigned int hash = hash_conntrack(orig);
+ 			if (!early_drop(net, hash)) {
+-				if (conntrack_table_really_full(net)) {
+-					if (tuple_initiated_from_inside(orig) == 0) {
+-						lan_ip_new =
+-						    lan_ip_of_wan_orig_tuple(net,
+-								    skb, orig);
+-					} else {
+-						lan_ip_new = ntohl(orig->src.u3.ip);
+-					}
+-
+-					if (lan_ip_new == 0) {
+-						atomic_dec(&net->ct.count);
+-						pr_debug("lan_ip_new is 0, "
+-							 "Drop this conntrack\n");
+-						return ERR_PTR(-ENOMEM);
+-					}
+-
+-					sessions_of_ip_new =
+-						number_of_session(net, lan_ip_new);
+-
+-					lan_ip_max =
+-						get_lan_ip_max_from_conntracks(
+-						    net, &sessions_of_ip_max);
+-
+-					victim =
+-					    find_victim_from_conntracks(net,
+-							orig, repl,
+-							lan_ip_new, lan_ip_max,
+-							sessions_of_ip_new,
+-							sessions_of_ip_max);
+-
+-					if (victim == NULL) {
+-						atomic_dec(&net->ct.count);
+-						if (net_ratelimit()) {
+-							printk(KERN_WARNING
+-							    "NAT Session "
+-							    "Management: "
+-							    "Fail to find "
+-							    "low-priority "
+-							    "session or "
+-							    "new session is "
+-							    "low-priority, "
+-							    "dropping packet.\n");
+-						}
+-						return ERR_PTR(-ENOMEM);
+-					} else {
+-						kick_off_existed_conntrack(victim);
+-					}
++				pr_debug("New session: %u.%u.%u.%u:%u(%u.%u.%u.%u:%u) <==> %u.%u.%u.%u:%u(%u.%u.%u.%u:%u)\n", NIPQUAD(orig->src.u3.ip), ntohs(orig->src.u.all), NIPQUAD(repl->dst.u3.ip), ntohs(repl->dst.u.all), NIPQUAD(orig->dst.u3.ip), ntohs(orig->dst.u.all), NIPQUAD(repl->src.u3.ip), ntohs(repl->src.u.all));
++				/* We remove conntrack_table_really_full() judgement,
++				 * because nf_conntrack_max should the total limitation for all of sessions. */
++				if (tuple_initiated_from_inside(orig) == 0)
++					lan_ip_new = lan_ip_of_wan_orig_tuple(net, skb, orig);
++				else
++					lan_ip_new = ntohl(orig->src.u3.ip);
++				if (lan_ip_new == 0) {
++					atomic_dec(&net->ct.count);
++					pr_debug("lan_ip_new is 0, "
++					         "Drop this conntrack\n");
++					return ERR_PTR(-ENOMEM);
++				}
++				sessions_of_ip_new = number_of_session(net, lan_ip_new);
++				lan_ip_max = get_lan_ip_max_from_conntracks(net, &sessions_of_ip_max);
++				/* This is the race condition that all of the conntracks are router's sessions */
++				if(lan_ip_max == 0 && sessions_of_ip_max == 0){
++					atomic_dec(&net->ct.count);
++					if (net_ratelimit())
++						printk(KERN_WARNING
++						       "There is no NAT session in conntrack table."
++						       "Maybe conntrack table is full of router's sessions!\n");
++					return ERR_PTR(-ENOMEM);
+ 				}
++				victim = find_victim_from_conntracks(net,
++				                                     orig, repl,
++				                                     lan_ip_new, lan_ip_max,
++				                                     sessions_of_ip_new,
++				                                     sessions_of_ip_max);
++				if (victim == NULL) {
++					atomic_dec(&net->ct.count);
++					if (net_ratelimit())
++						printk(KERN_WARNING
++						       "NAT Session "
++						       "Management: "
++						       "Fail to find "
++						       "low-priority "
++						       "session or "
++						       "new session is "
++						       "low-priority, "
++						       "dropping packet.\n");
++					return ERR_PTR(-ENOMEM);
++				} else
++					kick_off_existed_conntrack(victim);
+ 			}
+ 		}
+-	}
++	}	
+ 
+ 	/*
+ 	 * Do not use kmem_cache_zalloc(), as this cache uses
+diff -Nur linux-2.6.31/net/netfilter/nf_conntrack_dni.c ../linux-2.6.31/net/netfilter/nf_conntrack_dni.c
+--- linux-2.6.31/net/netfilter/nf_conntrack_dni.c	2011-10-31 11:29:32.953830767 -0400
++++ ../linux-2.6.31/net/netfilter/nf_conntrack_dni.c	2011-10-31 11:26:54.533830645 -0400
+@@ -20,6 +20,7 @@
+ #include <linux/socket.h>
+ #include <linux/mm.h>
+ #include <linux/rculist_nulls.h>
++#include <linux/in.h>
+ 
+ #include <net/ip.h>
+ #include <net/netfilter/nf_conntrack.h>
+@@ -39,6 +40,10 @@
+ EXPORT_SYMBOL(trigger_list_ptr);
+ 
+ /* Inclusive: host order */
++extern u32 lan_ipv4_address;
++/* Inclusive: host order */
++extern u32 lan_ipv4_mask;
++/* Inclusive: host order */
+ extern u32 wan_ipv4_address;
+ /* Inclusive: host order */
+ extern u32 second_wan_ipv4_address;
+@@ -165,6 +170,9 @@
+ 
+ #define NAT_SESSION_DIFF_NUM   (50)
+ 
++static int existing_ct_is_router_traffic(struct nf_conn *ct);
++static int ct_is_ipv6_traffic(struct nf_conn *ct);
++
+ static inline unsigned int nat_lan_hash(__u32 addr)
+ {
+ 	return ntohl(addr) & NAT_LAN_HASH_MASK;
+@@ -190,7 +198,8 @@
+ 			if (NF_CT_DIRECTION(h) == IP_CT_DIR_ORIGINAL) {
+ 				ct = nf_ct_tuplehash_to_ctrack(h);
+ 				orig = &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple;
+-
++				if (ct_is_ipv6_traffic(ct) || existing_ct_is_router_traffic(ct))
++					continue;
+ 				if (ntohl(orig->src.u3.ip) == lan_ip ||
+ 				    ntohl(orig->dst.u3.ip) == lan_ip) {
+ 					sessions_of_ip++;
+@@ -234,6 +243,9 @@
+ 			/* we only want to deal DIR_ORIGINAL */
+ 			if (NF_CT_DIRECTION(h) == IP_CT_DIR_ORIGINAL) {
+ 				ct = nf_ct_tuplehash_to_ctrack(h);
++				/* Ignore ipv6's conntrack and router's conntrack in conntrack table. */
++				if (ct_is_ipv6_traffic(ct) || existing_ct_is_router_traffic(ct))
++					continue;
+ 				/*
+ 				 * SNAT:lan_ip is src ip of ORIGINAL direction
+ 				 * DNAT:lan_ip is src ip of REPLY direction
+@@ -279,6 +291,11 @@
+ 	}
+ 	rcu_read_unlock();
+ 
++	if(lan_max == NULL){ //Maybe we could not find any candidate conntrack for that.
++		*sessions_of_ip_max = 0;
++		return 0;
++	}
++
+ 	*sessions_of_ip_max = lan_max->count;
+ 
+ 	return ntohl(lan_max->ipaddr);
+@@ -370,24 +387,25 @@
+ }
+ 
+ /*
+- * return value 1: this tuple is destined to router
+- * return value 0: this tuple is not destined to router or fail to find
+- *		   Remote Management rule.
++ * return value 1: this tuple is to or from router
++ * return value 0: this tuple is not to or from router
+  */
+-int tuple_is_wan_to_router_traffic(struct net *net,
+-				   const struct nf_conntrack_tuple *tuple)
++int tuple_is_router_traffic(const struct nf_conntrack_tuple *tuple)
+ {
+-	int i;
++	/* We don't need to take firewall rules into consideration, for we don't need to know whether is high priority or not here. 
++	 * So I remove the remote management checking from tuple_is_router_traffic(). By the way, Spec doesn't require us to handle 
++	 * remote management rule in NAT management. */
++	if(ntohl(tuple->src.u3.ip) == lan_ipv4_address //DUT->LAN
++	   || ntohl(tuple->src.u3.ip) == wan_ipv4_address //DUT->WAN
++	   || ntohl(tuple->src.u3.ip) == second_wan_ipv4_address //DUT->WAN
++	   || ntohl(tuple->dst.u3.ip) == lan_ipv4_address //LAN->DUT
++	   || ntohl(tuple->dst.u3.ip) == wan_ipv4_address //WAN->DUT
++	   || ntohl(tuple->dst.u3.ip) == second_wan_ipv4_address //WAN->DUT
++	   || ntohl(tuple->dst.u3.ip) == INADDR_LOOPBACK) //Loopback traffic
++		return 1;
+ 
+-	if ((tuple_initiated_from_inside(tuple) == 0)
+-	    && (tuple->dst.protonum == IPPROTO_TCP)
+-	    && (wan_traffic_rules != 0)) {
+-		for (i = 0; i < wan_traffic_rules; i++) {
+-			/* Both are stored in network order */
+-			if (tuple->dst.u.tcp.port == wan_traffic_ports[i])
+-				return 1;
+-		}
+-	}
++	if(ntohl((tuple->src.u3.ip) & lan_ipv4_mask) != (lan_ipv4_address & lan_ipv4_mask))//Other traffic belongs to Router.
++		return 1;
+ 	return 0;
+ }
+ 
+@@ -395,22 +413,13 @@
+  * return value 1: this ct is belng traffic destined/initiated to/from router.
+  * return value 0: this ct is not belong to traffic of router.
+  */
+-static int existing_ct_is_router_traffic(struct net *net, struct nf_conn *ct)
++static int existing_ct_is_router_traffic(struct nf_conn *ct)
+ {
+-	const struct nf_conntrack_tuple *orig, *repl;
+-	orig = &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple;
+-	repl = &ct->tuplehash[IP_CT_DIR_REPLY].tuple;
+-
+-	if (!tuple_is_wan_to_router_traffic(net, orig))
+-		goto failout;
+-
+-	if (orig->dst.u3.ip != repl->src.u3.ip
+-	    || orig->src.u3.ip != repl->dst.u3.ip)
+-		goto failout;
+-
+-	return 1;
+-
+- failout:
++	/* We can simply use this method to judge whether is existing NAT conntrack or not. */
++	if (!ct_is_ipv6_traffic(ct) && ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u3.ip == ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.ip
++	    &&  ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.ip == ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u3.ip)
++		/* LAN<->DUT & WAN<->DUT & DUT<->DUT & other router's sessions */
++		return 1;
+ 	return 0;
+ }
+ 
+@@ -433,7 +442,7 @@
+ 			/* we only want to deal DIR_ORIGINAL */
+ 			if (NF_CT_DIRECTION(h) == IP_CT_DIR_ORIGINAL) {
+ 				ct = nf_ct_tuplehash_to_ctrack(h);
+-				if (existing_ct_is_router_traffic(net, ct)) {
++				if (existing_ct_is_router_traffic(ct)) {
+ 					router_traffic_count++;
+ 				}
+ 			}
+@@ -537,7 +546,6 @@
+ 				     __u16 dport)
+ {
+ 	__u16 rproto = i->rproto ? : proto;
+-
+ 	return
+ 	    rproto == proto &&
+ 	    i->ports.rport[0] <= dport && i->ports.rport[1] >= dport;
+@@ -1138,6 +1146,7 @@
+ 		if ((orig->dst.protonum == IPPROTO_TCP)
+ 		    && (tcp_timeouts[TCP_CONNTRACK_ESTABLISHED] -
+ 		    (ct->timeout.expires - jiffies) > HIGH_PRIO_IDLE_TIME)) {
++			printk("I am old enough, but I don't know whether I am the oldest!\n");
+ 			return 0;
+ 		}
+ 		return 1;
+@@ -1166,16 +1175,18 @@
+ 			/* we only want to deal DIR_ORIGINAL */
+ 			if (NF_CT_DIRECTION(h) == IP_CT_DIR_ORIGINAL) {
+ 				ct = nf_ct_tuplehash_to_ctrack(h);
++				if (ct_is_ipv6_traffic(ct) || existing_ct_is_router_traffic(ct))
++					continue;
+ 				addr = ntohl((ct->status & IPS_SRC_NAT) ?
+ 					     ct->tuplehash[IP_CT_DIR_ORIGINAL].
+ 					     tuple.src.u3.ip :
+ 					     ct->tuplehash[IP_CT_DIR_REPLY].
+ 					     tuple.src.u3.ip);
+-
+ 				if (lan_ip == addr &&
+ 				    !conntrack_is_high_priority(net, ct) &&
+ 				    test_bit(IPS_ASSURED_BIT, &ct->status)) {
+ 					rcu_read_unlock();
++					printk("Victim conntrack:%u.%u.%u.%u:%u(%u.%u.%u.%u:%u) <==> %u.%u.%u.%u:%u(%u.%u.%u.%u:%u)\n", NIPQUAD(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3.ip), ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u.all), NIPQUAD(ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u3.ip), ntohs(ct->tuplehash[IP_CT_DIR_REPLY].tuple.dst.u.all), NIPQUAD(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u3.ip), ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all), NIPQUAD(ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u3.ip), ntohs(ct->tuplehash[IP_CT_DIR_REPLY].tuple.src.u.all));
+ 					return ct;
+ 				}
+ 			}

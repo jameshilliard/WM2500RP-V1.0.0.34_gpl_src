@@ -1,0 +1,68 @@
+<% cfg_set("auto_upgrade_tag", "0") %>
+
+<% http_header("style/form.css", "/funcs.js", "/upgrade.js") %>
+<!--% body_header("_upgrade", "upgrade.htm", "auto_upgrade_check") %>-->
+<body onLoad="loadvalue();">
+<div id="page_title_div" class="page_title" style="display:block">$upgrade_head</div>
+<div id="main" class="main">
+<div id="FW_checking_div" style="display:block">
+<form method="post" action="/apply.cgi?/upgrade.htm" target="formframe">
+<input type="hidden" name="submit_flag" value="auto_upgrade_check" />
+
+<script>
+<% refresh_timestamp("auto_upgrade_check", "ping") %>
+var ts="<% cfg_get("auto_upgrade_check") %>";
+var auto_check_for_upgrade="<% cfg_get("auto_check_for_upgrade") %>";
+function loadvalue()
+{
+	var cf=document.forms[0];
+    if(auto_check_for_upgrade == '0')
+        cf.enable.checked = false;
+    else
+        cf.enable.checked = true;
+}
+var netgear_module="<% cat_file("/module_name") %>";
+var netgear_region="<% cat_file("/firmware_region") %>";
+var netgear_ver="<% cat_file("/firmware_version") %>";
+
+parent.flag_page=0;
+</script>
+<input type="hidden" name="auto_check_for_upgrade">
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<TR><TD colSpan=3></TD></TR><TR><td colspan=3><img src=/liteblue.gif width=100% height=12></td></TR>
+
+  <tr>
+	<td nowrap><a tabindex=-1 href="javascript:loadhelp('_upgrade','check')"><b>$upgrade_new_version</b></a></td>
+	<td nowrap><input class="short_common_bt" type="submit" name="check" value="$check_mark" onclick="click_check();"></td>
+  </tr>
+  <tr>
+	<td nowrap colspan=2><input type="checkbox" name="enable" value=1 onclick="check_if_show();">$upgrade_upon</td>
+  </tr>
+$bluebar
+</table>
+</form>
+</div>
+<div id="FW_upg_div" style="display:block">
+<form method="post" action="/upgrade_check.cgi" target=formframe enctype="multipart/form-data"> 
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<TR><td nowrap><a tabindex=-1 href="javascript:loadhelp('_upgrade','locate')"><b>$upgrade_select_disk</b></a></TD></TR>
+<TR><td nowrap><input name="mtenFWUpload" type="file" size="32"></TD></TR>
+$bluebar
+<TR>
+<td nowrap colspan=2 align=center>
+<input class="cancel_bt" type="button" value="$cancel_mark" onClick="location.href='upgrade.htm';">&nbsp;&nbsp;
+<input class="apply_bt" type="submit"  value="$upgrade_mark" onClick="return clickUpgrade(document.forms[1])">
+  </TR>
+</TABLE>
+</FORM>
+</div>
+
+<div id="pls_wait_div" style="display:none">
+<div align="center"><br /><br /><b>$wizard_pls_wait</b><br /><br /></div>
+<div class="waiting_img_div" align="center"><img src="image/wait30.gif" alt="waiting" /></div>
+</div>
+
+</div>
+<% help_box("0","_upgrade") %>
+</body>
+</html>

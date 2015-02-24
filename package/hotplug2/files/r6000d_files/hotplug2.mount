@@ -1,0 +1,73 @@
+#! /bin/sh
+
+try_ntfs()
+{
+	ntfs-3g.probe --readwrite /dev/$1
+	case "$?" in
+	0)
+		ntfs-3g /dev/$1 /mnt/$1 -o locale=en_US.UTF-8
+		if [ $? -ne 0 ];then
+			rmdir /mnt/$1
+		fi
+		;;
+	14)
+		ntfs-3g /dev/$1 /mnt/$1 -o remove_hiberfile,locale=en_US.UTF-8
+                if [ $? -ne 0 ];then
+                        rmdir /mnt/$1
+                fi
+                ;;
+
+	15)
+		ntfs-3g /dev/$1 /mnt/$1 -o force,locale=en_US.UTF-8
+		if [ $? -ne 0 ];then
+			rmdir /mnt/$1
+		fi
+		;;
+	*)
+		rmdir /mnt/$1
+	esac
+}
+
+try_paragon_ntfs()
+{
+	mount -t ufsd -o nls=utf8,rw,nodev,noexec,noatime,uid=0,gid=0,fmask=0,dmask=0 --force /dev/$1 /mnt/$1
+}
+
+if [ $# -eq 0 ];then
+	echo "Must run with devicename."
+	exit 1
+fi
+partition_tb=$(parted -s /dev/`echo $1 | sed 's/[0-9]//g'` print | grep "Partition Table" | awk '{print $3}')
+if [ "x$(parted -s /dev/`echo $1 | sed 's/[0-9]//g'` print noshare | grep $1)" = "x" -o "x$partition_tb" = "xloop" ]; then
+
+echo "Try to mount disk $1........."
+mkdir /mnt/$1
+mount -o utf8=yes,fmask=0000,dmask=0000,usefree /dev/$1 /mnt/$1
+if [ $? -ne 0 ];then
+	# UTF8 can't be added to mounting ext2/3
+	try_paragon_ntfs $1 #try to mount as ufsd
+	if [ $? -ne 0 ];then
+		mount /dev/$1 /mnt/$1
+		if [ $? -ne 0 ];then
+			echo "Mount failed"
+			# fix bug 41298 , when mount failed ,delete the directory ,
+			# or it may umounted failure  when we press Safety Remove button.
+			rmdir /mnt/$1
+		else
+			# re-fix bug 30387 , if we mount successed, we should update the time(touch), 
+			# or it may display error time information when we access usb device by http or ftp.
+			touch /mnt/$1
+			echo "Mount success by default !!"
+		fi
+	else
+		# re-fix bug 30387
+		touch /mnt/$1
+		echo "Mount success by paragon ufsd!!"
+	fi
+else
+	# re-fix bug 30387
+	touch /mnt/$1
+	echo "Mount success by normal !!"
+fi
+
+fi

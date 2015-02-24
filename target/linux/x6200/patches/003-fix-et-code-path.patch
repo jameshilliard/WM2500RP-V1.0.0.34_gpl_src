@@ -1,0 +1,19 @@
+--- linux-2.6.36.4.org/drivers/net/et/Makefile	2012-10-03 23:39:09.000000000 -0400
++++ linux-2.6.36.4.new/drivers/net/et/Makefile	2012-11-15 13:28:15.838205443 -0500
+@@ -18,7 +18,7 @@
+ # $Id: Makefile,v 1.5 2010-12-07 04:47:36 $
+ #
+ 
+-ETSRCDIR := ../../../../../../../src/et
++ETSRCDIR := ../../../../../et
+ 
+ et-objs := $(ETSRCDIR)/sys/et_linux.o $(ETSRCDIR)/sys/etc.o
+ 
+@@ -45,6 +45,7 @@
+ else
+ et-objs := $(ETSRCDIR)/linux/et.o
+ endif
++EXTRA_CFLAGS	+= -I../../include
+ 
+ ifneq ($(KERNELRELEASE),)
+ # kbuild part of makefile

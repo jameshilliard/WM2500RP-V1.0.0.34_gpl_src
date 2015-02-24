@@ -1,0 +1,2 @@
+::sysinit:/etc/init.d/rcS S boot
+ttyS0::respawn:/bin/ash --login

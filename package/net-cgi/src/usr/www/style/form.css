@@ -1,0 +1,183 @@
+P {
+	LIST-STYLE-POSITION: outside; FONT-SIZE: 12px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+H1 {
+	FONT-WEIGHT: bold; FONT-SIZE: 16px; COLOR: #9d98ff; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+H2 {
+	FONT-WEIGHT: bold; FONT-SIZE: 14px; BACKGROUND: white; COLOR: #09c; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+BODY {
+	FONT-SIZE: 12px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif; background-color: #ffffff;
+}
+TD {
+	FONT-SIZE: 12px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+A {
+	COLOR: black; TEXT-DECORATION: none
+}
+.thead {
+	FONT-WEIGHT: bold; FONT-SIZE: 12px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif; TEXT-ALIGN: center
+}
+.ttext {
+	FONT-SIZE: 12px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif; TEXT-ALIGN: center
+}
+.subhead {
+	FONT-WEIGHT: bold; FONT-SIZE: 12px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+.subhead_blue {
+        FONT-WEIGHT: bold; FONT-SIZE: 12px; COLOR: #09c; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+	}
+
+.pic_on{  background:url(/image/buttons.gif) -350px 0 no-repeat; width:27px; height:27px;position:relative; float:left; }
+.pic_off{ background:url(/image/buttons.gif) -308px 0 no-repeat; width:27px; height:27px;position:relative; float:left; }
+.bar { position: absolute; top: 0; left: 0; width:0%; height: 100%; background
+	: url(../image/oneline.gif) 0 -2px repeat-x; }
+#bar_td { width: 400px; margin:auto;position: relative; height:35px;}
+.prgbar2 { width: 350px; height: 20px; font-weight: bolder; font-size: 10pt;
+	border: 1px solid; border-color: #09c; color: #0000FF; position: relative;
+	float: right; }
+
+.num {
+	FONT: 10pt "Courier New",Courier,serif; COLOR: black
+}
+.prgbar { 
+	font-family:Arial; padding:0px; height: 20px; width: 200px; font-weight: bolder; font-size: 10pt; border: 1px solid; border-color: #09c; color: #0000FF}
+.rebootbar { 
+	font-family:Arial; padding:0px; height: 20px; width: 370px; font-weight: bolder; font-size: 10pt; border: 1px solid; border-color: #09c; color: #0000FF}
+.reboot1bar { 
+	font-family:Arial; padding:0px; height: 20px; width: 320px; font-weight: bolder; font-size: 10pt; border: 1px solid; border-color: #09c; color: #0000FF}
+.linktype  {     color:  blue;   text-decoration:   underline}
+
+.page_title{width: 625px; height: 20px; font: bold 17px arial; color: #9d98ff; position: absolute; top: 0px; left: 0px;}
+.page_title_big{width: 625px; height: 40px; font: bold 17px arial; color: #9d98ff; position: absolute; top: 0px; left: 0px;}
+.main_bas {width: 625px; background-color: #ffffff; overflow: auto; position: absolute; top: 135px; left: 0px; bottom: 30px;}
+.main_top_button{ width: 625px; overflow: auto; position: absolute; top: 50px; left: 0px; bottom: 30px;}
+.main{ width: 625px; overflow: auto; position: absolute; top: 20px; left: 0px; bottom: 30px;}
+.main_big{ width: 625px; overflow: auto; position: absolute; top: 40px; left: 0px; bottom: 30px;}
+.wizard_top_button{ width: 625px; overflow: auto; position: absolute; top: 0px; left: 0px; bottom: 30px;}
+.ca_main{ width: 625px; overflow: auto; position: absolute; top: 20px; left: 0px; right: 10px; bottom: 30px;}
+
+#help{ width: 625px; position: absolute; bottom: 30px; left: 0px; }
+#help #helpframe{width: 625px; height: 120px; }
+#help_switch{ width: 625px; height: 30px; background-color: #e5e5e5; position: absolute; bottom: 0px; left: 0px;}
+.help_switch_img { width: 100%; height: 100%; position: relative; }
+#help_switch #help_space{ height: 22px; width: 30px; background: url(../image/help/help-bar-icon.gif) left no-repeat; background-repeat: no-repeat; cursor:pointer; position: absolute; z-index: 2; top: 4px; left: 5px; }
+
+#help_switch #help_center{ width: 240px; color: white; font-family: Arial; font-weight: Bold; font-size: 15px; line-height: 30px; position: absolute; z-index: 2; top: 0; left: 35px; }
+
+#help_switch #help_show_hidden { width: 270px; font-family: Arial; color: white; font-size: 12px; font-style: italic; text-align: right; line-height: 30px; position: absolute; z-index: 2; top: 0; right: 5px; }
+#help_switch #help_show_hidden a{ color:white; background-color: transparent;  position: relative; top: -2px; text-decoration:underline;}
+
+/*#help{ width:625px; position: absolute; bottom: 30px; left: 0px;}
+#help #helpframe{width: 625px; height: 120px; }
+#help_switch{ width: 625px; height: 30px; background-image: url(../image/help/help-bar.gif); background-repeat: no-repeat; background-color: #e5e5e5; position: absolute; bottom: 0px; left: 0px;}
+#help_switch #help_space{ height: 22px; width: 30px; background: transparent url(../image/help/help-bar-icon.gif) 5px -1px no-repeat; background-repeat: no-repeat; cursor:pointer;}
+
+#help_switch #help_center{ width: 240px; color: white; font-family: Arial; font-weight: Bold; font-size: 15px; }
+
+#help_switch #help_show_hidden { width: 270px; font-family: Arial; color: white; font-size: 12px; font-style: italic; text-align: right;}
+#help_switch #help_show_hidden a{ color:white; background-color: transparent;  position: relative; top: -2px; text-decoration:underline;}
+*/
+.close_help #help_button{ width: 100%; height: 100%; background: url(../image/help/help_up.gif) no-repeat center; cursor:pointer; position: absolute; z-index: 1; top: 0; left: 0; }
+
+.open_help  #help_button{ width: 100%; height: 100%; background: url(../image/help/help_down.gif) no-repeat center;  cursor:pointer; position: absolute; z-index: 1; top: 0; left: 0;}
+
+.button{ float: left; width: 600px; height: 42px; }
+.fix_button{width: 625px; height: 30px; position: absolute; top: 20px; left: 0px; background: url(../image/top_button_background.gif) left bottom repeat-x;}
+
+
+.apply_bt, .cancel_bt, .long_add_bt, .add_bt, .edit_bt, .delete_bt, .common_bt, .long_common_bt, .short_common_bt, .middle_common_bt, .wizard_common_bt, .wizard_long_bt, .wizard_middle_common_bt, .wladv_long_common_bt{ height: 22px; color: #f2f2f2; font-family: Arial; font-weight: Bold; font-size: 14px; background-color: transparent; border: none; cursor: pointer; padding-bottom: 2px;}
+.apply_bt{width: 128px; background: url(../image/buttons.gif) no-repeat top left}
+.cancel_bt{width: 128px; background: url(../image/buttons.gif) no-repeat 0 -22px }
+.add_bt{ width:135px; background: url(../image/buttons.gif) no-repeat 0 -110px}
+.long_add_bt{ width: 280px; background: url(../image/buttons.gif) no-repeat 0 -154px}
+.edit_bt{width:200px; background: url(../image/buttons.gif) no-repeat 0 -66px}
+.delete_bt{width:180px; background: url(../image/buttons.gif) no-repeat -128px 0}
+.common_bt{width:147px; background: url(../image/buttons.gif) no-repeat -135px -110px}
+.long_common_bt{width:320px; background: url(../image/buttons.gif) no-repeat 0 -198px}
+.short_common_bt{width:100px; background: url(../image/buttons.gif) no-repeat -200px -66px}
+.middle_common_bt{width:128px; background: url(../image/buttons.gif) no-repeat 0 -44px;}
+.wizard_common_bt{width:320px; background: url(../image/buttons.gif) no-repeat 0 -198px;}
+.wizard_long_bt{width:455px; background: url(../image/wizard_buttons.gif) no-repeat 0 -44px;}
+.wizard_middle_common_bt{width:150px; background: url(../image/buttons.gif) no-repeat -135px -110px;}
+.wladv_long_common_bt{width:260px; background: url(../image/wizard_buttons.gif) no-repeat 0 -66px;}
+
+.mobile_short_common_bt, .mobile_cancel_bt, .mobile_cpy_bt{ height: 44px; color: #f2f2f2; font-family: Arial; font-weight: Bold; font-size: 20px; background-color: transparent; border: none; cursor: pointer; padding-bottom: 2px;}
+.mobile_short_common_bt{width:150px; background: url(../image/wizard_buttons.gif) no-repeat 0 0}
+.mobile_cancel_bt{width: 150px; background: url(../image/wizard_buttons.gif) no-repeat -150px 0; }
+.mobile_cpy_bt{width: 220px; background: url(../image/wizard_buttons.gif) no-repeat -300px 0; }
+.long_add_gray_bt, .add_gray_bt, .edit_gray_bt, .delete_gray_bt, .long_common_gray_bt, .common_gray_bt, .short_common_gr_bt { height: 22px; color:#808080; font-family: Arial; font-weight: Bold; font-size: 14px; background-color: transparent; border: none; cursor: pointer; padding-bottom: 2px;}
+.long_add_gray_bt{ width: 280px; background: url(../image/buttons.gif) no-repeat 0 -176px}
+.add_gray_bt{ width:135px; background: url(../image/buttons.gif) no-repeat 0 -132px}
+.edit_gray_bt{width:200px; background: url(../image/buttons.gif) no-repeat 0 -88px}
+.delete_gray_bt{width:180px; background: url(../image/buttons.gif) no-repeat -128px -22px}
+.long_common_gray_bt{width:320px; background: url(../image/buttons.gif) no-repeat 0 -220px}
+.common_gray_bt{width:147px; background: url(../image/buttons.gif) no-repeat -135px -132px}
+.short_common_gr_bt{width:100px; background: url(../image/buttons.gif) no-repeat -200px -88px}
+
+.tables{
+        font-family: Arial;
+        font-size: 12px;
+}
+
+.table_header{
+        color: #ffffff;
+        font-weight: Bold;
+        background-color: #767676;
+}
+
+.even_line{
+        background-color: #e5e5e5;
+}
+
+.odd_line{
+        background-color: white;
+}
+
+.divselect{ 
+height:20px; 
+width:150px; 
+}  
+.divSlt{  
+position:absolute; 
+font-size:12px; 
+ 
+background-color:#cccccc;
+} 
+.divSlt span{ 
+display:block; 
+width:100%; 
+border:1px solid #999999; 
+background:url(selects.gif) no-repeat right center; 
+text-indent:6px; 
+cursor:pointer; 
+} 
+.divSlt ul{ 
+display:block; 
+background-color:#FFFFFF; 
+width:100%; 
+border:1px solid #999999; 
+border-top:0px; 
+margin:0px; 
+padding:0px; 
+list-style:none; 
+} 
+.divSlt ul li{ 
+text-indent:5px; 
+height:20px; 
+line-height:20px; 
+cursor:pointer; 
+}
+
+#select_div{ position:relative; width:100%; z-index:1;}
+.enable_select { color:#000000;}
+.disable_select { color:gray;}
+#select_title{ position:absolute; top:3px; left:20px; width:325px; z-index:9;}
+#select_content{ position:absolute; top:0px; left:345px; z-index:9; width: 90px;}
+#select_content span{ position:absolute; width: 90px; height:18px; cursor: default; line-height:18px;}
+.enable_span { color:#000000; background-image:url(../selects.gif); background-position:right; background-repeat:no-repeat; border:1px solid #b8c6eb; }
+.disable_span { color:gray; background-image:url(../selects_disabled.gif); background-position:right; background-repeat:no-repeat; border:1px solid #e5e5e5; }
+#select_content #auto_conn_time_show { position:absolute; width: 100%; z-index:9;}
+#select_content #auto_conn_time{ position:absolute; top:19px; left:0; width: 90px; z-index:99; height:180px; overflow-x: hidden; overflow-y:scroll; border:1px solid #b8c6eb; list-style:none;}
+#auto_conn_time li { height: 20px; width: 75px; margin: 0; background: #FFFFFF; list-style:outside none; line-height: 18px;}

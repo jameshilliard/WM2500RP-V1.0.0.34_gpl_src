@@ -1,0 +1,16 @@
+<% echo_set("1", "/proc/sys/net/ipv4/mobile_tag") %>
+<% cfg_set("succ_conn_login", "1") %>
+<% cfg_set("mobile_tag", "1") %>
+<% cfg_set("refresh_url", "") %>
+<% cfg_set("first_connect", "1") %>
+
+<% http_header("style/wizard.css") %>
+<FRAMESET rows=130,*>
+<FRAME name=topframe marginWidth=0 marginHeight=0 src="mobile_ca_top.htm" frameBorder=0 noResize scrolling=no>
+<FRAME name=formframe marginWidth=0 marginHeight=0 src="configure_extender.htm" frameBorder=0>
+</FRAMESET>
+<NOFRAMES>
+<BODY>
+<p>$alert_browser
+</BODY></NOFRAMES>
+</html>

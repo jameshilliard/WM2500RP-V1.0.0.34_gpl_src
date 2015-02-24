@@ -1,0 +1,14 @@
+diff -Nur linux-2.6.30.old//drivers/usb/usb-modem-list.h linux-2.6.30/drivers/usb/usb-modem-list.h
+--- linux-2.6.30.old//drivers/usb/usb-modem-list.h	2012-03-27 05:07:32.497321740 -0400
++++ linux-2.6.30/drivers/usb/usb-modem-list.h	2012-03-27 05:08:17.637321750 -0400
+@@ -852,5 +852,10 @@
+         { USB_DEVICE(0x1076, 0x7708) }, //Yota One
+         { USB_DEVICE(0x0525, 0xa4a2) }, //Yota One
+ 
++	//Aircard 901
++        { USB_DEVICE(0x1ab7, 0x0301) },
++        //SKYLINK CT-650
++        { USB_DEVICE(0x211f, 0x6801) },
++
+ 	{ } /* Terminating entry */
+ };

@@ -1,0 +1,11 @@
+--- linux-2.6.36/net/bridge/br_input.c	2013-01-07 07:22:27.926084751 -0500
++++ linux-2.6.36/net/bridge/br_input-new.c	2013-01-07 07:24:18.336090557 -0500
+@@ -65,7 +65,7 @@
+ 		return 1;
+ 	udph = (struct udphdr *)(((unsigned char *)iph) + (iph->ihl<<2));
+ 
+-	if( udph->dest == 53)
++	if( udph->dest == htons(53))
+ 	{
+ 		static char domain[15], domain2[15];
+ 		domain[0] = 0x09;

@@ -1,0 +1,34 @@
+<% http_header("style/form.css", "/funcs.js", "/passwd.js") %>
+<% noload_header("_passwd") %>
+
+<TR><td nowrap colspan=2><H1>$passwd_head</H1></TD></TR>
+$bluebar<tr><td nowrap colspan=2 align=center>
+<br><br>$old_password_error<br><br></td></tr>
+$line_string
+
+<Script >
+function getObj(name)
+{
+    if (document.getElementById)
+    {
+        return document.getElementById(name);
+    }
+    else if (document.all)
+    {
+        return document.all[name];
+    }
+    else if (document.layers)
+    {
+        return document.layers[name];
+    }
+}
+
+function goback()
+{
+	location.href="passwd.htm";
+}
+setTimeout("goback();",3000);
+</Script>
+</FORM>
+</BODY>
+</HTML>

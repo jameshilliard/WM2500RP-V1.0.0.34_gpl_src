@@ -1,0 +1,68 @@
+From bf81311e28014c4eb1646a85b850470f45fe22d9 Mon Sep 17 00:00:00 2001
+From: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Date: Wed, 11 May 2011 15:20:35 +0800
+Subject: [PATCH 028/137] ipv6_fragment: limit single ipv6 packet's max fragments
+
+Before fragment enter fragment queue, ipv6 packet's fragments
+number will be count.
+When fragments number beyond 32 (sysctl set), we will
+buffer at most 32 fragments and discard other fragment
+which come later belong the same packet.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv6/reassembly.c |    8 ++++++++
+ 1 files changed, 8 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv6/reassembly.c b/net/ipv6/reassembly.c
+index a85bdbe..dfe59ae 100644
+--- a/net/ipv6/reassembly.c
++++ b/net/ipv6/reassembly.c
+@@ -286,6 +286,14 @@ static int ip6_frag_queue(struct frag_queue *fq, struct sk_buff *skb,
+ 		return -1;
+ 	}
+ 
++	if (net->ipv6.frags.single_max > 0) {
++		if (fq->fragment_count >= net->ipv6.frags.single_max) {
++			goto err;
++		} else {
++			fq->fragment_count++;
++		}
++	}
++
+ 	if (skb->ip_summed == CHECKSUM_COMPLETE) {
+ 		const unsigned char *nh = skb_network_header(skb);
+ 		skb->csum = csum_sub(skb->csum,
+-- 
+1.7.4.1
+

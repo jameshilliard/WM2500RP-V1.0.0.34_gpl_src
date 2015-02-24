@@ -1,0 +1,31 @@
+From 233cbf91783c673786445bb4240d50ff22027101 Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:44 +0800
+Subject: [PATCH 058/137] netfilter: add function prototype of find_appropriate_p2p_dst()
+
+Define new variables for supporting SNATP2P in conntrack module.
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netfilter/nf_nat.h |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/netfilter/nf_nat.h b/include/net/netfilter/nf_nat.h
+index 9f012fb..a9f72b1 100644
+--- a/include/net/netfilter/nf_nat.h
++++ b/include/net/netfilter/nf_nat.h
+@@ -93,6 +93,10 @@ extern unsigned int nf_nat_setup_info(struct nf_conn *ct,
+ extern int nf_nat_used_tuple(const struct nf_conntrack_tuple *tuple,
+ 			     const struct nf_conn *ignored_conntrack);
+ 
++extern int find_appropriate_p2p_dst(struct net *net,
++				    const struct nf_conntrack_tuple *tuple,
++				    struct nf_conntrack_tuple *result);
++
+ static inline struct nf_conn_nat *nfct_nat(const struct nf_conn *ct)
+ {
+ 	return nf_ct_ext_find(ct, NF_CT_EXT_NAT);
+-- 
+1.7.4.1
+

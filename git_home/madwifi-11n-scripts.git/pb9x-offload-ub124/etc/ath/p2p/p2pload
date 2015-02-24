@@ -1,0 +1,28 @@
+#!/bin/sh
+
+/etc/rc.d/rc.wlan up
+
+i=0
+WIFI_FOUND=0
+
+while [ "$i" != "30" ]
+do
+    cat /proc/net/dev | grep wifi0 > /dev/null
+    if [ "$?" = "0" ]; then
+        echo wifi0 detected...
+        WIFI_FOUND=1
+        break
+    fi
+    sleep 1
+    i=$(($i+1))
+done
+
+if [ "$WIFI_FOUND" != "1" ]; then
+    echo Fail to detect WLAN...
+    exit 1
+else
+    echo Configuring P2P...
+fi
+
+/etc/ath/p2p/setupp2p
+

@@ -1,0 +1,33 @@
+From 8149e58e7b782b663e2b8e4efa6b59da9f4fa48b Mon Sep 17 00:00:00 2001
+From: michell.dong <michell.dong@dniserver.dnish.net>
+Date: Wed, 28 Nov 2012 12:16:57 -0500
+Subject: [PATCH] Take common line out of ifdef condition
+
+The common line is:
+i->status &= ~(IPS_NAT_MASK | IPS_NAT_DONE_MASK | IPS_SEQ_ADJUST);
+
+Signed-off-by: michell.dong <michell.dong@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |    4 +---
+ 1 files changed, 1 insertions(+), 3 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index cd1d3d3..e42514b 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -948,11 +948,9 @@ static int clean_nat(struct nf_conn *i, void *data)
+ 	if (!nat)
+ 		return 0;
+ 	memset(nat, 0, sizeof(*nat));
+-#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ 	i->status &= ~(IPS_NAT_MASK | IPS_NAT_DONE_MASK | IPS_SEQ_ADJUST);
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ 	i->status &= ~(IPS_SNATP2P_MASK | IPS_SNATP2P_DONE_MASK);
+-#else
+-	i->status &= ~(IPS_NAT_MASK | IPS_NAT_DONE_MASK | IPS_SEQ_ADJUST);
+ #endif
+ 	return 0;
+ }
+-- 
+1.7.4.1
+

@@ -1,0 +1,33 @@
+#!/bin/sh
+##
+## Compatability scripts for older versions
+##
+
+. /etc/ath/apcfg
+
+##
+## bring down wsupp bridge
+##
+killall wpa_supplicant
+sleep 3
+
+##
+## stop/shutdown VAP
+##
+killVAP all
+sleep 3
+
+##
+## unload all modules
+##
+#/etc/rc.d/rc.wlan down
+
+rm -f /tmp/.apup
+rm -f /tmp/sec*
+rm -f /tmp/conf*
+rm -rf /tmp/hostapd
+
+##
+## restore network
+##
+# ifconfig br0 $AP_IPADDR netmask $AP_NETMASK up

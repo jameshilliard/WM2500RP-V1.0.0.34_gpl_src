@@ -1,0 +1,71 @@
+From 3d001e56fc338579881a8716e8b4d1ab8f5a374f Mon Sep 17 00:00:00 2001
+From: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Date: Fri, 1 Jul 2011 09:57:13 +0800
+Subject: [PATCH 041/137] IPv6: control whether to set frag_off of IPv4 via /proc interface
+
+The default value of
+/proc/sys/net/ipv6/ipv6_6to4_force_ip4fragoff_zero is 0.
+
+When /proc/sys/net/ipv6/ipv6_6to4_force_ip4fragoff_zero is 1,
+it can be used to fix:
+[ipv6-6to4 Bug 19849]A 6to4 packet should not have the "Do Not
+Fragment" flag set in the encapsulating IPv4 header.
+
+Netgear Spec:
+(6) A 6to4 packet MUST NOT have the "Do Not Fragment" flag set in
+the encapsulating IPv4 header.
+
+The worse case will be a fragmented packet might never be delivered
+when the remote 6to4 relay router is set to Auto.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv6/sit.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/net/ipv6/sit.c b/net/ipv6/sit.c
+index dc30894..8d19f39 100644
+--- a/net/ipv6/sit.c
++++ b/net/ipv6/sit.c
+@@ -705,7 +705,7 @@ static int ipip6_tunnel_xmit(struct sk_buff *skb, struct net_device *dev)
+ 	iph 			=	ip_hdr(skb);
+ 	iph->version		=	4;
+ 	iph->ihl		=	sizeof(struct iphdr)>>2;
+-	if (mtu > IPV6_MIN_MTU)
++	if (!sysctl_ipv6_6to4_force_ip4fragoff_zero && mtu > IPV6_MIN_MTU)
+ 		iph->frag_off	=	htons(IP_DF);
+ 	else
+ 		iph->frag_off	=	0;
+-- 
+1.7.4.1
+

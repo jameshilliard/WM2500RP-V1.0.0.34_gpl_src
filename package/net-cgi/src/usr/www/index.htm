@@ -1,0 +1,39 @@
+<% cfg_set("dns_hijack", "0") %>
+<% cfg_set("ca_finish_success", "0") %>
+<% cfg_set("refresh_url", "") %>
+<% cfg_set("continue_ca_settings", "") %>
+<% cfg_set("succ_conn_login", "0") %>
+<% cfg_set("setup_wizard_tag", "0") %>
+<% cfg_set("first_connect", "0") %>
+
+<% http_header("funcs.js") %>
+<body>
+<script>
+var configured="<% cfg_get("configured") %>";
+<% cfg_set("configured", "1") %>
+<% commit() %>
+
+var ssid_null_tag="first_null";
+var wps_process=0;
+var wl0_ssid="NETGEAR";
+charcount=0;
+pls_wait=0;
+flag_page=0;
+wizard=0;
+same_sec_type=0;
+var con_fail="<% conn_fail() %>";
+var hidden_wlan_ca="<% cfg_get("hidden_wlan_ca") %>";
+
+var index_ts = 0;
+/*if( configured == "1" && con_fail == "1" && hidden_wlan_ca == "")
+{
+	if(check_mobile_device() == '1')
+		location.href="mobile_ca_connect_continue.htm";
+	else
+		location.href="ca_connect_continue.htm";
+}
+else*/
+	location.href="new_index.htm";
+</script>
+<body>
+</html>

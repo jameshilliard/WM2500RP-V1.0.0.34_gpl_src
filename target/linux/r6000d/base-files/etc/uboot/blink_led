@@ -1,0 +1,28 @@
+#! /bin/sh
+
+RESULT=/tmp/uboot-result
+DEV=/dev/mtd0
+UBOOT_TMP=/tmp/u-boot-tmp
+PATTERN="Jun 27 2013"
+
+blink_usb()
+{
+	I=1
+	while true ; do
+		ledcontrol -n usb -c blue -s on
+		[ "$((I%2))" == "0" ] && ledcontrol -n usb -c blue -s off
+		sleep 1
+		let I++
+	done
+}
+
+# check if update success
+dd if=$DEV of=$UBOOT_TMP bs=128k count=1
+grep "$PATTERN" $UBOOT_TMP
+
+if [ "$?" == "0" ] ; then
+	echo "update u-boot: u-boot version is the newest" >> $RESULT 
+	blink_usb
+else
+	echo "update u-boot: upgrade fail" >> $RESULT
+fi

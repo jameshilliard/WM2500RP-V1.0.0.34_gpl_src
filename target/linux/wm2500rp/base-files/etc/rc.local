@@ -1,0 +1,7 @@
+# Put your custom commands here that should be executed once
+# the system init finished. By default this file does nothing.
+
+# When DUT boot up, disable ipv6 firstly. Will enable it in init process of init6 
+echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
+
+exit 0

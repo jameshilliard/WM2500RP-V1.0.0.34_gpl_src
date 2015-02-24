@@ -1,0 +1,34 @@
+From 841ec5b0c2acdbf173b90c44e2ff62de30491221 Mon Sep 17 00:00:00 2001
+From: michell.dong <michell.dong@dniserver.dnish.net>
+Date: Wed, 28 Nov 2012 12:00:11 -0500
+Subject: [PATCH] netfilter: add local int variable have_to_hash_modified in nf_nat_setup_info()
+
+Its value is initialized to:
+(ct->status & IPS_SNATP2P_MASK) && !(ct->status & IPS_SNATP2P_DONE_MASK)
+
+Modify the conntrack and nat modules to support SNATP2P
+
+Patch as referring to bellowing link:
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-January/023084.html
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-March/023585.html
+
+Signed-off-by: michell.dong <michell.dong@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index c39de85..23ed751 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -428,6 +428,7 @@ nf_nat_setup_info(struct nf_conn *ct,
+ 	int flag_ori;
+ 	#endif
+ 	int have_to_hash = !(ct->status & IPS_NAT_DONE_MASK);
++	int have_to_hash_modified = (ct->status & IPS_SNATP2P_MASK) && !(ct->status & IPS_SNATP2P_DONE_MASK);
+ 
+ 	/* nat helper or nfctnetlink also setup binding */
+ 	nat = nfct_nat(ct);
+-- 
+1.7.4.1
+

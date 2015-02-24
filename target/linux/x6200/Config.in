@@ -1,0 +1,71 @@
+config TARGET_LINUX_GIT_TREEISH
+	string
+	prompt "treeish of linux git repository"
+	depends on TARGET_x6200
+	default "Please Input a Valid Treeish"
+	help
+           Input the treeish of linux git repository which you want to build
+
+config TARGET_LINUX_GIT_REPOSITORY
+	string
+	prompt "name of linux git repository"
+	depends on TARGET_x6200
+	default "linux-2.6.22.git"
+	help
+	   Input the name of linux git repository which you want to build
+
+config TARGET_LINUX_GIT_URL
+	string
+	prompt "url of linux git repository"
+	depends on TARGET_x6200
+	default "ssh://dniserver/scm/dnigit/openwrt-buildroot.git/alime.mao/kernel/linux-2.6.22.git"
+	help
+	   Input the url of linux git repository which you want to build
+
+config TARGET_NETFILTER_GIT_TREEISH
+	string
+	prompt "treeish of netfilter git repository"
+	depends on TARGET_x6200
+	default "Please Input a Valid Treeish"
+	help
+           Input the treeish of netfilter git repository which you want to build
+
+config TARGET_NETFILTER_GIT_REPOSITORY
+	string
+	prompt "name of netfilter git repository"
+	depends on TARGET_x6200
+	default "dni-netfilter-2.6.22.git"
+	help
+	   Input the name of netfilter git repository which you want to build
+
+config TARGET_NETFILTER_GIT_URL
+	string
+	prompt "url of netfilter git repository"
+	depends on TARGET_x6200
+	default "ssh://dniserver/scm/dnigit/openwrt-buildroot.git/alime.mao/kernel/dni-netfilter-2.6.22.git"
+	help
+	   Input the url of netfilter git repository which you want to build
+
+config LSDK_TREEISH
+	string
+	prompt "treeish of broadcom lsdk git repository"
+	depends on TARGET_x6200
+	default "Please Input a Valid Treeish"
+	help
+           Input the treeish of netfilter git repository which you want to build
+
+config LSDK_REPOSITORY
+	string
+	prompt "name of broadcom lsdk git repository"
+	depends on TARGET_x6200
+	default "brcm_sdk.git"
+	help
+	   Input the name of netfilter git repository which you want to build
+
+config LSDK_URL
+	string
+	prompt "url of broadcom lsdk git repository"
+	depends on TARGET_x6200
+	default "ssh://dniserver/home/jonathan/sdk/brcm_sdk.git"
+	help
+	   Input the url of netfilter git repository which you want to build

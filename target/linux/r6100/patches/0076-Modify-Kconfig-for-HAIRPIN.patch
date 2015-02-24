@@ -1,0 +1,33 @@
+From 6f17752c7d90d75d8a29c5decc4b6917ccc5ae03 Mon Sep 17 00:00:00 2001
+From: michell.dong <michell.dong@dniserver.dnish.net>
+Date: Wed, 28 Nov 2012 12:07:47 -0500
+Subject: [PATCH] Modify Kconfig for HAIRPIN
+
+Signed-off-by: michell.dong <michell.dong@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/Kconfig |    9 +++++++++
+ 1 files changed, 9 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/Kconfig b/net/ipv4/netfilter/Kconfig
+index 22ca574..1b32db6 100644
+--- a/net/ipv4/netfilter/Kconfig
++++ b/net/ipv4/netfilter/Kconfig
+@@ -230,6 +230,15 @@ config IP_NF_TARGET_SNATP2P
+ 
+          To compile it as a module, choose M here.  If unsure, say N.
+ 
++config IP_NF_TARGET_HAIRPIN
++	tristate "HAIRPIN target support"
++	depends on NF_NAT
++	depends on NETFILTER_ADVANCED
++	help
++	  HAIRPIN is an implementation for P2P need.
++
++	  To compile it as a module, choose M here.  If unsure, say N.
++
+ config NF_NAT_SNMP_BASIC
+ 	tristate "Basic SNMP-ALG support"
+ 	depends on NF_NAT
+-- 
+1.7.4.1
+

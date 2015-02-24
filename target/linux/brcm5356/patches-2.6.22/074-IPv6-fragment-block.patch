@@ -1,0 +1,182 @@
+diff -Nur linux-2.6.22.old//include/linux/sysctl.h linux-2.6.22/include/linux/sysctl.h
+--- linux-2.6.22.old//include/linux/sysctl.h	2012-10-22 12:29:55.638453731 -0400
++++ linux-2.6.22/include/linux/sysctl.h	2012-10-22 12:33:42.448453599 -0400
+@@ -547,6 +547,9 @@
+ 	NET_IPV6_6TO4_FORCE_IP4FRAGOFF_ZERO=26,
+ 	NET_IPV6_PING6_INTERFACE=27,
+ 	NET_IPV6_SRCRT_TYPE_2=28,
++	NET_IPV6_IP6FRAG_ALL_THRESH=29,
++	NET_IPV6_IP6FRAG_EACH_THRESH=30,
++	NET_IPV6_IP6FRAG_BLOCK_TIME=31,
+ };
+ 
+ enum {
+diff -Nur linux-2.6.22.old//include/net/ipv6.h linux-2.6.22/include/net/ipv6.h
+--- linux-2.6.22.old//include/net/ipv6.h	2012-10-22 12:29:55.688453731 -0400
++++ linux-2.6.22/include/net/ipv6.h	2012-10-22 13:18:23.158457557 -0400
+@@ -572,6 +572,9 @@
+ extern int sysctl_ipv6_6to4_force_ip4fragoff_zero;
+ extern int sysctl_ipv6_ping6_interface;
+ extern int sysctl_ipv6_srcrt_type_2;
++extern int sysctl_ip6frag_all_thresh;
++extern int sysctl_ip6frag_each_thresh;
++extern int sysctl_ip6frag_block_time;
+ 
+ extern const struct proto_ops inet6_stream_ops;
+ extern const struct proto_ops inet6_dgram_ops;
+diff -Nur linux-2.6.22.old//net/ipv6/reassembly.c linux-2.6.22/net/ipv6/reassembly.c
+--- linux-2.6.22.old//net/ipv6/reassembly.c	2012-10-22 12:29:55.578453731 -0400
++++ linux-2.6.22/net/ipv6/reassembly.c	2012-10-22 13:54:34.248450140 -0400
+@@ -59,6 +59,10 @@
+ 
+ int sysctl_ip6frag_time __read_mostly = IPV6_FRAG_TIMEOUT;
+ 
++int sysctl_ip6frag_all_thresh = 64;
++int sysctl_ip6frag_each_thresh = 32;
++int sysctl_ip6frag_block_time = 90*HZ;
++
+ struct ip6frag_skb_cb
+ {
+ 	struct inet6_skb_parm	h;
+@@ -90,7 +94,9 @@
+ 	int			iif;
+ 	ktime_t			stamp;
+ 	unsigned int		csum;
++	int nfrags; /* the count of frags */
+ 	__u8			last_in;	/* has first/last segment arrived? */
++#define BLOCKED			8
+ #define COMPLETE		4
+ #define FIRST_IN		2
+ #define LAST_IN			1
+@@ -187,6 +193,7 @@
+ }
+ 
+ atomic_t ip6_frag_mem = ATOMIC_INIT(0);
++int ip6_frag_num = 0;
+ 
+ /* Memory Tracking Functions. */
+ static inline void frag_kfree_skb(struct sk_buff *skb, int *work)
+@@ -194,6 +201,7 @@
+ 	if (work)
+ 		*work -= skb->truesize;
+ 	atomic_sub(skb->truesize, &ip6_frag_mem);
++	ip6_frag_num--;
+ 	kfree_skb(skb);
+ }
+ 
+@@ -268,7 +276,7 @@
+ 	if (work <= 0)
+ 		return;
+ 
+-	while(work > 0) {
++	while(work > 0 || ip6_frag_num >= sysctl_ip6frag_all_thresh) {
+ 		read_lock(&ip6_frag_lock);
+ 		if (list_empty(&ip6_frag_lru_list)) {
+ 			read_unlock(&ip6_frag_lock);
+@@ -425,6 +433,29 @@
+ {
+ 	struct sk_buff *prev, *next;
+ 	int offset, end;
++	
++	if(fq->last_in & BLOCKED)
++	{
++		kfree_skb(skb);
++		return;
++	}
++
++	if (fq->nfrags >= sysctl_ip6frag_each_thresh) {
++		printk(KERN_DEBUG "WARNING: [ipv6]more than %d frags, discard\n", sysctl_ip6frag_each_thresh);
++		kfree_skb(skb);
++		struct sk_buff *fp, *xp;
++		fp = fq->fragments;
++		while (fp) {
++			xp = fp->next;
++			frag_kfree_skb(fp, NULL);
++			fp = xp;
++		}
++		fq->fragments = NULL;
++		mod_timer(&fq->timer, jiffies + sysctl_ip6frag_block_time);
++		fq->last_in |= BLOCKED;
++		return;
++	}
++
+ 
+ 	if (fq->last_in & COMPLETE)
+ 		goto err;
+@@ -570,6 +601,8 @@
+ 	fq->stamp = skb->tstamp;
+ 	fq->meat += skb->len;
+ 	atomic_add(skb->truesize, &ip6_frag_mem);
++	ip6_frag_num++;
++	fq->nfrags++;
+ 
+ 	/* The first fragment.
+ 	 * nhoffset is obtained from the first fragment, of course.
+@@ -641,6 +674,7 @@
+ 		clone->csum = 0;
+ 		clone->ip_summed = head->ip_summed;
+ 		atomic_add(clone->truesize, &ip6_frag_mem);
++		ip6_frag_num++;
+ 	}
+ 
+ 	/* We have to remove fragment header from datagram and to relocate
+@@ -656,6 +690,7 @@
+ 	skb_reset_transport_header(head);
+ 	skb_push(head, head->data - skb_network_header(head));
+ 	atomic_sub(head->truesize, &ip6_frag_mem);
++	ip6_frag_num--;
+ 
+ 	for (fp=head->next; fp; fp = fp->next) {
+ 		head->data_len += fp->len;
+@@ -666,6 +701,7 @@
+ 			head->csum = csum_add(head->csum, fp->csum);
+ 		head->truesize += fp->truesize;
+ 		atomic_sub(fp->truesize, &ip6_frag_mem);
++		ip6_frag_num--;
+ 	}
+ 
+ 	head->next = NULL;
+@@ -739,7 +775,7 @@
+ 		return 1;
+ 	}
+ 
+-	if (atomic_read(&ip6_frag_mem) > sysctl_ip6frag_high_thresh)
++	if (atomic_read(&ip6_frag_mem) > sysctl_ip6frag_high_thresh || ip6_frag_num >= sysctl_ip6frag_all_thresh)
+ 		ip6_evictor(ip6_dst_idev(skb->dst));
+ 
+ 	if ((fq = fq_find(fhdr->identification, &hdr->saddr, &hdr->daddr,
+diff -Nur linux-2.6.22.old//net/ipv6/sysctl_net_ipv6.c linux-2.6.22/net/ipv6/sysctl_net_ipv6.c
+--- linux-2.6.22.old//net/ipv6/sysctl_net_ipv6.c	2012-10-22 12:29:55.568453732 -0400
++++ linux-2.6.22/net/ipv6/sysctl_net_ipv6.c	2012-10-22 13:20:40.418453490 -0400
+@@ -104,6 +104,31 @@
+ 		.mode           = 0644,
+ 		.proc_handler   = &proc_dointvec
+ 	},
++	{
++		.ctl_name       = NET_IPV6_IP6FRAG_ALL_THRESH,
++		.procname       = "ip6frag_all_thresh",
++		.data           = &sysctl_ip6frag_all_thresh,
++		.maxlen         = sizeof(int),
++		.mode           = 0644,
++		.proc_handler   = &proc_dointvec
++	},
++	{
++		.ctl_name       = NET_IPV6_IP6FRAG_EACH_THRESH,
++		.procname       = "ip6frag_each_thresh",
++		.data           = &sysctl_ip6frag_each_thresh,
++		.maxlen         = sizeof(int),
++		.mode           = 0644,
++		.proc_handler   = &proc_dointvec
++	},
++	{
++		.ctl_name       = NET_IPV6_IP6FRAG_BLOCK_TIME,
++		.procname       = "ip6frag_block_time",
++		.data           = &sysctl_ip6frag_each_thresh,
++		.maxlen         = sizeof(int),
++		.mode           = 0644,
++		.proc_handler   = proc_dointvec_jiffies,
++		.strategy       = &sysctl_jiffies,
++	},
+ 	{ .ctl_name = 0 }
+ };
+ 

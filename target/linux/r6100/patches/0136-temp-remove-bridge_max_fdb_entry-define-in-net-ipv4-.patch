@@ -1,0 +1,35 @@
+From 8bce540af7528abd887c92614ea322b7817848d4 Mon Sep 17 00:00:00 2001
+From: stone.liu <stone.liu@dniserver.dnish.net>
+Date: Tue, 1 Nov 2011 11:10:36 -0400
+Subject: [PATCH 136/137] temp remove bridge_max_fdb_entry define in net/ipv4/sysctl_net_ipv4.c
+
+since realtek has it's own define for max_fdb_entry
+
+Signed-off-by: stone.liu <stone.liu@dniserver.dnish.net>
+---
+ net/ipv4/sysctl_net_ipv4.c |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/sysctl_net_ipv4.c b/net/ipv4/sysctl_net_ipv4.c
+index 73bdc26..fea881e 100644
+--- a/net/ipv4/sysctl_net_ipv4.c
++++ b/net/ipv4/sysctl_net_ipv4.c
+@@ -614,6 +614,7 @@ static struct ctl_table ipv4_table[] = {
+ 		.mode		= 0644,
+ 		.proc_handler	= proc_dointvec,
+ 	},
++#if 0
+ 	{
+ 		.ctl_name	= CTL_UNNUMBERED,
+ 		.procname	= "bridge_max_fdb_entry",
+@@ -622,6 +623,7 @@ static struct ctl_table ipv4_table[] = {
+ 		.mode		= 0644,
+ 		.proc_handler	= proc_dointvec
+ 	},
++#endif
+ 	{
+ 		.ctl_name	= NET_TCP_MTU_PROBING,
+ 		.procname	= "tcp_mtu_probing",
+-- 
+1.7.4.1
+

@@ -1,0 +1,328 @@
+<% http_header("style/form.css", "/funcs.js", "/wlan.js", "/welcome_wl.js") %>
+<% echo_set("2", "/tmp/ca_ipchange") %>
+
+<script>
+var sta_wl_wpa1_psk="<% cfg_sed_passphrase("sta_wl_wpa1_psk") %>";
+var sta_wl_wpa_aes_psk="<% cfg_sed_passphrase("sta_wl_wpa_aes_psk") %>";
+var sta_wl_wpa2_tkip_psk="<% cfg_sed_passphrase("sta_wl_wpa2_tkip_psk") %>";
+var sta_wl_wpa2_psk="<% cfg_sed_passphrase("sta_wl_wpa2_psk") %>";
+var sta_wl_wpas_psk="<% cfg_sed_passphrase("sta_wl_wpas_psk") %>";
+var mobile_tag="<% cfg_get("mobile_tag") %>";
+var wlan_ap_wifi="";
+var str_none="";
+var str_wep="";
+var str_wpa="";
+var str_wpa2="";
+var str_wpas="";
+var str_type="";
+var dns_hijack="<% cfg_get("dns_hijack") %>";
+var setup_wizard_tag="<% cfg_get("setup_wizard_tag") %>";
+
+var wds_endis_fun="<% cfg_get("wds_endis_fun") %>";
+var old_sectype="<% cfg_get("wl_sectype") %>";
+var GUI_Region="<% cfg_get("GUI_Region") %>";
+var simple_mode="";
+var wl_ap_sectype="";
+var try_connect="<% cfg_get("try_connect") %>";
+var sta_list = "<% cat_file("/tmp/check_link") %>";
+var link_status="<% cat_file("/tmp/link_status" %>";
+var mac="<% cfg_get("wl0_hwaddr") %>";
+var lan_dhcp="<% cfg_get("lan_dhcp") %>";
+if(setup_wizard_tag=="0")
+{
+	document.write('<body bgcolor=#ffffff onload="loadvalue()">');
+	document.write('<form method="post" action="/apply.cgi?/ca_ap_settings.htm" target=formframe>')
+}
+else
+{
+	document.write('<body bgcolor=#ffffff onload="loadvalue()">');
+	document.write('<form method="post" action="/apply.cgi?/ca_ap_settings.htm" target=IA_frame>');
+}
+document.write('<input type=hidden name=submit_flag value="ca_ap_wlan">');
+
+<% refresh_timestamp("ca_ap_wlan") %>
+<% save_timestamp("ca_ap_wlan","retry_set_passph") %>
+var ts='<% cfg_get("ca_ap_wlan") %>';
+
+var str_ap_wpa="";
+var str_ap_wpa2="";
+var str_ap_wpas="";
+var old_sectype="<% cfg_get("wl_sectype") %>";
+var gui_region="<% cfg_get("GUI_Region") %>";
+var textWpaPwdPhrase;
+
+function loadvalue()
+{
+	
+}
+
+if (try_connect!="1")
+{
+	var each_info=parent.ap_list_reset;
+	each_info[1]=each_info[1].replace(/</g,'&lt;');
+	each_info[1]=each_info[1].replace(/>/g,'&gt;');
+	var wlan_ap_wifi=each_info[1];
+	var get_before=each_info[4].split('|');
+	var sta_list = "<% cat_file("/tmp/check_link") %>";
+	var match_sectype=get_before[0];
+	var simple_mode=get_before[1];
+	if(match_sectype=="WPA/WPA2-PSK")
+	   wl_ap_sectype=7;
+	else if(match_sectype=="WPA-PSK")
+	{
+	    if(simple_mode.indexOf('AES') > -1)
+			wl_ap_sectype=4;
+		else
+			wl_ap_sectype=3;
+	}
+	else
+	{
+		if(simple_mode.indexOf('AES') > -1)
+			wl_ap_sectype=6;
+		else
+			wl_ap_sectype=5;
+	}
+}
+else
+{
+		var wlan_ap_wifi=xss_replace("<% cfg_get_ssid_value("sta_wl_ssid") %>");
+ 		wl_ap_sectype="<% cfg_get("sta_wl_sectype") %>";
+		
+		if(wl_ap_sectype==3)
+		{
+			textWpaPwdPhrase=sta_wl_wpa1_psk;
+		}
+		else if(wl_ap_sectype==4)
+		{
+			textWpaPwdPhrase=sta_wl_wpa_aes_psk;
+		}
+		else if(wl_ap_sectype==5)
+		{
+			textWpaPwdPhrase=sta_wl_wpa2_tkip_psk;
+		}
+		else if(wl_ap_sectype==6)
+		{
+			textWpaPwdPhrase=sta_wl_wpa2_psk;
+		}
+		else if(wl_ap_sectype==7)
+		{
+			textWpaPwdPhrase=sta_wl_wpas_psk;
+		}
+		
+		
+}
+
+function getObj(name)
+{
+    if (document.getElementById)
+    {
+        return document.getElementById(name);
+    }
+    else if (document.all)
+    {
+        return document.all[name];
+    }
+    else if (document.layers)
+    {
+        return document.layers[name];
+    }
+}
+
+function show_client_type()
+{	
+	var form=document.forms[0];
+	var ap_sectype=wl_ap_sectype;
+	if (ap_sectype==3)
+	{	
+		document.write("WPA-PSK [TKIP]");
+		form.hidden_sec_ap_type.value=3;
+	}
+	else if (ap_sectype==4)
+	{
+		document.write("WPA-PSK [AES]");
+		form.hidden_sec_ap_type.value=4;
+	}
+	else if (ap_sectype==5)
+	{
+		document.write("WPA2-PSK [TKIP]");
+		form.hidden_sec_ap_type.value=5;
+	}
+	else if (ap_sectype==6)
+	{
+		document.write("WPA2-PSK [AES]");
+		form.hidden_sec_ap_type.value=6;
+	}
+	else
+	{
+		document.write("WPA-PSK + WPA2-PSK");
+		form.hidden_sec_ap_type.value=7;
+	}
+		form.wlan_ap_wifi.value=wlan_ap_wifi;
+}
+function ssid_value(){
+	if(wlan_ap_wifi=="&nbsp;&nbsp;")
+	 	document.forms[0].wlan_ap_wifi.value=getObj('wifi').value;	  
+}
+if(setup_wizard_tag=="1")
+{
+	if(try_connect=="1")
+		load_default(3);
+	else
+		load_default(1);
+}
+</script>
+<input type="hidden" name="refresh_url">
+<input type="hidden" name="refresh_page">
+<input type="hidden" name="hidden_wlan_mode">
+<input type="hidden" name="generate_flag">
+<input type="hidden" name="ap_generate_flag">
+<input type="hidden" name="old_length">
+<input type="hidden" name="ap_old_length">
+<input type="hidden" name="sec_wpaphrase_len">
+<input type="hidden" name="ap_sec_wpaphrase_len">
+<input type="hidden" name="hidden_wpa_psk">
+<input type="hidden" name="wpa_psk">
+<input type="hidden" name="hidden_wpa_ap_psk">
+<input type="hidden" name="hidden_sec_type">
+<input type="hidden" name="hidden_sec_ap_type">
+<input type="hidden" name="wep_press_flag">
+<input type="hidden" name="ap_wep_press_flag">
+<input type="hidden" name="wpa1_press_flag" value=0>
+<input type="hidden" name="wpa2_press_flag" value=0>
+<input type="hidden" name="wpa3_press_flag" value=0>
+<input type="hidden" name="wpa4_press_flag" value=0>
+<input type="hidden" name="wpas_press_flag" value=0>
+<input type="hidden" name="ap_wpa1_press_flag" value=0>
+<input type="hidden" name="ap_wpa2_press_flag" value=0>
+<input type="hidden" name="ap_wpas_press_flag" value=0>
+<input type="hidden" name="wps_change_flag" value="<% cfg_get("wps_status") %>">
+<input type="hidden" name="hidden_wlan_ssid" value="">
+<input type="hidden" name="hidden_simple_mode">
+<input type="hidden" name="client_channel">
+<input type="hidden" name="wlan_ap_wifi">
+<input type="hidden" name="wlan_ca_ap_wifi" value="">
+<input type="hidden" name="ap_sec_auth" value="2">
+<input type="hidden" name="ap_sec_keylen" value="5">
+<input type="hidden" name="ap_wepkeyno" value="1">
+<input type="hidden" name="ap_wepkey1" value="1">
+<input type="hidden" name="ap_wepkey2" value="1">
+<input type="hidden" name="ap_wepkey3" value="1">
+<input type="hidden" name="ap_wepkey4" value="1">
+<input type="hidden" name="ap_transmit" value="<% cfg_get("wl_same_sec") %>">
+<input type="hidden" name="wlan_channel">
+<script>
+//if(dns_hijack==0)
+//{
+	/*if(try_connect=="1")
+	{
+		document.write('<div class="page_title">')
+		document.write(ca_retry_head+'</div>')*/
+		document.write('<div id="main" class="main">')
+	/*}
+	else
+	{
+		document.write('<div class="page_title_big">')
+		document.write(mobile_ca_ap_head+'</div>')
+		document.write('<div id="main" class="main_big">')
+	}*/
+//}
+</script>
+<table width=100%><tr><td width="5%">&nbsp;</td><td>
+<table align=left border=0 cellpadding=0 cellspacing=0 width=100%>
+<tr><td colspan=2><h1>
+	<script>
+		if(try_connect=="1")
+			document.write("$ca_retry_head")
+		else
+			document.write("$mobile_ca_ap_head")
+	</script></h1></td></tr>
+<TR>
+<!--<script>
+	if(dns_hijack==1)
+	{
+		document.write('<td  rowspan=100 width=70 align=center valign=top>');document.write(ca_icon+"<br><br><br>");icons_show_status();document.write('&nbsp;</td>');
+		document.write('<TD colSpan=2><H1>');
+		if(try_connect=="1")
+			document.write("$ca_retry_head");
+		else
+			document.write(ca_ap_head);
+		document.write('</H1></TD></TR>');
+	}
+</script>-->
+<TR><td colspan=2><img src=/liteblue.gif width=100% height=12></td></TR>
+<script>
+if(try_connect=="1")
+        document.write("<TR><TD colSpan=2>$ca_retry_message</TD></TR>");
+</script>
+   <tr><td colspan=2><b>$mobile_exist_network</b></td></tr>
+   <tr><td colspan=2>&nbsp;</td></tr>
+   <tr>
+     <td nowrap width=20%>
+	  <script>
+	  wlan_ap_wifi=wlan_ap_wifi.replace(/ /g,"&nbsp;");	  
+	  if(wlan_ap_wifi=="&nbsp;&nbsp;")
+	  	document.write("$wlan_mark_ssid:</td><td><input type='text' id='wifi' name='wlan_wifi' value='' size='20' maxlength='32' onkeydown='if(event.keyCode==13){return false;}'></td>")
+	  else	
+	  	document.write("$wlan_mark_ssid:</td><td>"+wlan_ap_wifi+"</td>")</script>
+   </tr>
+   <tr>
+    <td nowrap width=20%>$wlan_ap_security:</td><td>
+	  <script>
+	  show_client_type();
+	  </script>	
+	</td>
+   </tr>
+
+    <tr>
+		<td nowrap width=20%>
+        <span class="optiondesc" id="wpaPwdPhraseText">$sec_phr</span></td>
+        <td>
+		<script>
+if(try_connect=="1")
+	document.write('<input type="text" id="textWpaPwdPhrase" size="20" maxlength="64" name="ap_sec_phrase" value="'+textWpaPwdPhrase+'" onFocus="document.forms[0].ap_wpas_press_flag.value=1" onKeyPress="document.forms[0].ap_wpas_press_flag.value=1" onkeydown="if(event.keyCode==13){return false;}">');
+else
+	document.write('<input type="text" id="textWpaPwdPhrase" size="20" maxlength="64" name="ap_sec_phrase" value="" onFocus="document.forms[0].ap_wpas_press_flag.value=1" onKeyPress="document.forms[0].ap_wpas_press_flag.value=1" onkeydown="if(event.keyCode==13){return false;}">');
+</script>
+		</td>	  
+    </tr>
+<script>
+if(try_connect=="1")
+{
+document.write('<tr><td colspan=2><IMG src="/black.gif">')
+document.write("$ca_correct_passwd")
+document.write('</td></tr>')
+document.write('<tr><td colspan=2><IMG src="/black.gif">')
+document.write("$ca_info")
+document.write('</td></tr><tr><td colspan=2>')
+document.write("$ca_mac"+mac)
+document.write('</td></tr><tr><td colspan=2>')
+document.write("$ca_cancel")
+}
+</script>
+<tr><td colspan=2>&nbsp;</td></tr>
+$bluebar
+   <tr> 
+      <td>
+<script>
+if(try_connect=="1")
+	document.write("<input class='short_common_bt' type='button' value='$cancel_mark' onclick='location.href=\"wait_for_searching.htm\"'>");
+else
+	document.write("<input class='short_common_bt' type='button' value='$remove_mark' onclick='location.href=\"wait_for_searching.htm\"'>")</script>
+      </td>
+	  <td>
+<script>
+if(try_connect=="1")
+	document.write("<input class='short_common_bt' type='button' value='$next_mark' onClick='return retry_set_passphrase(document.forms[0])'>");
+else
+	document.write("<input class='short_common_bt' type='button' value='$next_mark' onClick='ssid_value();return set_ap_security(document.forms[0],0)'>");
+</script>
+		</td>
+  </tr>
+</table></td><td width="5%">&nbsp;</td></tr>
+</table>
+</div>
+<% wizard_help_box("1", "_connect") %>
+</FORM>
+</body>
+</html>
+

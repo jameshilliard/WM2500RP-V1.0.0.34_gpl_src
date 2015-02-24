@@ -1,0 +1,223 @@
+#!/bin/sh
+# udhcpc script edited by Tim Riker <Tim@Rikers.org>
+
+NVRAM="/usr/sbin/nvram"
+ECHO="/bin/echo"
+IFCONFIG="/sbin/ifconfig"
+ROUTE="/sbin/route"
+LEDCTL="/sbin/ledcontrol"
+LAN_DNS_ASSIGN=$($NVRAM get lan_ether_dns_assign)
+dhcpd_internal=$($NVRAM get enable_dhcpd)
+lan_ip=$($NVRAM get lan_ipaddr)
+
+print_dhcpd_conf(){
+    cat <<EOF
+pidfile /var/run/udhcpd.pid
+start $2
+end $3
+interface $1
+remaining yes
+auto_time 5
+lease_file /tmp/udhcpd.leases
+option subnet $4
+option router $5
+option dns $6
+option lease $7
+EOF
+}
+
+print_dhcpd_conf_success(){
+    cat <<EOF
+pidfile /var/run/udhcpd.pid
+start $2
+end $3
+interface $1
+remaining yes
+auto_time 5
+lease_file /tmp/udhcpd.leases
+option subnet $4
+option router $5
+option dns $6 $7 $8
+option lease $9
+EOF
+}
+
+update_start_end_ip(){
+net_mask=$($NVRAM get lan_netmask)
+net_mask_3rd=$(echo $net_mask | awk -F "." '{print $3}')
+lan_ip=$($NVRAM get lan_ipaddr)
+a=$(echo $lan_ip | awk -F "." '{print $1"."$2"."$3}')
+start_ip_mannual=$($NVRAM get dhcp_start)
+end_ip_mannual=$($NVRAM get dhcp_end)
+d=$(echo $start_ip_mannual | awk -F "." '{print $4}')
+e=$(echo $end_ip_mannual | awk -F "." '{print $4}')
+
+if [ "$net_mask_3rd" -lt "255" ];then
+    start_real=$d
+    end_real=$e
+else
+    calIP $($NVRAM get lan_ipaddr) $($NVRAM get lan_netmask)
+    start_ip=$(cat /tmp/start_ip)
+    end_ip=$(cat /tmp/end_ip)
+
+    b=$(echo $start_ip | awk -F "." '{print $4}')
+    c=$(echo $end_ip | awk -F "." '{print $4}')
+    start_real=$b
+    end_real=$c
+    [ "$d" -gt "$b" -a "$d" -lt "$c" ] && start_real=$d
+    [ "$e" -gt "$b" -a "$e" -lt "$c" ] && end_real=$e
+fi
+start_ip_new="$a.$start_real"
+$NVRAM set dhcp_start=$start_ip_new
+end_ip_new="$a.$end_real"
+$NVRAM set dhcp_end=$end_ip_new
+}
+
+start_dhcpd() {
+    [ ! -f /tmp/udhcpd.leases ] && touch /tmp/udhcpd.leases
+    start_ip="192.168.1.128"
+    end_ip="192.168.1.200"
+    if [ "x$dhcpd_internal" = "x1" ];then
+		start_ip_internal=$($NVRAM get dhcp_start)
+		end_ip_internal=$($NVRAM get dhcp_end)
+		a=$(echo $start_ip | awk -F "." '{print $1"."$2"."$3}')
+		b=$(echo $start_ip_internal | awk -F "." '{print $4}')
+		c=$(echo $end_ip_internal | awk -F "." '{print $4}')
+		start_ip="$a.$b"
+		end_ip="$a.$c"
+		$NVRAM set dhcp_start=$start_ip
+		$NVRAM set dhcp_end=$end_ip
+    fi
+    lan_ip=$($NVRAM get lan_ipaddr)
+    $NVRAM set lan_ipaddr_early=$lan_ip
+    print_dhcpd_conf "br0" "$start_ip" "$end_ip" "$($NVRAM get lan_netmask)" "$lan_ip" "$lan_ip" "60" > /tmp/udhcpd.conf
+    udhcpd /tmp/udhcpd.conf
+
+	switch_pull_updown
+}
+
+start_dhcpd_success() {
+    [ ! -f /tmp/udhcpd.leases ] && touch /tmp/udhcpd.leases
+    update_start_end_ip
+    start_ip=$($NVRAM get dhcp_start)
+    end_ip=$($NVRAM get dhcp_end)
+    lan_ip=$($NVRAM get lan_ipaddr)
+    lan_gateway=$($NVRAM get lan_gateway)
+    lan_netmask=$($NVRAM get lan_netmask)
+    lan_dns1=$($NVRAM get lan_dns1)
+    lan_dns2=$($NVRAM get lan_dns2)
+    $NVRAM set lan_ipaddr_early=$lan_ip
+    $NVRAM set lan_gateway_early=$lan_gateway
+    $NVRAM set lan_dns1_early=$lan_dns1
+    print_dhcpd_conf_success "br0" "$start_ip" "$end_ip" "$lan_netmask" "$lan_gateway" "$lan_dns1" "$lan_dns2" "$lan_ip" "86400" > /tmp/udhcpd.conf
+
+    udhcpd /tmp/udhcpd.conf
+}
+
+switch_pull_updown()
+{
+	#echo 4 > /proc/switch_phy
+	echo "!!!Add switch pull up down" > /dev/console
+	switch_pwr
+}
+
+try_reconn()
+{
+	echo -----------Try Reconncet--------------- > /dev/console
+	wlconf eth1 start
+	wlconf eth2 start
+}
+
+if [ "$LAN_DNS_ASSIGN" = "1" ]; then
+	RESOLV_CONF="/tmp/dhcpc_resolv.conf"
+else
+	RESOLV_CONF="/tmp/resolv.conf"
+fi
+
+[ -z "$1" ] && $ECHO "Error: should be called from udhcpc" && exit 1
+[ -n "$broadcast" ] && BROADCAST="broadcast $broadcast"
+[ -n "$subnet" ] && NETMASK="netmask $subnet"
+
+case "$1" in
+	deconfig)
+		[ -e /tmp/.dhcpc_success ] && rm /tmp/.dhcpc_success -f
+		$IFCONFIG $interface 0.0.0.0
+		;;
+
+	renew|bound)
+		if [ `ps | grep [u]dhcpd | wc -l` -gt 0 ];then
+			killall udhcpd
+			switch_pull_updown
+			rm /tmp/.dhcpd_enabled
+		fi
+
+		$NVRAM set lan_broadcast=$broadcast
+		$NVRAM set lan_netmask=$subnet
+		$NVRAM set lan_ipaddr=$ip
+		$IFCONFIG $interface $ip $BROADCAST $NETMASK
+		touch /tmp/.dhcpc_success
+		[ -f /tmp/.connect_fail ] && rm /tmp/.connect_fail -f
+		echo 0 > /proc/sys/net/ipv4/dns_hijack
+
+		if [ -n "$router" ] ; then
+			$ECHO "deleting routers"
+			while $ROUTE del default gw 0.0.0.0 dev $interface >&- 2>&-; do
+				:
+			done
+
+			for i in $router ; do
+				$ECHO "adding router $i"
+				$ROUTE add default gw $i dev $interface 
+			done
+			$NVRAM set lan_gateway=$router
+		fi
+
+		$ECHO -n > $RESOLV_CONF
+		[ -n "$domain" ] && $ECHO search $domain >> $RESOLV_CONF
+		num=0
+		for i in $dns ; do
+			num=$(($num+1))
+			$ECHO adding dns $i
+			$ECHO nameserver $i >> $RESOLV_CONF
+			$NVRAM set lan_dns$num=$i
+		done
+		[ "$num" = "1" ] && $NVRAM set lan_dns2=""
+		[ -n "$lease" ] && $NVRAM set dhcpc_lease_time=$lease
+                [ -n "$serverid" ] && $NVRAM set wan_dhcp_server=$serverid
+                $NVRAM set dhcpc_lease_obtain="$(cat /proc/uptime | awk -F. '{print $1}')"
+
+
+		$ECHO 1 > /tmp/port_status
+		$NVRAM commit
+		;;
+
+	leasefail)
+		#logger -- Lease failed. Now use the default ip 192.168.1.250.
+		$IFCONFIG $interface 192.168.1.250 broadcast 192.255.255.255 
+		$NVRAM set lan_ipaddr=192.168.1.250 
+		$NVRAM set lan_netmask=255.255.255.0 
+		$NVRAM set lan_gateway=0.0.0.0
+		$NVRAM set wan_dhcp_server=""
+		$NVRAM set dhcpc_lease_time=""
+		$NVRAM set dhcpc_lease_obtain=""
+		$NVRAM set lan_ipaddr_dhcp=192.168.1.250
+
+		[ -f $RESOLV_CONF ] && rm $RESOLV_CONF -f
+		[ ! -f /tmp/.connect_fail ] && touch /tmp/.connect_fail
+		echo 1 > /proc/sys/net/ipv4/dns_hijack
+		[ -e /tmp/.dhcpc_success ] && rm /tmp/.dhcpc_success -f
+
+		if [ `ps | grep [u]dhcpd | wc -l` -eq 0 ];then
+			start_dhcpd
+			touch /tmp/.dhcpd_enabled
+			try_reconn
+		fi
+		$ECHO 0 > /tmp/port_status
+		rm /tmp/ping_result
+		$NVRAM commit
+		;;
+
+esac
+
+
+exit 0

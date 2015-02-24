@@ -1,0 +1,42 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006 OpenWrt.org
+
+START=95
+boot() {
+	[ -d /tmp/root ] && {
+		lock /tmp/.switch2jffs
+		firstboot switch2jffs
+		lock -u /tmp/.switch2jffs
+	}
+
+	# set leds to normal state
+	. /etc/diag.sh
+	set_state done
+
+
+	factory_mode="$(/bin/config get factory_mode)"
+	telnet_enable="$(/bin/config get telnet_enable)"
+	if [ "$factory_mode" = "0" -a "$telnet_enable" = "1" ]; then
+		killall -9 utelnetd;killall -9 telnetenable;sleep 3;/usr/sbin/utelnetd -d -i br0 &
+	fi
+
+	eth_flow_control="$(/bin/config get eth_flow_control)"
+	if [ "$eth_flow_control" = "1" ]; then
+		echo 1 > /proc/eth_flow_control
+	else
+		echo 0 > /proc/eth_flow_control
+	fi
+
+	eth_background_control="$(/bin/config get eth_background_control)"
+	if [ "$eth_background_control" = "1" ]; then
+		sleep 5
+		/sbin/moca-control.sh test1
+		/sbin/moca-control.sh test2
+	fi
+
+	#Enable kernel configure for Igmp Snooping
+	#echo 1 > /proc/igmpsnoop
+
+	#mm 0xb805002c 0x02000000
+	#mm 0xb8070000 0x00000001
+}

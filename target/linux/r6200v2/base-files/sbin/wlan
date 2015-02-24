@@ -1,0 +1,835 @@
+#!/bin/sh 
+
+. /etc/common.conf
+BR_IF=$BRIDGE_NAME
+
+turn_wlan_led() {
+	if ifconfig | grep $WLAN_NG_PHYNAME > /dev/null; then
+		wlg_status=on
+	else
+		wlg_status=off
+	fi
+
+	if ifconfig | grep $WLAN_A_PHYNAME > /dev/null; then
+		wla_status=on
+	else
+		wla_status=off
+	fi
+
+	if [ "$wlg_status" = "on" ] || [ "$wla_status" = "on" ]; then
+		ledcontrol -n wlan -c green -s on
+	else
+		ledcontrol -n wlan -c green -s off
+	fi
+}
+
+set_second_channel()
+{
+	local pri_ch=$1
+	local wl=$2
+	if [ "$pri_ch" -ge "1" ] && [ "$pri_ch" -le "5" ]; then
+		nvram set "$wl"_nctrlsb=lower
+	else
+		nvram set "$wl"_nctrlsb=upper
+	fi
+}
+
+endis_ssid_broadcast()
+{
+	# it is different from 5356 
+	nvram set wl0_closed=0
+	nvram set wl1_closed=0
+#	nvram set wl0.1_closed=0
+#	nvram set wl1.1_closed=0
+	nvram set wl_closed=0
+	if [ "x`config get endis_ssid_broadcast`" = "x0" ]; then
+		nvram set wl0_closed=1
+	else
+		nvram set wl0_closed=0
+	fi
+
+	if [ "x`config get wlg1_endis_guestSSIDbro`" = "x0" ] ; then
+		nvram set wl0.1_closed=1
+	else
+		nvram set wl0.1_closed=0
+	fi
+	if [ "x`config get wla1_endis_guestSSIDbro`" = "x0" ] ; then
+		nvram set wl1.1_closed=1
+	else
+		nvram set wl1.1_closed=0
+	fi
+	### 5G
+	if [ "x`config get wla_endis_ssid_broadcast`" = "x0" ]; then
+		nvram set wl1_closed=1
+	else
+		nvram set wl1_closed=0
+	fi
+
+}
+
+config_wps()
+{
+	
+	nvram set wps_status=0
+	nvram set wps_method=1
+	nvram set wps_config_command=0
+	nvram set wps_proc_mac=""
+
+	if [ "`nvram get wps_restart`" = "1" ]; then
+		nvram set wps_restart=0
+	else
+		nvram set wps_restart=0
+		nvram set wps_proc_status=0
+	fi
+
+	nvram set wps_sta_pin=00000000
+	nvram set wps_currentband=""
+
+	# Get WPS PIN
+	artmtd -r wpspin
+	nvram set wps_device_pin=`cat /tmp/wpspin`
+
+	if [ "`config get endis_wl_wps`" = "0" ]; then
+		nvram set wl_wps_mode=disabled
+	else
+		nvram set wl_wps_mode=enabled
+	fi
+	nvram set wl0_wps_mode=`nvram get wl_wps_mode`
+	############3 5G
+	if [ "`config get endis_wla_wps`" = "0" ]; then
+		nvram set wl_wps_mode=disabled
+	else
+		nvram set wl_wps_mode=enabled
+	fi
+	nvram set wl1_wps_mode=`nvram get wl_wps_mode`
+
+	####### wla_endis_pin
+	if [ "`config get endis_pin`" = "1" ]; then
+		nvram set wps_aplockdown_forceon=1
+	else
+		nvram set wps_aplockdown_forceon=0
+	fi
+
+	# Set the "Keep Existing Setting" check box
+	if [ "`config get wps_status`" = "1" ]; then
+		nvram set lan_wps_oob=enabled
+	else
+		nvram set lan_wps_oob=disabled
+	fi
+
+	# WPS 2.0, AP PIN lock down Setting
+	if [ "`config get wps_pin_attack_check`" = "1" ]; then
+		nvram set wps_aplockdown_cap=1
+		nvram set wps_aplockdown_count=`config get wps_pin_attack_num`
+		nvram set wps_aplockdown_duration=300	# 5 mins
+		nvram set wps_aplockdown_ageout=300		# 5 mins
+	else
+		nvram set wps_aplockdown_cap=0
+	fi
+}
+
+set_country_code()
+{
+	## country list:
+	## 0: Africa, 1: Asia, 2: Australia, 3: Canada, 4: Europe
+	## 5: Israel, 6: Japan, 7: Korea, 8: Mexico, 9: South America
+	## 10: North America, 11: China, 12: India, 13: Malaysia, 14: Middle East
+	## 15: Middle East, 16: Middle East, 17: Middle East, 18: Middle East, 19: Russia
+	## 20: Singapore, 21: Taiwan, 22: Middle East
+
+	local wl_country=`config get wl_country`
+	local country_list="ZA CN AU CA DE IL JP KR MX BR US CN IN MY DZ LB TR SA AE RU SG TW TR"
+	local num=0
+	local country_code=""
+	for country_code in $country_list ; do
+		if [ "$num" = "$wl_country" ] ; then
+			break
+		fi
+		let num++
+	done
+	nvram set wl0_country_code=$country_code
+	nvram set wl_country_code=$country_code
+	nvram set wl1_country_code=$country_code
+	# Not very sure wl1_country_rev=???? , at moment set as 0
+	nvram set wl1_country_rev=0
+}
+
+set_auth_type()
+{
+	# set wireless ssid authentication type
+	if [ "x`config get wl_auth`" = "x2" ] ; then
+		nvram set wl_auth=0
+		nvram set wl0_auth=0
+	else
+		nvram set wl_auth=1
+		nvram set wl0_auth=1
+	fi
+
+	# set guest ssid authentication type
+	if [ "x`config get wlg1_auth`" = "x2" ] ; then
+		nvram set wl0.1_auth=0
+	else
+		nvram set wl0.1_auth=1
+	fi
+	if [ "x`config get wla_auth`" = "x2" ] ; then
+		nvram set wl_auth=0
+		nvram set wl1_auth=0
+	else
+		nvram set wl_auth=1
+		nvram set wl1_auth=1
+	fi
+
+	# set guest ssid authentication type
+	if [ "x`config get wla1_auth`" = "x2" ] ; then
+		nvram set wl1.1_auth=0
+	else
+		nvram set wl1.1_auth=1
+	fi
+}
+
+
+set_sec_type()
+{
+	# Set Security Type
+	# Useage: 1, set_sec_type wl wl0 (local network)
+	#	  2, set_sec_type wl wl0.1 (guest network)
+
+	if [ "$2" = "wl0" ] ; then
+		type=wl
+	elif [ "$2" = "wl0.1" ] ; then
+		type=wlg1
+	elif [ "$2" = "wl1.1" ] ; then
+		type=wla1
+	else
+		type=wla
+	fi
+
+	WL=$1
+	WL0_1=$2
+
+	sectype=`config get "$type"_sectype`
+	case "$sectype" in
+		1)	# None Security
+			nvram set "$WL0_1"_wep=disabled
+			nvram set "$WL0_1"_akm=""
+			;;
+		2)	# WEP
+			nvram set "$WL0_1"_wep=enabled
+			nvram set "$WL0_1"_akm=""
+			nvram set "$WL0_1"_key=`config get "$type"_key`
+			nvram set "$WL0_1"_key1=`config get "$type"_key1`
+			nvram set "$WL0_1"_key2=`config get "$type"_key2`
+			nvram set "$WL0_1"_key3=`config get "$type"_key3`
+			nvram set "$WL0_1"_key4=`config get "$type"_key4`
+			# when set security type as WEP, it should set authentication type as "shared key" or "open system".
+			set_auth_type
+			;;
+		3)	# TKIP
+			nvram set "$WL"_wep=disabled
+			nvram set "$WL0_1"_wep=disabled
+			nvram set "$WL"_akm=psk
+			nvram set "$WL0_1"_akm=psk
+			nvram set "$WL"_crypto=tkip
+			nvram set "$WL0_1"_crypto=tkip
+			nvram set "$WL"_wpa_psk="$(config get "$type"_wpa1_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			nvram set "$WL0_1"_wpa_psk="$(config get "$type"_wpa1_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			;;
+		4)	# AES
+			nvram set "$WL"_wep=disabled
+			nvram set "$WL0_1"_wep=disabled
+			nvram set "$WL"_akm=psk2
+			nvram set "$WL0_1"_akm=psk2
+			nvram set "$WL"_crypto=aes
+			nvram set "$WL0_1"_crypto=aes
+			nvram set "$WL"_wpa_psk="$(config get "$type"_wpa2_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			nvram set "$WL0_1"_wpa_psk="$(config get "$type"_wpa2_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			;;
+		5)	# MIX Mode (TKIP+AES)
+			nvram set "$WL"_wep=disabled
+			nvram set "$WL0_1"_wep=disabled
+			nvram set "$WL"_akm=psk
+			nvram set "$WL0_1"_akm=psk
+			nvram set "$WL"_crypto="tkip+aes"
+			nvram set "$WL0_1"_crypto="tkip+aes"
+			nvram set "$WL"_wpa_psk="$(config get "$type"_wpas_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			nvram set "$WL0_1"_wpa_psk="$(config get "$type"_wpas_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			;;
+		6)	# 802.1X (Radius)
+			nvram set "$WL"_wep=disabled
+			nvram set "$WL0_1"_wep=disabled
+			nvram set "$WL"_radius_ipaddr=`config get "$type"_radiusSerIp`
+			nvram set "$WL0_1"_radius_ipaddr=`config get "$type"_radiusSerIp`
+			nvram set "$WL"_radius_port=`config get "$type"_radiusPort`
+			nvram set "$WL0_1"_radius_port=`config get "$type"_radiusPort`
+			nvram set "$WL"_radius_key=`config get "$type"_radiusSecret`
+			nvram set "$WL0_1"_radius_key=`config get "$type"_radiusSecret`
+
+			if [ "x`config get "$type"_wpae_mode`" = "xWPAE-TKIP" ]; then
+				nvram set "$WL"_akm="wpa"
+				nvram set "$WL"_crypto=tkip
+			elif [ "x`config get "$type"_wpae_mode`" = "xWPAE-AES" ]; then
+				nvram set "$WL"_akm="wpa2"
+				nvram set "$WL"_crypto=aes
+			else	# WPAE-TKIPAES
+				nvram set "$WL"_akm="wpa wpa2"
+				nvram set "$WL"_crypto="tkip+aes"
+			fi
+			nvram set "$WL0_1"_akm="`nvram get "$WL"_akm`"
+			nvram set "$WL0_1"_crypto=`nvram get "$WL"_crypto`
+			;;
+	esac
+}
+
+
+set_nvram_value()
+{
+	
+	# WPS unconfiged
+	temp=`cat /tmp/wps_process_state`
+	if [ "x_start" == "x_$temp" ]; then 
+		config set wl_ssid="`nvram get wl0_ssid`"
+		if [ "x`nvram get wl0_akm`" == "xpsk2 " ]; then
+			config set wl_sectype=4
+			config set wl_wpa2_psk="`nvram get wl0_wpa_psk`"
+		else
+			config set wl_sectype=1
+		fi
+		config set wla_ssid="`nvram get wl1_ssid`-5G"
+		if [ "x`nvram get wl1_akm`" == "xpsk2 " ]; then
+			config set wla_sectype=4
+			config set wla_wpa2_psk="`nvram get wl0_wpa_psk`"
+		else
+			config set wla_sectype=1
+		fi
+		config set wps_status=5
+		config set wla_wps_status=5
+		config commit
+	fi
+	#fix the issue when enabled guestnetwork, the local network can work well
+	nvram set br0_ifnames="vlan1 eth1 eth2 wl0.1 wl1.1"
+	nvram set lan_ifnames="vlan1 eth1 eth2 wl0.1 wl1.1"
+	nvram set pin_counts=0 
+	# set the guest network
+       	nvram set wl0_bss_enabled=1
+       	nvram set wl1_bss_enabled=1
+	nvram set wl0_radio=`config get endis_wl_radio`
+	nvram set wl1_radio=`config get endis_wla_radio`
+	if [ "x`config get wlg1_endis_guestNet`" = "x0" ]; then 
+       		nvram set wl0.1_bss_enabled=0
+	else 
+       		nvram set wl0.1_bss_enabled=1
+	fi
+	if [ "x`config get wla1_endis_guestNet`" = "x0" ]; then 
+       		nvram set wl1.1_bss_enabled=0
+	else 
+       		nvram set wl1.1_bss_enabled=1
+	fi
+	nvram set wl0.1_ssid="$(config get wlg1_ssid | sed 's/\\\\\\\\/\\/g' | sed 's/\\\\\\`/\`/g' | sed 's/\\"/\"/g')"
+	nvram set wl0.1_ap_isolate=`config get endis_wlg_guest_wireless_isolation`
+	guestNet=`nvram get wl0.1_bss_enabled`
+	if [ "$guestNet" = "1" ] ; then
+		nvram set wl0.1_unit=0.1
+		nvram set wl_unit=0.1
+		nvram set wl0_vifs=wl0.1
+		nvram set wl0.1_mode=ap
+		nvram set wl0.1_radio=1
+	fi
+#	nvram set wl1.1_bss_enabled=`config get wla1_endis_guestNet`
+	nvram set wl1.1_ssid="$(config get wla1_ssid | sed 's/\\\\\\\\/\\/g' | sed 's/\\\\\\`/\`/g' | sed 's/\\"/\"/g')"
+	nvram set wl1.1_ap_isolate=`config get endis_wla_guest_wireless_isolation`
+	guestNet=`nvram get wl1.1_bss_enabled`
+	if [ "$guestNet" = "1" ] ; then
+		nvram set wl1.1_unit=1.1
+		nvram set wl_unit=1.1
+		nvram set wl1_vifs=wl1.1
+		nvram set wl1.1_mode=ap
+		nvram set wl1.1_radio=1
+	fi
+
+	# set wds
+	nvram set wl_mode=ap
+	nvram set wl0_mode=ap
+	nvram set wl_wds=""
+	nvram set wl0_wds=""
+	wds_enabled=`config get wds_endis_fun`
+	basic_sta=`config get wds_repeater_basic`
+	wds_associate_repeater=`config get wds_endis_ip_client`
+	wds_associate_station=`config get wds_endis_mac_client`
+	if [ "$wds_enabled" = "1" ] ; then
+		if [ "$basic_sta" = "1" ] ; then
+			repeater_mac1=`config get repeater_mac1`
+			repeater_mac2=`config get repeater_mac2`
+			repeater_mac3=`config get repeater_mac3`
+			repeater_mac4=`config get repeater_mac4`
+			nvram set wl_wds="$repeater_mac1 $repeater_mac2 $repeater_mac3 $repeater_mac4"
+			nvram set wl0_wds="$repeater_mac1 $repeater_mac2 $repeater_mac3 $repeater_mac4"
+
+		else 
+			nvram set wl_wds=`config get basic_station_mac`
+			nvram set wl0_wds=`config get basic_station_mac`
+
+		fi
+
+		if [ "$wds_associate_repeater" = "1" ] || [ "$wds_associate_station" = "1" ] ; then
+			nvram set wl_mode=wds
+			nvram set wl0_mode=wds
+		fi
+	fi
+	#### 5G
+	nvram set wl_mode=ap
+	nvram set wl1_mode=ap
+	nvram set wl_wds=""
+	nvram set wl1_wds=""
+	wds_enabled=`config get wla_wds_endis_fun`
+	basic_sta=`config get wds_repeater_basic_a`
+	wds_associate_repeater=`config get wds_endis_ip_client_a`
+	wds_associate_station=`config get wds_endis_mac_client_a`
+	if [ "$wds_enabled" = "1" ] ; then
+		if [ "$basic_sta" = "1" ] ; then
+			repeater_mac1=`config get repeater_mac1_a`
+			repeater_mac2=`config get repeater_mac2_a`
+			repeater_mac3=`config get repeater_mac3_a`
+			repeater_mac4=`config get repeater_mac4_a`
+			nvram set wl_wds="$repeater_mac1 $repeater_mac2 $repeater_mac3 $repeater_mac4"
+			nvram set wl1_wds="$repeater_mac1 $repeater_mac2 $repeater_mac3 $repeater_mac4"
+
+		else 
+			nvram set wl_wds=`config get basic_station_mac_a`
+			nvram set wl1_wds=`config get basic_station_mac_a`
+
+		fi
+
+		if [ "$wds_associate_repeater" = "1" ] || [ "$wds_associate_station" = "1" ] ; then
+			nvram set wl_mode=wds
+			nvram set wl1_mode=wds
+		fi
+	fi
+
+	# Endis SSID Broadcast
+	endis_ssid_broadcast
+
+	# Endis Wireless Isolation
+	nvram set wl0_ap_isolate=`config get endis_wlg_wireless_isolation`
+	######### 5G 
+	nvram set wl1_ap_isolate=`config get endis_wla_wireless_isolation`
+
+	# Set SSID
+	nvram set wl0_ssid="$(config get wl_ssid | sed 's/\\\\\\\\/\\/g' | sed 's/\\\\\\`/\`/g' | sed 's/\\"/\"/g')"
+	nvram set wl1_ssid="$(config get wla_ssid | sed 's/\\\\\\\\/\\/g' | sed 's/\\\\\\`/\`/g' | sed 's/\\"/\"/g')"
+	nvram set wl_ssid="`nvram get wl0_ssid`"
+
+	# Set Channel
+	# fix the issue when 5G is set 80MHZ, the channel is `config get wl_channel`/80 not just `config get wl_channel`!
+	#nvram set wl1_chanspec=`config get wla_channel`
+	#nvram set wl0_chanspec=`config get wl_channel`
+	# set Rate auto
+	nvram set wl0_nmcsidx=-1
+	nvram set wl1_nmcsidx=-1
+	nvram set wl_nmcsidx=-1
+	
+	# set 2 Txchain 2 Rxchain
+	nvram set wl_txchain=3
+	nvram set wl0_txchain=3
+	nvram set wl1_txchain=7
+	nvram set wl_rxchain=3
+	nvram set wl1_rxchain=7
+	nvram set wl0_rxchain=3
+
+	# Set g/n Mode
+	wl_simple_mode=`config get wl_simple_mode`
+	if [ $wl_simple_mode != 1 -a $wl_simple_mode != 2 ]; then 
+		if [ `config get wl_channel` -gt 6 ];then
+			nvram set wl0_chanspec=`config get wl_channel`u
+		elif [ `config get wl_channel` -gt 0 -a `config get wl_channel` -le 6 ];then
+			nvram set wl0_chanspec=`config get wl_channel`l
+		else
+			# AUTO
+			nvram set wl0_chanspec=0
+		fi
+	fi
+	
+	case "$wl_simple_mode" in
+		1)	# 54 Mbps
+			nvram set wl0_nmode=0
+			;;
+		2)	# 130 Mbps
+			nvram set wl0_nmode=-1
+			nvram set wl0_bw_cap=1
+			;;
+		*)	# 270 Mbps
+			nvram set wl0_nmode=-1
+			nvram set wl0_bw_cap=3
+			;;
+	esac
+	# Set 2.4G coexistence
+	wl_disablecoext=`config get wl_disablecoext`
+	case "$wl_disablecoext" in
+		1)
+			nvram set wl0_obss_coex=0
+			;;
+		*)
+			nvram set wl0_obss_coex=1
+			;;
+	esac
+
+	# set 5G nmode always auto
+	nvram set wl1_nmode=-1
+	wl_simple_mode=`config get wla_simple_mode`
+	if [ $wl_simple_mode == 2 ];then
+		chan_ht40=`config get wla_channel`
+		chan_ht40_l="36 44 52 60 100 108 116 124 132 140 149 157"
+		chan_ht40_u="40 48 56 64 104 112 120 128 136 144 153 161"
+		local flag=0
+		local chanspec=""
+		for chanspec in $chan_ht40_l ; do
+			if [ "$chanspec" == "$chan_ht40" ]; then
+				flag=1
+				break
+			fi
+		done
+
+		local chanspec=""
+		for chanspec in $chan_ht40_u ; do
+			if [ "$chanspec" == "$chan_ht40" ]; then
+				flag=2
+				break
+			fi
+		done
+
+		if [ $flag == 1 ];then
+			nvram set wl1_chanspec=`config get wla_channel`l
+		elif [ $flag == 2 ];then
+			nvram set wl1_chanspec=`config get wla_channel`u	
+		else
+			#AUTO
+			nvram set wl1_chanspec=0
+		fi
+	fi
+		
+		
+	case "$wl_simple_mode" in
+		1)	# 217 Mbps
+			nvram set wl1_bw_cap=1
+			nvram set wl1_chanspec=`config get wla_channel`
+			;;
+		2)	# 450 Mbps
+			nvram set wl1_bw_cap=3
+			;;
+		*)	# 975 Mbps
+			nvram set wl1_bw_cap=7
+			# set the wl1_chanspec like 149/80, when the bandwidth is 80MHA
+			nvram set wl1_chanspec=`config get wla_channel`/80
+			;;
+	esac
+
+	# Set Security Type
+	# Local network
+	# Guest network
+       	set_sec_type wl wl0.1
+	set_sec_type wl wl1.1
+	set_sec_type wl wl0
+       	set_sec_type wl wl1
+
+	# set wps nvram value
+	if [ "x`config get wlg1_endis_guestNet`" = "x0" ] ; then
+		if [ "x`config get wla1_endis_guestNet`" = "x0" ] ; then
+			nvram set br0_ifnames="vlan1 eth1 eth2"
+			nvram set lan_ifnames="vlan1 eth1 eth2"
+			config_wps
+		fi
+			
+	else
+		echo "the Guest network enabled , can not config wps " >/dev/console
+	fi
+	# set country code 
+	set_country_code
+
+
+	# set beacon and dtim interval
+	if [ "`config get wlg1_endis_guestNet`" = "1" ] ; then
+		nvram set wl0_dtim=2
+		nvram set wl_dtim=2
+		nvram set wl0_bcn=200
+		nvram set wl_bcn=200
+	else
+		nvram set wl0_dtim=3
+		nvram set wl_dtim=3
+		nvram set wl0_bcn=100
+		nvram set wl_bcn=100
+	fi
+	if [ "`config get wla1_endis_guestNet`" = "1" ] ; then
+		nvram set wl1_dtim=2
+		nvram set wl_dtim=2
+		nvram set wl1_bcn=200
+		nvram set wl_bcn=200
+	else
+		nvram set wl1_dtim=3
+		nvram set wl_dtim=3
+		nvram set wl1_bcn=100
+		nvram set wl_bcn=100
+	fi
+
+	# set CTS/RTS
+	nvram set wl0_rts=`config get wl_rts`
+	nvram set wl_rts=`nvram get wl0_rts`
+	######## 5G
+	nvram set wl1_rts=`config get wla_rts`
+	nvram set wl_rts=`nvram get wl1_rts`
+
+	# set WMM
+	if [ "`config get endis_wl_wmm`" = "1" ] ; then
+		nvram set wl0_wme=on
+		nvram set wl_wme=on
+	else
+		nvram set wl0_wme=off
+		nvram set wl_wme=off
+	fi
+	######### 5G
+	if [ "`config get endis_wla_wmm`" = "1" ] ; then
+		nvram set wl1_wme=on
+		nvram set wl_wme=on
+	else
+		nvram set wl1_wme=off
+		nvram set wl_wme=off
+	fi
+
+	nvram commit
+}
+
+set_ebtables_rules()
+{
+	ETH_P_ARP=0x0806
+	ETH_P_RARP=0x8035
+	ETH_P_IP=0x0800
+	IPPROTO_ICMP=1
+	IPPROTO_UDP=17
+	DHCPS_DHCPC=67:68
+	PORT_DNS=53
+
+	APNAME=$1
+
+	if [ "$lan_restricted_access_init" = "no" ] ; then
+		ebtables -F
+		ebtables -P FORWARD ACCEPT
+		ebtables -A FORWARD -p $ETH_P_ARP -j ACCEPT
+		ebtables -A FORWARD -p $ETH_P_RARP -j ACCEPT
+		ebtables -A FORWARD -p $ETH_P_IP --ip-proto $IPPROTO_UDP --ip-dport $DHCPS_DHCPC -j ACCEPT
+		ebtables -P INPUT ACCEPT
+		ebtables -A INPUT -p $ETH_P_IP --ip-proto $IPPROTO_UDP --ip-dport $DHCPS_DHCPC -j ACCEPT
+		ebtables -A INPUT -p $ETH_P_IP --ip-proto $IPPROTO_UDP --ip-dport $PORT_DNS -j ACCEPT
+		
+		lan_restricted_access_init="yes"
+	fi
+
+	ebtables -A FORWARD -i $APNAME -j DROP
+	ebtables -A FORWARD -o $APNAME -j DROP
+	ebtables -A INPUT -i $APNAME -p $ETH_P_IP --ip-dst $(config get lan_ipaddr) -j DROP
+}
+
+wl_down()
+{
+	nvram unset acs_ifnames
+	killall wps_monitor
+	killall acsd
+	killall nas
+	killall eapd
+	wlconf $WLAN_NG_NAME down
+	wlconf $WLAN_A_NAME down
+	ifconfig $WLAN_NG_NAME down
+	ifconfig $WLAN_A_NAME down
+	ifconfig $WLAN_NAME_2 down
+	ifconfig $WLAN_NAME_3 down
+	brctl delif $BR_IF $WLAN_NAME_2
+	brctl delif $BR_IF $WLAN_NAME_3 #####  commmon.conf
+	ebtables -F
+}
+
+wl_up()
+{
+	# cooperate with wifi_toggle, only can up interface by WLAN on/off button if it downed by button WLAN
+	button_wlan=`config get wl_hw_btn_state`
+	if [ "$button_wlan" = "off" ]; then
+	    echo "Please Press wlan button to up interface"
+	    exit 
+	fi
+	
+		
+	# if lan_restricted_access_init is no, it means that it has set the ebtables rules.
+	lan_restricted_access_init="no"
+
+	set_nvram_value
+	ifconfig $WLAN_NG_NAME up
+	wlconf $WLAN_NG_NAME up
+	wlconf $WLAN_NG_NAME start
+
+	### eth2 start
+	ifconfig $WLAN_A_NAME up
+	wlconf $WLAN_A_NAME up
+	wlconf $WLAN_A_NAME start
+
+	# set ebtalbes rules for wireless isolation
+	wireless_isolate=`config get endis_wlg_wireless_isolation`
+	if [ "$wireless_isolate" = "1" ] ; then
+		set_ebtables_rules $WLAN_NG_NAME
+	fi
+	########## 5G
+	wireless_isolate=`config get endis_wla_wireless_isolation`
+	if [ "$wireless_isolate" = "1" ] ; then
+		set_ebtables_rules $WLAN_A_NAME
+	fi
+
+	guestNet=`config get wlg1_endis_guestNet`
+	guestAcc=`config get wlg1_endis_allow_see_and_access`
+
+	if [ "$guestNet" = "1" ] ; then
+		hwaddr=`nvram get wl0.1_hwaddr`
+		ifconfig $WLAN_NAME_2 hw ether $hwaddr
+		ifconfig $WLAN_NAME_2 up
+		brctl addif $BR_IF $WLAN_NAME_2
+		if [ "$guestAcc" = "0" ] ; then
+			set_ebtables_rules $WLAN_NAME_2
+		fi
+	fi
+	guestNet=`config get wla1_endis_guestNet`
+	guestAcc=`config get wla1_endis_allow_see_and_access`
+
+	####### 5G
+	if [ "$guestNet" = "1" ] ; then
+		hwaddr=`nvram get wl1.1_hwaddr`
+		ifconfig $WLAN_NAME_3 hw ether $hwaddr
+		ifconfig $WLAN_NAME_3 up
+		brctl addif $BR_IF $WLAN_NAME_3
+		if [ "$guestAcc" = "0" ] ; then
+			set_ebtables_rules $WLAN_NAME_3
+		fi
+	fi
+
+	# setup wds
+	wds_enabled=`config get wds_endis_fun`
+	basic_sta=`config get wds_repeater_basic`
+	if [ "$wds_enabled" = "1" ] ; then
+		if [ "$basic_sta" = "1" ] ; then
+			local set i=1
+			for j in 1 2 3 4 ; do
+				repeater_mac=`config get repeater_mac$j`
+				if [ "x$repeater_mac" != "x" ] ; then
+					ifconfig wds0.$i up
+					brctl addif $BR_IF wds0.$i
+					let i++
+				fi
+			done
+		else
+			ifconfig wds0.1 up
+			brctl addif $BR_IF wds0.1
+		fi
+	fi
+
+	wds_enabled=`config get wla_wds_endis_fun`
+	basic_sta=`config get wds_repeater_basic_a`
+	if [ "$wds_enabled" = "1" ] ; then
+		if [ "$basic_sta" = "1" ] ; then
+			local set i=1
+			for j in 1 2 3 4 ; do
+				repeater_mac=`config get repeater_mac"$j"_a`
+				if [ "x$repeater_mac" != "x" ] ; then
+					ifconfig wds1.$i up
+					brctl addif $BR_IF wds1.$i
+					let i++
+				fi
+			done
+		else
+			ifconfig wds1.1 up
+			brctl addif $BR_IF wds1.1
+		fi
+	fi
+
+	/bin/eapd
+	nas
+	/usr/sbin/acsd
+	rm /tmp/wps_monitor.pid
+	if [ "x`config get endis_wl_wps`" = "x1" -o "x`config get endis_wla_wps`" = "x1" ]; then
+		/bin/wps_monitor &
+	fi
+	wlg_radio=`ifconfig "$WLAN_NG_PHYNAME" | grep "UP"`
+	if [ "x$wlg_radio" != "x" ]; then
+		cat /proc/uptime | sed 's/ .*//' > /tmp/WLAN_uptime
+	fi
+	wla_radio=`ifconfig "$WLAN_A_PHYNAME" | grep "UP"`
+	if [ "x$wla_radio" != "x" ]; then
+		cat /proc/uptime | sed 's/ .*//' > /tmp/WLAN_uptime_5G
+	fi
+
+}
+
+wl_radio()
+{
+	if [ "$#" -lt "2" ]; then
+		return
+	fi
+	if [ "$1" = "11g" ] && [ "$2" = "--status" ]; then
+		ifconfig $WLAN_NG_PHYNAME |grep "UP" >&- 2>&-
+		if [ "$?" = "0" ]; then
+			echo ON
+		else
+			echo OFF
+		fi
+	elif [ "$1" = "11a" ] && [ "$2" = "--status" ]; then
+		ifconfig $WLAN_A_PHYNAME |grep "UP" >&- 2>&-
+		if [ "$?" = "0" ]; then
+			echo ON
+		else
+			echo OFF
+		fi
+	fi
+}
+
+case "$1" in
+	down)
+		wl_down
+		turn_wlan_led
+        ;;
+	radio)
+		shift
+		wl_radio $*
+		;;
+       	up|start|restart)
+		wl_down
+		sleep 1
+		wl_up
+
+		if [ "`config get endis_wl_radio`" = "0" ]; then
+		#	Fixed Bug 23256, When user add/delete/edit a period of schedule WiFi off,
+		#	DUT should check if WiFi should be turned off at the moment according to
+		#	existed periods.
+			sed -i -e '/wifi_schedule 11g/d' /tmp/etc/crontabs/root
+			ifconfig $WLAN_NG_NAME down 2>&1 >&-
+		else
+			#	check if wlan 2.4G is in schedule period
+			if [ "`config get wladv_schedule_enable`" = "1" ]; then
+				/sbin/cmdsched_wlan_status 11g
+				if [ "`config get wlg_onoff_sched`" = "1" ]; then
+					/etc/ath/wifi_schedule 11g off
+				else
+					/etc/ath/wifi_schedule 11g on
+				fi
+			fi
+		fi
+
+		if [ "`config get endis_wla_radio`" = "0" ]; then
+			sed -i -e '/wifi_schedule 11a/d' /tmp/etc/crontabs/root
+			ifconfig $WLAN_A_NAME down 2>&1 >&-
+		else
+			#	check if wlan 5G is in schedule period
+			if [ "`config get wladv_schedule_enable_a`" = "1" ]; then
+				/sbin/cmdsched_wlan_status 11a
+				if [ "`config get wlg_onoff_sched`" = "1" ]; then
+					/etc/ath/wifi_schedule 11a off
+				else
+					/etc/ath/wifi_schedule 11a on
+				fi
+			fi
+		fi
+
+		turn_wlan_led
+        ;;
+esac

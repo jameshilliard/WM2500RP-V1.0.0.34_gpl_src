@@ -1,0 +1,19 @@
+--- a/include/linux/netfilter/xt_connmark.h	2011-12-12 03:30:04.000000000 -0500
++++ b/include/linux/netfilter/xt_connmark.h	2012-02-10 06:23:06.176373675 -0500
+@@ -18,6 +18,16 @@
+ 	XT_CONNMARK_RESTORE
+ };
+ 
++struct xt_connmark_info {
++	unsigned long mark, mask;
++	__u8 invert;
++};
++
++struct xt_connmark_mtinfo1 {
++	__u32 mark, mask;
++	__u8 invert;
++};
++
+ struct xt_connmark_target_info {
+ 	unsigned long mark;
+ 	unsigned long mask;

@@ -1,0 +1,179 @@
+#! /bin/sh
+
+#$1:	This is the command of the shell script
+#	Re -> Modify the opt_r_list
+#	Se -> Modify the opt_s_list
+#	Rn -> Return the request list entry number
+#	Sn -> Return the sent list entry number
+#	Rv -> Return the value of the request opt tag
+#	Sv -> Return the value of the sent opt tag
+#	Rs -> Request list value set
+#	Ro -> Request option value set
+#$2:	Alias
+#$3: 	Tag		
+#$4:	Value
+#$5: 	Order
+#P.S:	1. For two functions Rv and Sv, they just need two params, $1 is cmd and $2 is the
+#	   index of the list.
+#	2. The function Rs used to set the value into request list, which get from dhcp server.
+#	   It just need to params tag and its value.
+
+#echo "Hellow world"
+# opt_r/s_list_"tag"="Enable"*"Alias"*"Tag"*"Value"(*"Order")
+
+list_insert()
+{
+	# $1 -> list prefix
+	# $2 -> number of list entry
+	# $3 -> insert value
+
+	tag=`echo $3 | cut -d \* -f 3`
+	prefix=$1
+	num=$2
+	i_str="$3"
+	re="1"
+
+	i=1
+	while [ 1 ]; do
+		[ $i -gt $num ] && break
+		tmp_str=`eval config get "$prefix"_"$i"`
+		tmp_tag=`echo $tmp_str | cut -d \* -f 3`
+		[ "$tmp_tag" = "$tag" -a "$tag" = "37" ] && break
+		[ "$tmp_tag" = "$tag" ] && return
+		let i=$i+1
+	done
+
+	eval config set "$prefix"_"$i"=\""\$i_str"\"
+}
+
+dhcp_opt_tool_re()
+{
+	num=$(dhcp_opt_tool_rn)
+	val="1"*"$1"*"$2"*"$3"*"$4"
+	list_insert "opt_r_list" "$num" "$val"
+}
+
+check_exit()
+{
+	list="$1"
+	val="$2"
+	re=0
+	i=1
+
+	num=`echo $list | awk -F "," '{print NF}'`
+	while [ $i -le $num ]; do
+		tmp=`echo $list | awk -F "," '{print $'$i'}'`
+		[ "$tmp" = "$val" ] && re=1 && break;
+		let i=$i+1
+	done
+
+	echo $re
+}
+
+dhcp_opt_tool_se()
+{
+	org_val="$3"
+	tag="$2"
+	tmp_val=""
+	if [ "$2" = "37" ]; then
+		num=$(dhcp_opt_tool_sn)
+		i=1
+		while [ 1 ]; do
+			[ $i -gt $num ] && break
+			tmp_str=`eval config get opt_s_list_"$i"`
+			tmp_tag=`echo $tmp_str | cut -d \* -f 3`
+			[ "$tmp_tag" = "$tag" ] && tmp_val=$(echo $tmp_str | cut -d \* -f 4) && break
+			let i=$i+1
+		done
+		[ "$(check_exit $tmp_val $org_val)" = "1" ] && exit
+		[ "X$tmp_val" = "X" ] && org_val="$3" || org_val=$tmp_val,"$3"
+	fi
+	num=$(dhcp_opt_tool_sn)
+	val="1"*"$1"*"$2"*"$org_val"
+	list_insert "opt_s_list" "$num" "$val"
+}
+
+dhcp_opt_tool_rn()
+{
+	num=`config show | grep opt_r_list | wc -l`
+	echo $num
+}
+
+dhcp_opt_tool_sn()
+{
+	num=`config show | grep opt_s_list | wc -l`
+	echo $num
+}
+
+# $1 is the id for this function o( --)o
+dhcp_opt_tool_rv()
+{
+	tmp=`config get opt_r_list_"$1"`
+	en=`echo $tmp | cut -d \* -f 1`
+	[ "$en" != "1" ] && echo "disable" && exit
+	val=`echo $tmp | cut -d \* -f 4`
+	tag=`echo $tmp | cut -d \* -f 3`
+	echo "$tag$val"
+}
+
+# $1 is the id for this function o(-- )o
+dhcp_opt_tool_sv()
+{
+	if [ "$1" != "0" ]; then 
+		tmp=`config get opt_s_list_"$1"`
+	else	
+		tmp=`config show | grep opt_s_list_ | grep request_list | awk -F "=" '{print $NF}'`
+	fi
+
+        en=`echo $tmp | cut -d \* -f 1`
+        [ "$en" != "1" ] && echo "disable" && exit
+        val=`echo $tmp | cut -d \* -f 4`
+	tag=`echo $tmp | cut -d \* -f 3`
+	
+	if [ "$1" = "0" ]; then
+		val=`echo $val | sed 's/,//g'`
+	fi
+	
+	[ "$1" = "0" ] && echo $val && return
+        echo "$tag$val"
+}
+
+dhcp_opt_tool_rs()
+{
+	tag="$1"
+	val="$2"
+	
+	num=$(dhcp_opt_tool_rn)
+	[ $num -eq 0 ] && return
+
+	i=1
+	while [ 1 ]; do
+		[ $i -gt $num ] && break
+		tmp_str=`eval config get opt_r_list_$i`
+		tmp_ail=`echo $tmp_str | cut -d \* -f 2`
+                tmp_tag=`echo $tmp_str | cut -d \* -f 3`
+		tmp_ord=`echo $tmp_str | cut -d \* -f 5`
+		re="1"*"$tmp_ail"*"$tmp_tag"*"$val"*"$tmp_ord"
+                [ "$tmp_tag" = "$tag" ] && eval config set opt_r_list_"$i"=\""\$re"\" && exit
+                let i=$i+1
+	done
+
+}
+
+case "$1" in
+	"Re") dhcp_opt_tool_re \
+		"$2" "$3" "$4" "$5" ;;
+	"Se") dhcp_opt_tool_se \
+		"$2" "$3" "$4" "$5" ;;
+	"Rn") dhcp_opt_tool_rn \
+		"$2" "$3" "$4" "$5" ;;
+	"Sn") dhcp_opt_tool_sn \
+		"$2" "$3" "$4" "$5" ;;
+	"Rv") dhcp_opt_tool_rv \
+		"$2" "$3" "$4" "$5" ;;
+	"Sv") dhcp_opt_tool_sv \
+		"$2" "$3" "$4" "$5" ;;
+	"Rs") dhcp_opt_tool_rs \
+		"$2" "$3" ;;
+	   *) exit ;;
+esac	 

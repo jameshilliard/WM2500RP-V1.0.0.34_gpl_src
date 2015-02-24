@@ -1,0 +1,72 @@
+diff -Nur linux-2.6.22.old//include/linux/sysctl.h linux-2.6.22/include/linux/sysctl.h
+--- linux-2.6.22.old//include/linux/sysctl.h	2012-06-11 12:01:09.908897275 -0400
++++ linux-2.6.22/include/linux/sysctl.h	2012-06-11 12:04:02.228897317 -0400
+@@ -613,6 +613,7 @@
+ 	NET_NEIGH_GC_THRESH3=16,
+ 	NET_NEIGH_RETRANS_TIME_MS=17,
+ 	NET_NEIGH_REACHABLE_TIME_MS=18,
++	NET_NEIGH_NOT_SEND_NEIGHBOR_SOLICITATION=19,
+ 	__NET_NEIGH_MAX
+ };
+ 
+diff -Nur linux-2.6.22.old//include/net/neighbour.h linux-2.6.22/include/net/neighbour.h
+--- linux-2.6.22.old//include/net/neighbour.h	2012-06-11 12:01:09.938897275 -0400
++++ linux-2.6.22/include/net/neighbour.h	2012-06-11 12:03:42.718897311 -0400
+@@ -60,6 +60,7 @@
+ 	int	proxy_delay;
+ 	int	proxy_qlen;
+ 	int	locktime;
++	int     not_send_neighbor_solicitation;
+ };
+ 
+ struct neigh_statistics
+diff -Nur linux-2.6.22.old//net/core/neighbour.c linux-2.6.22/net/core/neighbour.c
+--- linux-2.6.22.old//net/core/neighbour.c	2012-06-11 12:01:09.818897275 -0400
++++ linux-2.6.22/net/core/neighbour.c	2012-06-11 12:06:03.838897345 -0400
+@@ -2608,6 +2608,13 @@
+ 			.proc_handler	= &proc_dointvec_ms_jiffies,
+ 			.strategy	= &sysctl_ms_jiffies,
+ 		},
++		{
++			.ctl_name       = NET_NEIGH_NOT_SEND_NEIGHBOR_SOLICITATION,
++			.procname       = "not_send_neighbor_solicitation",
++			.maxlen         = sizeof(int),
++			.mode           = 0644,
++			.proc_handler   = &proc_dointvec,
++		},
+ 	},
+ 	.neigh_dev = {
+ 		{
+@@ -2698,6 +2705,8 @@
+ 		t->neigh_vars[17].extra1 = dev;
+ 	}
+ 
++	t->neigh_vars[18].data = &p->not_send_neighbor_solicitation;
++
+ 	dev_name = kstrdup(dev_name_source, GFP_KERNEL);
+ 	if (!dev_name) {
+ 		err = -ENOBUFS;
+diff -Nur linux-2.6.22.old//net/ipv6/addrconf.c linux-2.6.22/net/ipv6/addrconf.c
+--- linux-2.6.22.old//net/ipv6/addrconf.c	2012-06-11 12:01:09.868897275 -0400
++++ linux-2.6.22/net/ipv6/addrconf.c	2012-06-11 12:07:44.438897369 -0400
+@@ -2629,6 +2629,9 @@
+ 	spin_unlock_bh(&ifp->lock);
+ 	read_unlock_bh(&idev->lock);
+ 
++	if (ifp->idev->nd_parms->not_send_neighbor_solicitation == 1)
++                goto out;
++
+ 	/* send a neighbour solicitation for our addr */
+ 	memset(&unspec, 0, sizeof(unspec));
+ 	addrconf_addr_solict_mult(&ifp->addr, &mcaddr);
+diff -Nur linux-2.6.22.old//net/ipv6/ndisc.c linux-2.6.22/net/ipv6/ndisc.c
+--- linux-2.6.22.old//net/ipv6/ndisc.c	2012-06-11 12:01:09.868897275 -0400
++++ linux-2.6.22/net/ipv6/ndisc.c	2012-06-11 12:08:25.968897379 -0400
+@@ -147,6 +147,7 @@
+ 		.anycast_delay =	 1 * HZ,
+ 		.proxy_delay =		(8 * HZ) / 10,
+ 		.proxy_qlen =		64,
++		.not_send_neighbor_solicitation = 1,
+ 	},
+ 	.gc_interval =	  30 * HZ,
+ 	.gc_thresh1 =	 128,

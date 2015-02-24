@@ -1,0 +1,90 @@
+config NET_CGI_GIT_TREEISH
+	string
+	prompt "treeish of net-cgi git repository"
+	default "net-cgi-dni087"
+	help
+           Input the treeish of net-cgi git repository which you want to build
+
+config NET_CGI_GIT_REPOSITORY
+	string
+	prompt "name of net-cgi git repository"
+	default "net-cgi.git"
+	help
+	   Input the name of net-cgi git repository which you want to build
+
+config NET_CGI_GIT_URL
+	string
+	prompt "url of net-cgi git repository"
+	default "ssh://dniserver/scm/dnigit/common/apps/net-cgi.git"
+	help
+	   Input the url of net-cgi git repository which you want to build
+
+config DNI_DEFAULT_CGI_CONFIGURATION
+	bool "Use the default configuration file of net-cgi"
+	default y
+
+config NET_CGI_PLATFORM_PATCH
+	bool "Apply platform specific patches"
+	default n
+
+config NET_CGI_PLATFORM_DEFAULT_LANGUAGE
+	bool "Use platform default language"
+	default n
+
+menuconfig NET_CGI_LANGUAGE_TABLE
+	bool "Build language table along with the f/w, so that the fileinfo.txt will update automatically"
+	default n
+
+if NET_CGI_LANGUAGE_TABLE
+
+config NET_CGI_LANGUAGE_TABLE_GIT_TREEISH
+	string
+	depends on NET_CGI_LANGUAGE_TABLE
+	prompt "treeish of net-web-language-table git repository"
+	default "language_tableV1.0.0.158"
+	help
+           Input the treeish of net-web-language-table git repository which you want to build
+
+config NET_CGI_LANGUAGE_TABLE_BUILD_OPTION
+	string
+	depends on NET_CGI_LANGUAGE_TABLE
+	prompt "build option of net-web-language-table git repository"
+	default TARGET_MODELNAME
+
+config NET_CGI_LANGUAGE_TABLE_GIT_REPOSITORY
+	string
+	depends on NET_CGI_LANGUAGE_TABLE
+	prompt "name of net-web-language-table git repository"
+	default "net-web-language-table.git"
+	help
+	   Input the name of net-web-language-table git repository which you want to build
+
+config NET_CGI_LANGUAGE_TABLE_GIT_URL
+	string
+	depends on NET_CGI_LANGUAGE_TABLE
+	prompt "url of net-web-language-table git repository"
+	default "ssh://dniserver/scm/dnigit/common/apps/net-web-language-table.git"
+	help
+	   Input the url of net-web-language-table git repository which you want to build
+
+comment "Select default local language"
+config ENG
+	bool "English"
+	depends on NET_CGI_LANGUAGE_TABLE
+	default y
+
+config GR
+	bool "German"
+	depends on NET_CGI_LANGUAGE_TABLE
+	default y
+
+config PT
+	bool "PORTUGAL"
+	depends on NET_CGI_LANGUAGE_TABLE
+	default y
+
+config RU
+	bool "Russia"
+	depends on NET_CGI_LANGUAGE_TABLE
+	default y
+endif

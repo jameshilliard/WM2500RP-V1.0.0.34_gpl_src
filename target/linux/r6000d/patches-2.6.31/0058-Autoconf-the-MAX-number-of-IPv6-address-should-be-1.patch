@@ -1,0 +1,40 @@
+From ce868821f78f2f22152e08809df811c59dc8b0e4 Mon Sep 17 00:00:00 2001
+From: voefwill.chen <voefwill.chen@dniserver.dnish.net>
+Date: Mon, 28 May 2012 10:56:34 +0800
+Subject: [PATCH 1/1] Bug 32560 - [NETGEAR-27][IPV6_Auto_config]DUT can't get assign network IPV6 address at auto config mode.
+
+Problem:Set DUT wan to autoconfig mode,wan side connect one dhcpv6 server
+and two radvd through hub. Run the dhcpv6 server and two radvd.The wan
+side will accquire two IPv6 address.
+reason:The MAX number of wan side address in kernal is 16. So we can get
+two address in wan side.
+Solution:According to spec 10(18.4.6 Auto Config),The MAX number of wan side
+address should be 1 in Auto Config mode.So we change the MAX number of
+wan side address to 1.
+Signed-off-by: voefwill.chen <voefwill.chen@dniserver.dnish.net>
+---
+ net/ipv6/addrconf.c |    3 ++-
+ 1 files changed, 2 insertions(+), 1 deletions(-)
+
+diff --git a/net/ipv6/addrconf.c b/net/ipv6/addrconf.c
+index 81c9697..7f83285 100644
+--- a/net/ipv6/addrconf.c
++++ b/net/ipv6/addrconf.c
+@@ -1908,12 +1908,13 @@ ok:
+ 			    !net->ipv6.devconf_all->forwarding)
+ 				addr_flags = IFA_F_OPTIMISTIC;
+ #endif
++#define IPv6_ADDRESS_MAX_NUM 1
+ 
+ 			/* Do not allow to create too much of autoconfigured
+ 			 * addresses; this would be too easy way to crash kernel.
+ 			 */
+ 			if (!max_addresses ||
+-			    ipv6_count_addresses(in6_dev) < max_addresses)
++			    ipv6_count_addresses(in6_dev) <= IPv6_ADDRESS_MAX_NUM)
+ 				ifp = ipv6_add_addr(in6_dev, &addr, pinfo->prefix_len,
+ 						    addr_type&IPV6_ADDR_SCOPE_MASK,
+ 						    addr_flags);
+-- 
+1.7.0.4
+

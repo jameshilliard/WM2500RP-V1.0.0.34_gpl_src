@@ -1,0 +1,42 @@
+#!/bin/sh /etc/rc.common
+START=60
+
+conf_file="/tmp/etc/snmpd.conf"
+pid_file="/tmp/snmpd.pid"
+SNMP=`/bin/config get snmp_enable`
+
+create_config_file() {
+	rocomm="$(/bin/config get snmp_read_community)"
+	rwcomm="$(/bin/config get snmp_write_community)"
+
+	echo -n "" > $conf_file
+
+	[ x$rocomm != x ] && echo "rocommunity $rocomm" >> $conf_file
+	[ x$rwcomm != x ] && echo "rwcommunity $rwcomm" >> $conf_file
+
+	echo "authtrapenable  1" >> $conf_file
+	echo "rwuser root" >> $conf_file
+}
+
+
+RCDLINKS="2,S98 3,S98 4,S98 5,S98 0,K19 1,K19,K19"
+
+start() {
+	if [ $SNMP -eq 1 ]; then
+		echo -n "Starting snmpd:"
+		create_config_file
+		/usr/sbin/snmpd -c $conf_file -P $pid_file 2>/dev/null
+		echo "."
+	fi
+}
+
+stop() {
+	echo -n "Stopping snmpd:"
+	killall snmpd
+	echo "."
+}
+
+restart() {
+	stop
+	start	
+}

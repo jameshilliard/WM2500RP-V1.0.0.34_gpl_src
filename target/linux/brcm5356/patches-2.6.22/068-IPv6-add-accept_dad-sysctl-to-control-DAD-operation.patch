@@ -1,0 +1,130 @@
+diff -Nur linux-2.6.22.old//include/linux/ipv6.h linux-2.6.22/include/linux/ipv6.h
+--- linux-2.6.22.old//include/linux/ipv6.h	2012-06-11 12:52:01.708898005 -0400
++++ linux-2.6.22/include/linux/ipv6.h	2012-06-11 12:52:53.438898017 -0400
+@@ -183,6 +183,7 @@
+ #endif
+ 	void		*sysctl;
+ 	__s32           disable_ipv6;
++	__s32           accept_dad;
+ };
+ 
+ /* index values for the variables in ipv6_devconf */
+@@ -213,6 +214,7 @@
+ 	DEVCONF_OPTIMISTIC_DAD,
+ 	DEVCONF_ACCEPT_SOURCE_ROUTE,
+ 	DEVCONF_DISABLE_IPV6,
++	DEVCONF_ACCEPT_DAD,
+ 	DEVCONF_MAX
+ };
+ 
+diff -Nur linux-2.6.22.old//include/linux/sysctl.h linux-2.6.22/include/linux/sysctl.h
+--- linux-2.6.22.old//include/linux/sysctl.h	2012-06-11 12:52:01.718898005 -0400
++++ linux-2.6.22/include/linux/sysctl.h	2012-06-11 12:53:12.718898021 -0400
+@@ -588,6 +588,7 @@
+ 	NET_IPV6_PROXY_NDP=23,
+ 	NET_IPV6_ACCEPT_SOURCE_ROUTE=25,
+ 	NET_IPV6_DISABLE_IPV6=18,
++	NET_IPV6_ACCEPT_DAD=19,
+ 	__NET_IPV6_MAX
+ };
+ 
+diff -Nur linux-2.6.22.old//net/ipv6/addrconf.c linux-2.6.22/net/ipv6/addrconf.c
+--- linux-2.6.22.old//net/ipv6/addrconf.c	2012-06-11 12:52:01.678898005 -0400
++++ linux-2.6.22/net/ipv6/addrconf.c	2012-06-11 12:57:04.948898077 -0400
+@@ -111,6 +111,7 @@
+ static int desync_factor = MAX_DESYNC_FACTOR * HZ;
+ #endif
+ 
++static int ipv6_generate_eui64(u8 *eui, struct net_device *dev);
+ static int ipv6_count_addresses(struct inet6_dev *idev);
+ 
+ /*
+@@ -164,6 +165,7 @@
+ #endif
+ 	.max_addresses		= IPV6_MAX_ADDRESSES,
+ 	.disable_ipv6           = 0,
++	.accept_dad             = 1,
+ 	.accept_ra_defrtr	= 1,
+ 	.accept_ra_pinfo	= 1,
+ #ifdef CONFIG_IPV6_ROUTER_PREF
+@@ -197,6 +199,7 @@
+ #endif
+ 	.max_addresses		= IPV6_MAX_ADDRESSES,
+ 	.disable_ipv6           = 0,
++	.accept_dad             = 1,
+ 	.accept_ra_defrtr	= 1,
+ 	.accept_ra_pinfo	= 1,
+ #ifdef CONFIG_IPV6_ROUTER_PREF
+@@ -357,6 +360,8 @@
+ 	 * we invoke __ipv6_regen_rndid().
+ 	 */
+ 	in6_dev_hold(ndev);
++	if (dev->flags & (IFF_NOARP | IFF_LOOPBACK))
++		ndev->cnf.accept_dad = -1;
+ 
+ #ifdef CONFIG_IPV6_PRIVACY
+ 	init_timer(&ndev->regen_timer);
+@@ -1316,6 +1321,20 @@
+ 
+ void addrconf_dad_failure(struct inet6_ifaddr *ifp)
+ {
++	struct inet6_dev *idev = ifp->idev;
++	if (idev->cnf.accept_dad > 1 && !idev->cnf.disable_ipv6) {
++		struct in6_addr addr;
++
++		addr.s6_addr32[0] = htonl(0xfe800000);
++		addr.s6_addr32[1] = 0;
++
++		if (!ipv6_generate_eui64(addr.s6_addr + 8, idev->dev) &&
++				ipv6_addr_equal(&ifp->addr, &addr)) {
++			/* DAD failed for link-local based on MAC address */
++			idev->cnf.disable_ipv6 = 1;
++		}
++	}
++
+ 	if (net_ratelimit())
+ 		printk(KERN_INFO "%s: duplicate address detected!\n", ifp->idev->dev->name);
+ 	addrconf_dad_stop(ifp);
+@@ -2568,6 +2587,7 @@
+ 	spin_lock_bh(&ifp->lock);
+ 
+ 	if (dev->flags&(IFF_NOARP|IFF_LOOPBACK) ||
++	    idev->cnf.accept_dad < 1 ||
+ 	    !(ifp->flags&IFA_F_TENTATIVE) ||
+ 	    ifp->flags & IFA_F_NODAD) {
+ 		ifp->flags &= ~(IFA_F_TENTATIVE|IFA_F_OPTIMISTIC);
+@@ -2616,6 +2636,11 @@
+ 		read_unlock_bh(&idev->lock);
+ 		goto out;
+ 	}
++	if (idev->cnf.accept_dad > 1 && idev->cnf.disable_ipv6) {
++		read_unlock_bh(&idev->lock);
++		addrconf_dad_failure(ifp);
++		return;
++	}
+ 	spin_lock_bh(&ifp->lock);
+ 	if (ifp->probes == 0) {
+ 		/*
+@@ -3435,6 +3460,7 @@
+ #endif
+ 	array[DEVCONF_MAX_ADDRESSES] = cnf->max_addresses;
+ 	array[DEVCONF_DISABLE_IPV6] = cnf->disable_ipv6;
++	array[DEVCONF_ACCEPT_DAD] = cnf->accept_dad;
+ 	array[DEVCONF_ACCEPT_RA_DEFRTR] = cnf->accept_ra_defrtr;
+ 	array[DEVCONF_ACCEPT_RA_PINFO] = cnf->accept_ra_pinfo;
+ #ifdef CONFIG_IPV6_ROUTER_PREF
+@@ -4034,6 +4060,14 @@
+ 			.maxlen         =       sizeof(int),
+ 			.mode           =       0644,
+ 			.proc_handler   =       &proc_dointvec,
++		},
++		{
++			.ctl_name       =       NET_IPV6_ACCEPT_DAD,
++			.procname       =       "accept_dad",
++			.data           =       &ipv6_devconf.accept_dad,
++			.maxlen         =       sizeof(int),
++			.mode           =       0644,
++			.proc_handler   =       &proc_dointvec,
+ 		},
+ 		{
+ 			.ctl_name	=	0,	/* sentinel */

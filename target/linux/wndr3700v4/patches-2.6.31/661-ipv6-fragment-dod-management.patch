@@ -1,0 +1,249 @@
+From 2cd97d1a69ad4e3fbc2ee75aa2305f1d08e56472 Mon Sep 17 00:00:00 2001
+From: alime.mao <alime.mao@dniserver.dnish.net>
+Date: Tue, 13 Sep 2011 16:09:27 +0800
+Subject: [PATCH 1/1] Fixed bug28821:[IPv6-Fragments] The max fragments number should 32 for a single fragmented IPv6 packet.
+
+Add 3 sysctl parameters:
+1. net/ipv6/ip6frag_all_thresh
+   Default value: 64
+   Description:
+     The total number of buffered/stored fragments.
+
+2. net/ipv6/ip6frag_each_thresh
+   Default value: 32
+   Description:
+     The max number of fragment related to one ipv6 packet.
+
+3. net/ipv6/ip6frag_block_time
+   Default value: 90
+   Description:
+     The time for that DUT should discard the DoD attack packets.
+
+Signed-off-by: alime.mao <alime.mao@dniserver.dnish.net>
+---
+ include/linux/sysctl.h   |    3 ++
+ include/net/inet_frag.h  |    6 ++++
+ net/ipv4/inet_fragment.c |    4 ++-
+ net/ipv6/reassembly.c    |   67 +++++++++++++++++++++++++++++++++++++++++++++-
+ 4 files changed, 78 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/sysctl.h b/include/linux/sysctl.h
+index 828cc9b..0a6a6ae 100644
+--- a/include/linux/sysctl.h
++++ b/include/linux/sysctl.h
+@@ -542,6 +542,9 @@ enum {
+ 	NET_IPV6_IP6FRAG_TIME=23,
+ 	NET_IPV6_IP6FRAG_SECRET_INTERVAL=24,
+ 	NET_IPV6_MLD_MAX_MSF=25,
++	NET_IPV6_IP6FRAG_ALL_THRESH=26,
++	NET_IPV6_IP6FRAG_EACH_THRESH=27,
++	NET_IPV6_IP6FRAG_BLOCK_TIME=28,
+ };
+ 
+ enum {
+diff --git a/include/net/inet_frag.h b/include/net/inet_frag.h
+index 39f2dc9..795cbae 100644
+--- a/include/net/inet_frag.h
++++ b/include/net/inet_frag.h
+@@ -4,6 +4,7 @@
+ struct netns_frags {
+ 	int			nqueues;
+ 	atomic_t		mem;
++	int			nfrags;
+ 	struct list_head	lru_list;
+ 
+ 	/* sysctls */
+@@ -12,6 +13,9 @@
+ 	int			low_thresh;
+ 	int			single_max;
+ 	int			over_single_max_timeout;
++	int			all_thresh;
++	int			each_thresh;
++	int			block_time;
+ };
+  
+ struct inet_frag_queue {
+@@ -24,7 +28,9 @@ struct inet_frag_queue {
+ 	int			len;        /* total length of orig datagram */
+ 	int			meat;
+ 	__u8			last_in;    /* first/last segment arrived? */
++	int			nfrags;		/* the count of each queue frags */
+ 
++#define INET_FRAG_BLOCKED	8
+ #define INET_FRAG_COMPLETE	4
+ #define INET_FRAG_FIRST_IN	2
+ #define INET_FRAG_LAST_IN	1
+diff --git a/net/ipv4/inet_fragment.c b/net/ipv4/inet_fragment.c
+index eaf3e2c..14b098e 100644
+--- a/net/ipv4/inet_fragment.c
++++ b/net/ipv4/inet_fragment.c
+@@ -72,6 +72,7 @@ EXPORT_SYMBOL(inet_frags_init);
+ void inet_frags_init_net(struct netns_frags *nf)
+ {
+ 	nf->nqueues = 0;
++	nf->nfrags = 0;
+ 	atomic_set(&nf->mem, 0);
+ 	INIT_LIST_HEAD(&nf->lru_list);
+ }
+@@ -123,6 +124,7 @@ static inline void frag_kfree_skb(struct netns_frags *nf, struct inet_frags *f,
+ 		*work -= skb->truesize;
+ 
+ 	atomic_sub(skb->truesize, &nf->mem);
++	nf->nfrags--;
+ 	if (f->skb_free)
+ 		f->skb_free(skb);
+ 	kfree_skb(skb);
+@@ -164,7 +166,7 @@ int inet_frag_evictor(struct netns_frags *nf, struct inet_frags *f)
+ 	int work, evicted = 0;
+ 
+ 	work = atomic_read(&nf->mem) - nf->low_thresh;
+-	while (work > 0) {
++	while (work > 0 || nf->nfrags >= nf->all_thresh) {
+ 		read_lock(&f->lock);
+ 		if (list_empty(&nf->lru_list)) {
+ 			read_unlock(&f->lock);
+diff --git a/net/ipv6/reassembly.c b/net/ipv6/reassembly.c
+index 2642a41..3ce46dd 100644
+--- a/net/ipv6/reassembly.c
++++ b/net/ipv6/reassembly.c
+@@ -154,6 +154,7 @@ static inline void frag_kfree_skb(struct netns_frags *nf,
+ 	if (work)
+ 		*work -= skb->truesize;
+ 	atomic_sub(skb->truesize, &nf->mem);
++	nf->nfrags--;
+ 	kfree_skb(skb);
+ }
+ 
+@@ -269,6 +270,28 @@ static int ip6_frag_queue(struct frag_queue *fq, struct sk_buff *skb,
+ 	int offset, end;
+ 	struct net *net = dev_net(skb_dst(skb)->dev);
+ 
++	//printk("XXX fq->q.nfrags = %d, each_thresh = %d XXX\n", fq->q.nfrags, net->ipv6.frags.each_thresh);
++
++	if (fq->q.last_in & INET_FRAG_BLOCKED) {
++		kfree_skb(skb);
++		return -1;
++	}
++
++	if (fq->q.nfrags >= net->ipv6.frags.each_thresh) {
++		kfree_skb(skb);
++		struct sk_buff *fp, *xp;
++		fp = fq->q.fragments;
++		while (fp) {
++			xp = fp->next;
++			frag_kfree_skb(fq->q.net, fp, NULL);
++			fp = xp;
++		}
++		fq->q.fragments = NULL;
++		mod_timer(&fq->q.timer, jiffies + net->ipv6.frags.block_time);
++		fq->q.last_in |= INET_FRAG_BLOCKED;
++		return -1;
++	}
++
+ 	if (fq->q.last_in & INET_FRAG_COMPLETE)
+ 		goto err;
+ 
+@@ -415,6 +438,8 @@ static int ip6_frag_queue(struct frag_queue *fq, struct sk_buff *skb,
+ 	fq->q.stamp = skb->tstamp;
+ 	fq->q.meat += skb->len;
+ 	atomic_add(skb->truesize, &fq->q.net->mem);
++	fq->q.net->nfrags++;	/* Total frags num */
++	fq->q.nfrags++;		/* Each queue frags num */
+ 
+ 	/* The first fragment.
+ 	 * nhoffset is obtained from the first fragment, of course.
+@@ -512,6 +537,7 @@ static int ip6_frag_reasm(struct frag_queue *fq, struct sk_buff *prev,
+ 		clone->csum = 0;
+ 		clone->ip_summed = head->ip_summed;
+ 		atomic_add(clone->truesize, &fq->q.net->mem);
++		fq->q.net->nfrags++;
+ 	}
+ 
+ 	/* We have to remove fragment header from datagram and to relocate
+@@ -527,6 +553,7 @@ static int ip6_frag_reasm(struct frag_queue *fq, struct sk_buff *prev,
+ 	skb_reset_transport_header(head);
+ 	skb_push(head, head->data - skb_network_header(head));
+ 	atomic_sub(head->truesize, &fq->q.net->mem);
++	fq->q.net->nfrags--;
+ 
+ 	for (fp=head->next; fp; fp = fp->next) {
+ 		head->data_len += fp->len;
+@@ -537,6 +564,7 @@ static int ip6_frag_reasm(struct frag_queue *fq, struct sk_buff *prev,
+ 			head->csum = csum_add(head->csum, fp->csum);
+ 		head->truesize += fp->truesize;
+ 		atomic_sub(fp->truesize, &fq->q.net->mem);
++		fq->q.net->nfrags--;
+ 	}
+ 
+ 	head->next = NULL;
+@@ -601,8 +629,14 @@ static int ipv6_frag_rcv(struct sk_buff *skb)
+ 		return 1;
+ 	}
+ 
+-	if (atomic_read(&net->ipv6.frags.mem) > net->ipv6.frags.high_thresh)
++
++	//printk("ipv6 fragments = %d\n", net->ipv6.frags.nfrags);
++
++	if (atomic_read(&net->ipv6.frags.mem) > net->ipv6.frags.high_thresh
++		|| net->ipv6.frags.nfrags >= net->ipv6.frags.all_thresh)
++	{
+ 		ip6_evictor(net, ip6_dst_idev(skb_dst(skb)));
++	}
+ 
+ 	if ((fq = fq_find(net, fhdr->identification, &hdr->saddr, &hdr->daddr,
+ 			  ip6_dst_idev(skb_dst(skb)))) != NULL) {
+@@ -660,6 +694,31 @@ static struct ctl_table ip6_frags_ns_ctl_table[] = {
+ 		.proc_handler	= proc_dointvec_jiffies,
+ 		.strategy	= sysctl_jiffies,
+ 	},
++	{
++		.ctl_name	= NET_IPV6_IP6FRAG_ALL_THRESH,
++		.procname	= "ip6frag_all_thresh",
++		.data		= &init_net.ipv6.frags.all_thresh,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec
++	},
++	{
++		.ctl_name	= NET_IPV6_IP6FRAG_EACH_THRESH,
++		.procname	= "ip6frag_each_thresh",
++		.data		= &init_net.ipv6.frags.each_thresh,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec
++	},
++	{
++		.ctl_name	= NET_IPV6_IP6FRAG_BLOCK_TIME,
++		.procname	= "ip6frag_block_time",
++		.data		= &init_net.ipv6.frags.block_time,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_jiffies,
++		.strategy	= sysctl_jiffies,
++	},
+ 	{ }
+ };
+ 
+@@ -690,6 +749,9 @@ static int ip6_frags_ns_sysctl_register(struct net *net)
+ 		table[2].data = &net->ipv6.frags.timeout;
+ 		table[3].data = &net->ipv6.frags.single_max;
+ 		table[4].data = &net->ipv6.frags.over_single_max_timeout;
++		table[5].data = &net->ipv6.frags.all_thresh;
++		table[6].data = &net->ipv6.frags.each_thresh;
++		table[7].data = &net->ipv6.frags.block_time;
+ 	}
+ 
+ 	hdr = register_net_sysctl_table(net, net_ipv6_ctl_path, table);
+@@ -753,6 +815,9 @@ static int ipv6_frags_init_net(struct net *net)
+ 	net->ipv6.frags.timeout = IPV6_FRAG_TIMEOUT;
+ 	net->ipv6.frags.single_max = 0;
+ 	net->ipv6.frags.over_single_max_timeout = IPV6_FRAG_BEYOND_SINGLE_MAX_TIMEOUT;
++	net->ipv6.frags.all_thresh = 64;
++	net->ipv6.frags.each_thresh = 32;
++	net->ipv6.frags.block_time = 90*HZ ;
+ 
+ 	inet_frags_init_net(&net->ipv6.frags);
+ 
+-- 
+1.6.5.1.1367.gcd48
+

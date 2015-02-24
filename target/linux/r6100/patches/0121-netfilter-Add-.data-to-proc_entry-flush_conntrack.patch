@@ -1,0 +1,94 @@
+From 1f28bca3570d4adfb61bc87d572130b096973695 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Tue, 8 Mar 2011 11:14:28 +0800
+Subject: [PATCH 121/137] netfilter: Add ".data" to proc_entry "flush_conntrack"
+
+When using netfilter-v2.6.31-dni5 and enable CONFIG_SYSCTL_SYSCALL,
+netfilter-v2.6.31-dni5 will fail to pass the check.
+
+Root cause:
+    When using built-in sysctl_intvec, it needs assign ".data".
+
+Solution:
+    Refrence the design of "sysctl_drop_caches".
+    Add ".data" in proc_entry, and remove table tbl from proc_flush_conntrack()
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/netfilter/dni_netfilter_sysctl.c |   15 +++++----------
+ 1 files changed, 5 insertions(+), 10 deletions(-)
+
+diff --git a/net/netfilter/dni_netfilter_sysctl.c b/net/netfilter/dni_netfilter_sysctl.c
+index 584133b..c4cded1 100644
+--- a/net/netfilter/dni_netfilter_sysctl.c
++++ b/net/netfilter/dni_netfilter_sysctl.c
+@@ -10,6 +10,7 @@
+ 
+ extern int sysctl_conntrack_refresh_support;
+ int sysctl_conntrack_refresh_outbound_only = 0;
++int sysctl_do_flush_conntrack = 0;
+ 
+ EXPORT_SYMBOL(sysctl_conntrack_refresh_outbound_only);
+ 
+@@ -18,17 +19,10 @@ static int proc_flush_conntrack(ctl_table * ctl,
+ 				void __user * buffer, size_t * lenp,
+ 				loff_t * ppos)
+ {
+-	int ret;
+-	int do_flush = 0;
+-	ctl_table tbl = {
+-		.data = &do_flush,
+-		.maxlen = sizeof(int),
+-	};
+-
+-	ret = proc_dointvec(&tbl, write, filp, buffer, lenp, ppos);
+-	if (write && ret == 0 && do_flush == 1)
++	proc_dointvec(ctl, write, filp, buffer, lenp, ppos);
++	if (write && (sysctl_do_flush_conntrack & 1))
+ 		do_flush_conntrack_table();
+-	return ret;
++	return 0;
+ }
+ 
+ ctl_table dni_table[] = {
+@@ -53,6 +47,7 @@ ctl_table dni_table[] = {
+ 	{
+ 		.ctl_name	= CTL_UNNUMBERED,
+ 		.procname	= "flush_conntrack_table",
++		.data		= &sysctl_do_flush_conntrack,
+ 		.maxlen		= sizeof(int),
+ 		.mode		= 0644,
+ 		.proc_handler	= proc_flush_conntrack,
+-- 
+1.7.4.1
+

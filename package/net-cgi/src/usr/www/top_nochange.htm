@@ -1,0 +1,38 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<% http_header("style/top.css", "funcs.js", "top.js") %>
+<% top_body_header("lang_check.htm", "select_language") %>
+
+<script>
+var language_oriArray = "<% lang_en() %>".split(" ");
+var language_showArray="<% lang_show() %>".split(" ");
+var gui_region = "<% cfg_get("GUI_Region") %>";
+var lang_select = "<% cfg_get("Language_Selection") %>";
+
+function loadvalue()
+{
+/*	if(lang_select != "Auto")
+		document.forms[0].lang_avi.value = gui_region;
+	else
+		document.forms[0].lang_avi.value = lang_select;
+
+	document.forms[0].lang_avi.disabled = true;
+
+	if(top.formframe.location.href.indexOf("lang_check.htm") != -1)
+		top.formframe.location.href = "pls_wait_updateLanguage.htm";*/
+}
+</script>
+
+<input type=hidden name=hidden_lang_avi>
+<div id="logo"></div>
+<div id="router-name"><% cat_file("/hardware_version") %></div>
+<div id="firm_version">$info_mark_ver<br /><% cat_file("/firmware_version") %></div>
+<div id="select_language" align=right style="display:none">
+	<select align=right id="language" name="lang_avi" size=1 onChange="doDisable()">
+		<script>languageShowlist();</script>
+	</select>
+</div>
+
+</form>
+</body>
+</html>
+

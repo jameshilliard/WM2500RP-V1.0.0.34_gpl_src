@@ -1,0 +1,36 @@
+GIT repository:
+===============
+
+How to build:
+=============
+#
+# compile u-boot within LSDK v9.5.3.15
+#
+In LSDK tree, modify uboot_mainline in
+build/scripts/board955x/Makefile.board955x from 
+> cd $(BOOTLOADERDIR) && make $(BOARD_TYPE)_config
+> cd $(BOOTLOADERDIR) && make clean && make
+to
+> cd $(BOOTLOADERDIR) && make hw29764428p8p0p128p2x2p2x2_config V=1
+> cd $(BOOTLOADERDIR) && make clean && OBJS=cpu/mips/start_hw29764428p8p0p128p2x2p2x2.o make
+$ cd build
+$ TFTPPATH=/tmp make BOARD_TYPE=aph131 ETH_CONFIG=_vir ETH_CONFIG2=_ar8033 uboot_mainline
+
+Then u-boot binary can be found at images/aph131/u-boot.bin
+
+#
+# compile u-boot without LSDK v9.5.3.15
+#
+> export PATH=/path/to/your/toolchain:$PATH
+> UBOOT_GCC_4_3_3_EXTRA_CFLAGS=-fPIC make hw29764428p8p0p128p2x2p2x2_config V=1
+> UBOOT_GCC_4_3_3_EXTRA_CFLAGS=-fPIC OBJS=cpu/mips/start_hw29764428p8p0p128p2x2p2x2.o ETH_CONFIG=_vir ETH_CONFIG2=_ar8033 make
+
+Steps to upgrade u-boot via console:
+====================================
+
+In the meantime, u-boot takes 5 erase blocks (5*0x10000):
+4 code blocks plus 1 env block.
+
+ath> tftp 0x80060000 u-boot.bin
+ath> crc32 0x80060000 $filesize
+ath> erase 0x9f000000 +50000 && cp.b $fileaddr 0x9f000000 $filesize

@@ -1,0 +1,109 @@
+<% http_header("style/form.css", "/funcs.js", "/ipv6.js") %>
+<% body_header("_IPv6", "snmp.htm", "snmp_en") %>
+<div class="page_title">$snmp_string</div>
+<div class="fix_button">
+<TABLE width=100% border=0 cellpadding=0 cellspacing=2>
+<TR>
+        <TD nowrap colspan=2 align=center>
+		<input class="cancel_bt" type='button' name='Cancel' value='$cancel_mark' onClick='location.href="IPv6_disabled.htm";'>&nbsp;&nbsp;
+        <input class="apply_bt" type='submit' name='Apply' value='$apply_mark' onClick="return check_snmp(document.forms[0]);">
+        </TD>
+</TR>
+</TABLE>
+</div>
+<div id="main" class="main_top_button"> 
+<% table_header() %>
+<!--$bluebar-->
+
+<script>
+var snmp_enable="<% cfg_get("snmp_enable") %>";
+var snmp_read="<% cfg_get("snmp_read_community") %>";
+var snmp_write="<% cfg_get("snmp_write_community") %>";
+function loadvalue()
+{
+	var cf = document.forms[0];
+	if(snmp_enable=="0"){
+		cf.con_type[0].selected = true;
+		document.getElementById("wpa").style.display="none";
+	}
+	else{
+		cf.con_type[1].selected = true;
+		document.getElementById("wpa").style.display="";
+	}
+	cf.readcom.value=snmp_read;
+	cf.writecom.value=snmp_write;
+}
+
+
+function check_snmp(cf)
+{
+	if(cf.con_type[0].selected==true)
+		cf.en_snmp_enable.value=0;
+	else
+		cf.en_snmp_enable.value=1;
+		cf.en_read_commit.value=cf.readcom.value;
+		cf.en_write_commit.value=cf.writecom.value;
+	return true;
+}
+
+function change_snmp(cf)
+{
+	if(cf.con_type[0].selected==true)
+		document.getElementById("wpa").style.display="none";
+	else
+		document.getElementById("wpa").style.display="";
+}
+</script>
+<input type="hidden" name="en_snmp_enable">
+<input type="hidden" name="en_read_commit">
+<input type="hidden" name="en_write_commit">
+<TR>
+        <TD nowrap>
+        <A tabindex=-1 href="javascript:loadhelp('_IPv6','internet')"><B>$snmp_s</B></A>
+        </TD>
+        <TD nowrap align=right>
+        <select name="con_type"  onChange="change_snmp(document.forms[0])">
+                <option value="disabled" selected>$pppoe2_disable</option>
+		<option value="fixed">$r_enable</option>
+        </select>
+        </TD>
+</TR>
+$bluebar
+<!--TR>
+	<TD nowrap colspan=2 align=center>
+	<input type='submit' name='Apply' value='$apply_mark'>&nbsp;&nbsp;
+	<input type='button' name='Cancel' value='$cancel_mark' onClick='location.href="IPv6_disabled.htm";'>
+		<input class="cancel_bt" type='button' name='Cancel' value='$cancel_mark' onClick='location.href="IPv6_disabled.htm";'>&nbsp;&nbsp;
+        <input class="apply_bt" type='submit' name='Apply' value='$apply_mark' >
+	</TD>
+</TR-->
+	<TABLE cellspacing=5 cellPadding=0 width=100% border=0 ID="wpa" style="display:none">
+	<TR>
+		<TD nowrap>
+			<span class="optiondesc" id="wpaPwdPhraseText">$snmp_read</span>
+		</TD>
+		<TD nowrap>
+		<input type="text" id="read" size="20" maxlength="64" name="readcom" value="public">
+		</TD>
+	</TR>
+	<TR>
+		<TD nowrap>
+			<span class="optiondesc" id="wpaPwdPhraseText">$snmp_write</span>
+		</TD>
+		<TD nowrap>
+		<input type="text" id="read" size="20" maxlength="64" name="writecom" value="private">
+		</TD>
+	</TR>
+	<TR>
+		<TD nowrap>
+			<span class="optiondesc" id="wpaPwdPhraseText">$snmp_agent_version</span>
+		</TD>
+		<TD nowrap>V1,V2c</TD>
+	</TR>
+	$bluebar
+	</TABLE>
+</div>
+<% help_box("0","_snmp") %>
+</FORM>
+</BODY>
+</HTML>

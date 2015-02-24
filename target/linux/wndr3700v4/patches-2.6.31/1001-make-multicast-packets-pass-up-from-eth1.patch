@@ -1,0 +1,71 @@
+--- linux-2.6.31/net/bridge/br_input.c.bak	2012-03-09 08:24:56.765954945 +0800
++++ linux-2.6.31/net/bridge/br_input.c	2012-03-09 09:00:06.055331611 +0800
+@@ -72,12 +72,31 @@
+ {
+         struct net_device *indev;
+ 
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++      unsigned char *dest;
++      struct iphdr *iph;
++      unsigned char proto=0;
++      struct ethhdr *ethernet=(struct ethhdr *)skb->mac_header;
++
++      // if skb come from wireless interface, ex. ath0, ath1, ath2...
++      if (skb->dev->name[0] == 'a')
++      {
++              iph = (struct iphdr *)skb->network_header;
++              proto =  iph->protocol;
++              dest = ethernet->h_dest;
++              if ( igmp_snoop_enable && MULTICAST_MAC(dest)
++                       && (ethernet->h_proto == ETH_P_IP))
++              {
++                      if (proto == IPPROTO_IGMP)
++                              add_mac_cache(skb);
++              }
++      }
++#endif
++
+         indev = skb->dev;
+-	/*7 this kind packet has not yet been define, i use it to identify as this packet 
+-	pass from eth1, it is so ugly, fix me please
++	/* when packets from eth1, set cb[0]=0x10 as a flag, and this flag packets do not pass up to bridge
+ 	*/
+-	skb->pkt_type = 7;
+-
++	skb->cb[0] = 0x10;
+         NF_HOOK(PF_BRIDGE, NF_BR_LOCAL_IN, skb, indev, NULL,
+                 netif_receive_skb);
+ }
+@@ -157,6 +176,14 @@
+ 		|| (skb->protocol == __constant_htons(ETH_P_IPV6))
+ #endif
+ 	) {
++#ifdef CONFIG_DNI_ETH1_NO_PASSUP
++		/*if multicast packets are received from br1, then pass up to IP layer directly*/
++		if (!strncmp(br->dev->name, "br1", 3) && !strncmp(skb->dev->name, "eth1", 4) && skb->protocol != 0x8100) {
++			skb2 = skb_clone(skb, GFP_ATOMIC);
++			br_pass_frame_up_from_eth1(br, skb2);
++			skb2 = NULL;
++		}
++#endif
+ 		br->dev->stats.multicast++;
+ 		skb2 = skb;
+ 	} else if ((dst = __br_fdb_get(br, dest)) && dst->is_local) {
+--- linux-2.6.31/net/core/dev.c.bak	2012-03-09 09:58:46.645331899 +0800
++++ linux-2.6.31/net/core/dev.c	2012-03-09 08:46:53.668454655 +0800
+@@ -2108,14 +2108,9 @@
+ 
+ 	if (skb->pkt_type == PACKET_LOOPBACK || 
+ #ifdef CONFIG_DNI_ETH1_NO_PASSUP
+-	skb->pkt_type == 7 ||
++	skb->cb[0] == 0x10 ||
+ #endif
+ 	(port = rcu_dereference(skb->dev->br_port)) == NULL) {
+-#ifdef CONFIG_DNI_ETH1_NO_PASSUP
+-		if (skb->pkt_type == 7) {
+-			skb->pkt_type = PACKET_HOST;
+-		}
+-#endif
+ 		return skb;
+ 	}
+ 

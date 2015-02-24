@@ -1,0 +1,28 @@
+From 0c282d6cf5cf1929cb7368d1e128cb1ea52a890d Mon Sep 17 00:00:00 2001
+From: stone.liu <stone.liu@dniserver.dnish.net>
+Date: Mon, 31 Oct 2011 12:13:30 -0400
+Subject: [PATCH 133/137] Revert "ipv4: discard this change since it belongs to linux-2.6 module, instead of netfilter"
+
+This reverts commit 6cd5974c639d4aa1fd614f8820045135fceac928.
+---
+ include/net/netns/ipv4.h |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/netns/ipv4.h b/include/net/netns/ipv4.h
+index 2eb3814..f4c649f 100644
+--- a/include/net/netns/ipv4.h
++++ b/include/net/netns/ipv4.h
+@@ -40,6 +40,10 @@ struct netns_ipv4 {
+ 	struct xt_table		*iptable_security;
+ 	struct xt_table		*nat_table;
+ 	struct hlist_head	*nat_bysource;
++	#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
++	struct hlist_head	*nat_by_modified_source;
++	int			nat_modified_vmalloced;
++	#endif
+ 	int			nat_vmalloced;
+ #endif
+ 
+-- 
+1.7.4.1
+

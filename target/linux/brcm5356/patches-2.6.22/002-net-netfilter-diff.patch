@@ -1,0 +1,246 @@
+diff --git a/net/netfilter/nf_conntrack_core.c b/net/netfilter/nf_conntrack_core.c
+index 7a15e30..b718bd2 100644
+--- a/net/netfilter/nf_conntrack_core.c
++++ b/net/netfilter/nf_conntrack_core.c
+@@ -39,11 +39,7 @@
+ 
+ #define NF_CONNTRACK_VERSION	"0.5.0"
+ 
+-#if 0
+-#define DEBUGP printk
+-#else
+ #define DEBUGP(format, args...)
+-#endif
+ 
+ DEFINE_RWLOCK(nf_conntrack_lock);
+ EXPORT_SYMBOL_GPL(nf_conntrack_lock);
+@@ -76,6 +72,10 @@ static unsigned int nf_conntrack_next_id;
+ DEFINE_PER_CPU(struct ip_conntrack_stat, nf_conntrack_stat);
+ EXPORT_PER_CPU_SYMBOL(nf_conntrack_stat);
+ 
++#ifdef HNDCTF
++extern int ip_conntrack_ipct_delete(struct nf_conn *ct, int ct_timeout);
++#endif /* HNDCTF */
++
+ /*
+  * This scheme offers various size of "struct nf_conn" dependent on
+  * features(helper, nat, ...)
+@@ -206,7 +206,6 @@ out_up_mutex:
+ }
+ EXPORT_SYMBOL_GPL(nf_conntrack_register_cache);
+ 
+-/* FIXME: In the current, only nf_conntrack_cleanup() can call this function. */
+ void nf_conntrack_unregister_cache(u_int32_t features)
+ {
+ 	struct kmem_cache *cachep;
+@@ -272,10 +271,10 @@ nf_ct_invert_tuple(struct nf_conntrack_tuple *inverse,
+ {
+ 	NF_CT_TUPLE_U_BLANK(inverse);
+ 
+-	inverse->src.l3num = orig->src.l3num;
+ 	if (l3proto->invert_tuple(inverse, orig) == 0)
+ 		return 0;
+ 
++	inverse->src.l3num = orig->src.l3num;
+ 	inverse->dst.dir = !orig->dst.dir;
+ 
+ 	inverse->dst.protonum = orig->dst.protonum;
+@@ -305,6 +304,10 @@ destroy_conntrack(struct nf_conntrack *nfct)
+ 	NF_CT_ASSERT(atomic_read(&nfct->use) == 0);
+ 	NF_CT_ASSERT(!timer_pending(&ct->timeout));
+ 
++#ifdef HNDCTF
++	ip_conntrack_ipct_delete(ct, 0);
++#endif /* HNDCTF*/
++
+ 	nf_conntrack_event(IPCT_DESTROY, ct);
+ 	set_bit(IPS_DYING_BIT, &ct->status);
+ 
+@@ -352,6 +355,14 @@ static void death_by_timeout(unsigned long ul_conntrack)
+ 	struct nf_conn_help *help = nfct_help(ct);
+ 	struct nf_conntrack_helper *helper;
+ 
++#ifdef HNDCTF
++	/* If negative error is returned it means the entry hasn't
++	 * timed out yet.
++	 */
++	if (ip_conntrack_ipct_delete(ct, jiffies >= ct->timeout.expires ? 1 : 0) != 0)
++		return;
++#endif /* HNDCTF */
++
+ 	if (help) {
+ 		rcu_read_lock();
+ 		helper = rcu_dereference(help->helper);
+@@ -547,6 +558,10 @@ static int early_drop(struct list_head *chain)
+ 	if (!ct)
+ 		return dropped;
+ 
++#ifdef HNDCTF
++	ip_conntrack_ipct_delete(ct, 0);
++#endif /* HNDCTF */
++
+ 	if (del_timer(&ct->timeout)) {
+ 		death_by_timeout((unsigned long)ct);
+ 		dropped = 1;
+@@ -590,7 +605,6 @@ __nf_conntrack_alloc(const struct nf_conntrack_tuple *orig,
+ 	/*  find features needed by this conntrack. */
+ 	features |= l3proto->get_features(orig);
+ 
+-	/* FIXME: protect helper list per RCU */
+ 	read_lock_bh(&nf_conntrack_lock);
+ 	helper = __nf_ct_helper_find(repl);
+ 	/* NAT might want to assign a helper later */
+@@ -931,6 +945,9 @@ void __nf_ct_refresh_acct(struct nf_conn *ct,
+ 
+ 	/* If not in hash table, timer will not be active yet */
+ 	if (!nf_ct_is_confirmed(ct)) {
++#ifdef HNDCTF
++		ct->expire_jiffies = extra_jiffies;
++#endif /* HNDCTF */
+ 		ct->timeout.expires = extra_jiffies;
+ 		event = IPCT_REFRESH;
+ 	} else {
+@@ -941,6 +958,9 @@ void __nf_ct_refresh_acct(struct nf_conn *ct,
+ 		   avoidance (may already be dying). */
+ 		if (newtime - ct->timeout.expires >= HZ
+ 		    && del_timer(&ct->timeout)) {
++#ifdef HNDCTF
++			ct->expire_jiffies = extra_jiffies;
++#endif /* HNDCTF */
+ 			ct->timeout.expires = newtime;
+ 			add_timer(&ct->timeout);
+ 			event = IPCT_REFRESH;
+@@ -1077,6 +1097,9 @@ nf_ct_iterate_cleanup(int (*iter)(struct nf_conn *i, void *data), void *data)
+ 	unsigned int bucket = 0;
+ 
+ 	while ((ct = get_next_corpse(iter, data, &bucket)) != NULL) {
++#ifdef HNDCTF
++		ip_conntrack_ipct_delete(ct, 0);
++#endif /* HNDCTF */
+ 		/* Time to push up daises... */
+ 		if (del_timer(&ct->timeout))
+ 			death_by_timeout((unsigned long)ct);
+diff --git a/net/netfilter/nf_conntrack_proto_tcp.c b/net/netfilter/nf_conntrack_proto_tcp.c
+index 6221559..0cfb7cf 100644
+--- a/net/netfilter/nf_conntrack_proto_tcp.c
++++ b/net/netfilter/nf_conntrack_proto_tcp.c
+@@ -26,12 +26,12 @@
+ #include <net/netfilter/nf_conntrack_l4proto.h>
+ #include <net/netfilter/nf_conntrack_ecache.h>
+ 
+-#if 0
+-#define DEBUGP printk
+-#define DEBUGP_VARS
+-#else
+ #define DEBUGP(format, args...)
+-#endif
++
++#ifdef HNDCTF
++#include <ctf/hndctf.h>
++extern int ip_conntrack_ipct_delete(struct nf_conn *ct, int ct_timeout);
++#endif /* HNDCTF */
+ 
+ /* Protects conntrack->proto.tcp */
+ static DEFINE_RWLOCK(tcp_lock);
+@@ -50,8 +50,6 @@ static int nf_ct_tcp_loose __read_mostly = 1;
+    will be started. */
+ static int nf_ct_tcp_max_retrans __read_mostly = 3;
+ 
+-  /* FIXME: Examine ipfilter's timeouts and conntrack transitions more
+-     closely.  They're more complex. --RR */
+ 
+ static const char *tcp_conntrack_names[] = {
+ 	"NONE",
+@@ -366,13 +364,10 @@ static inline __u32 segment_seq_plus_len(__u32 seq,
+ 					 unsigned int dataoff,
+ 					 struct tcphdr *tcph)
+ {
+-	/* XXX Should I use payload length field in IP/IPv6 header ?
+-	 * - YK */
+ 	return (seq + len - dataoff - tcph->doff*4
+ 		+ (tcph->syn ? 1 : 0) + (tcph->fin ? 1 : 0));
+ }
+ 
+-/* Fixme: what about big packets? */
+ #define MAXACKWINCONST			66000
+ #define MAXACKWINDOW(sender)						\
+ 	((sender)->td_maxwin > MAXACKWINCONST ? (sender)->td_maxwin	\
+@@ -794,7 +789,6 @@ static int tcp_error(struct sk_buff *skb,
+ 	 * We skip checking packets on the outgoing path
+ 	 * because the checksum is assumed to be correct.
+ 	 */
+-	/* FIXME: Source route IP option packets --RR */
+ 	if (nf_conntrack_checksum &&
+ 	    ((pf == PF_INET && hooknum == NF_IP_PRE_ROUTING) ||
+ 	     (pf == PF_INET6 && hooknum == NF_IP6_PRE_ROUTING)) &&
+@@ -935,6 +929,18 @@ static int tcp_packet(struct nf_conn *conntrack,
+ 		break;
+ 	}
+ 
++#ifdef HNDCTF
++	/* Remove the ipc entries on receipt of FIN or RST */
++	if (CTF_ENAB(kcih)) {
++		if (conntrack->ctf_flags & CTF_FLAGS_CACHED) {
++			if (th->fin || th->rst) {
++				ip_conntrack_ipct_delete(conntrack, 0);
++			}
++			goto in_window;
++		}
++	}
++#endif /* HNDCTF */
++
+ 	if (!tcp_in_window(&conntrack->proto.tcp, dir, index,
+ 			   skb, dataoff, th, pf)) {
+ 		write_unlock_bh(&tcp_lock);
+diff --git a/net/netfilter/nf_conntrack_proto_udp.c b/net/netfilter/nf_conntrack_proto_udp.c
+index 3620ecc..6cb79ff 100644
+--- a/net/netfilter/nf_conntrack_proto_udp.c
++++ b/net/netfilter/nf_conntrack_proto_udp.c
+@@ -23,7 +23,7 @@
+ #include <net/netfilter/nf_conntrack_l4proto.h>
+ #include <net/netfilter/nf_conntrack_ecache.h>
+ 
+-static unsigned int nf_ct_udp_timeout __read_mostly = 30*HZ;
++static unsigned int nf_ct_udp_timeout __read_mostly = 90*HZ;
+ static unsigned int nf_ct_udp_timeout_stream __read_mostly = 180*HZ;
+ 
+ static int udp_pkt_to_tuple(const struct sk_buff *skb,
+@@ -125,10 +125,6 @@ static int udp_error(struct sk_buff *skb, unsigned int dataoff,
+ 	if (!hdr->check)
+ 		return NF_ACCEPT;
+ 
+-	/* Checksum invalid? Ignore.
+-	 * We skip checking packets on the outgoing path
+-	 * because the checksum is assumed to be correct.
+-	 * FIXME: Source route IP option packets --RR */
+ 	if (nf_conntrack_checksum &&
+ 	    ((pf == PF_INET && hooknum == NF_IP_PRE_ROUTING) ||
+ 	     (pf == PF_INET6 && hooknum == NF_IP6_PRE_ROUTING)) &&
+diff --git a/net/netfilter/xt_MARK.c b/net/netfilter/xt_MARK.c
+index 4381780..9662147 100644
+--- a/net/netfilter/xt_MARK.c
++++ b/net/netfilter/xt_MARK.c
+@@ -14,6 +14,9 @@
+ 
+ #include <linux/netfilter/x_tables.h>
+ #include <linux/netfilter/xt_MARK.h>
++#ifdef	HNDCTF
++#include <net/netfilter/nf_conntrack.h>
++#endif
+ 
+ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("Marc Boucher <marc@mbsi.ca>");
+@@ -49,6 +52,13 @@ target_v1(struct sk_buff **pskb,
+ 	switch (markinfo->mode) {
+ 	case XT_MARK_SET:
+ 		mark = markinfo->mark;
++#ifdef	HNDCTF
++	{
++		enum ip_conntrack_info ctinfo;
++		struct nf_conn *ct = nf_ct_get(*pskb, &ctinfo);
++		ct->ctf_flags |= CTF_FLAGS_EXCLUDED;
++	}
++#endif	/* HNDCTF */
+ 		break;
+ 
+ 	case XT_MARK_AND:

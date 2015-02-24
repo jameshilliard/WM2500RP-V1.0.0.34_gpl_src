@@ -1,0 +1,46 @@
+<% http_header("style/form.css", "/funcs.js", "/wlacl.js") %>
+<% body_header("_WLG_acl_add", "wlacl.htm", "wlacl_edit") %>
+
+<script>
+<% wlacl_items_xss() %>
+var select_edit=<% cfg_get("wl_acl_editnum") %>;
+function loadvalue(cf)
+{
+	var cf=document.forms[0];
+	var str = eval ( 'wlaclArray' + select_edit );
+	var tmp_str=change_blank(str); 
+	var each_info=tmp_str.split(' ');
+		
+	cf.device.value=xss_replace(each_info[0]).replace(/&nbsp;/g,' ');
+	cf.this_mac.value=each_info[1];
+}
+</script>
+<div class="page_title">$adva_wlan_acl</div>
+<div class="fix_button">
+<TABLE width=100% border=0 cellpadding=0 cellspacing=2>
+<TR>
+    <TD nowrap colspan=2 align=center>
+	<input class="cancel_bt" type="button" value="$cancel_mark" onClick="location.href='wlacl.htm';">&nbsp;&nbsp;&nbsp;
+	<input class="apply_bt" type="submit" value="$apply_mark" onclick="return check_wlacl_add(document.forms[0],'edit')"></td>	
+</tr>
+</TABLE>
+</div>
+<div id="main" class="main_top_button">
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<tr><td nowrap colspan=2><a tabindex=-1 href="javascript:loadhelp('_WLG_acl_add','entry')"><b>$adva_wlan_acl_entry</b></a></td></tr>	
+  <tr><td nowrap>$adva_wlan_devicename</td>
+	<td nowrap><input type="text" name="device" maxLength="20" size="16" onKeyPress="return getkey('ssid', event)"></td>
+  </tr>	
+  <tr><td nowrap>$adva_wlan_acl_mac</td>
+	<td nowrap>
+		 <input type="text" value="" name="this_mac" maxlength="17" size="20" onKeyPress="return getkey('mac',event)">
+	</td>
+  </tr>	
+$bluebar
+</TABLE>
+</div>
+<% help_box("0","_WLG_acl_add") %>
+
+</FORM>
+</body>
+</html>

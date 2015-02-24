@@ -1,0 +1,77 @@
+<% http_header("style/form.css", "/funcs.js") %>
+
+<% mobile_wait_for_search() %>
+<script type="text/javascript">
+var gui_region="<% cfg_get("GUI_Region") %>";
+var maxchars = 100;
+var delay_time = 3600; // msecs
+var charcount = 0;
+var dns_hijack="<% cfg_get("dns_hijack") %>";
+var setup_wizard_tag="<% cfg_get("setup_wizard_tag") %>";
+
+var link_status="<% cat_file("/tmp/link_status" %>";
+var sta_list = "<% cat_file("/tmp/check_link") %>";
+//pro1="<br><table border=0 cellpadding=0 cellspacing=0 height=30><tr bgcolor=#dddddd><td width="
+//pro2="\% bgcolor=#0099cc align=right><font color=#0099cc>"
+//pro3="%</font></td><td width="
+//pro4="\%></td><td bgcolor=#ffffff>"
+//pro5="%</td></tr></table>"
+function menu_width()
+{
+	setTimeout("load_default(1)",1000);
+}
+function updateProgress()
+{   
+	var pro=charcount;
+	//var progress=pro1+pro+pro2+pro+pro3+(100-pro)+pro4+"<b>"+charcount+"</b>"+pro5;
+    //document.getElementById("view").innerHTML=progress;
+	//if( dns_hijack == 1 )
+		//setTimeout("load_default(1)",1000);
+    if (charcount < maxchars)
+    {  
+        charcount=charcount+20;		
+        setTimeout("updateProgress()",delay_time);
+    }
+    else
+	    location.href="ca_wl_network.htm";
+} 
+if(setup_wizard_tag=="0")
+{
+	document.write('<body bgcolor="#ffffff" onLoad="loadhelp(\'_connect\');updateProgress()">');
+}
+else
+{
+	document.write('<body bgcolor="#ffffff" onLoad="menu_width();updateProgress()">');
+}
+</script>
+<form>
+<div id="main" class="ca_main">
+	<table align=left border=0 cellpadding=0 cellspacing=0 width=100%>
+		<tr>
+		<td width="5%">&nbsp;</td>
+		<!--<script>
+		if(dns_hijack==1)
+		{
+			document.write('<td  rowspan=100 width=70 align=center valign=top>');document.write(ca_icon+"<br><br><br>");icons_show_status();document.write('&nbsp;</td>');
+		}
+		</script>-->
+		<td>
+		<h1><script>
+		if(setup_wizard_tag=="0")
+		document.write("$detect_wireless_network")
+		else
+		document.write("$mobile_wait_for_searching")
+		</script></h1></td><td width="5%">&nbsp;</td></tr>
+		<tr><td colspan=3>&nbsp;</td></tr>
+		<tr><td colspan=3>&nbsp;</td></tr>
+		<tr><td width="5%">&nbsp;</td>
+		<td align=center>
+		<img src="/image/wait30.gif">
+        </td><td width="5%">&nbsp;</td></tr>
+	</table>
+<br>
+</div>
+<% wizard_help_box("1", "_connect") %>
+</form>
+</body>
+</html>

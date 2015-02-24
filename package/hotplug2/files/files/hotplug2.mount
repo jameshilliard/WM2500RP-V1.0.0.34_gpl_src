@@ -1,0 +1,62 @@
+#! /bin/sh
+
+get_device_from_disk()
+{
+	dev=`echo "$1" | cut -c 1-3`
+	vendor=`cat /sys/block/$dev/device/vendor`
+	model=`cat /sys/block/$dev/device/model`
+	vendor=$(echo ${vendor} | sed 's/[[:space:]]*$//')
+	model=$(echo ${model} | sed 's/[[:space:]]*$//')
+	device_vendor="$vendor $model"
+	echo "$device_vendor"
+}
+
+try_ntfs()
+{
+	ntfs-3g.probe --readwrite /dev/$1
+	case "$?" in
+	0)
+		ntfs-3g /dev/$1 /mnt/$1 -o locale=en_US.UTF-8
+		if [ $? -ne 0 ];then
+			rmdir /mnt/$1
+		fi
+		;;
+	14)
+		ntfs-3g /dev/$1 /mnt/$1 -o remove_hiberfile,locale=en_US.UTF-8
+                if [ $? -ne 0 ];then
+                        rmdir /mnt/$1
+                fi
+                ;;
+
+	15)
+		ntfs-3g /dev/$1 /mnt/$1 -o force,locale=en_US.UTF-8
+		if [ $? -ne 0 ];then
+			rmdir /mnt/$1
+		fi
+		;;
+	*)
+		rmdir /mnt/$1
+	esac
+}
+
+
+if [ $# -eq 0 ];then
+	echo "Must run with devicename."
+	exit 1
+fi
+mkdir /mnt/$1
+mount -o utf8=yes,fmask=0000,dmask=0000 /dev/$1 /mnt/$1
+if [ $? -ne 0 ];then
+# UTF8 can't be added to mounting ext2/3
+	mount /dev/$1 /mnt/$1
+	if [ $? -ne 0 ];then
+	        try_ntfs $1
+	else
+#		chmod -R 777 /mnt/$1
+		echo "mount success"
+	fi
+fi
+
+local device_name=`get_device_from_disk "$1"`
+local volume_name=`/usr/sbin/vol_id -L /dev/$1`
+logger "[USB device attached] The USB storage device $device_name ($volume_name) is attached to the router,"

@@ -1,0 +1,5 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2007 OpenWrt.org
+
+#Do not delete this script, which is to replace the original script under package/basefile/
+exit 0

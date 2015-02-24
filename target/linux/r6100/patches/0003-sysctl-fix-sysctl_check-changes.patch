@@ -1,0 +1,57 @@
+From 95b618cd4d995fc3705e5662b11d22d6ff8fdc01 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Wed, 27 Jul 2011 16:12:48 +0800
+Subject: [PATCH 003/137] sysctl: fix sysctl_check changes
+
+Use CTL_UNNUMBERED for fix sysctl_check.
+For more detail, check Documentation/sysctl/ctl_unnumbered.txt
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+---
+ net/ipv4/ip_fragment.c     |    2 +-
+ net/ipv4/route.c           |    2 +-
+ net/ipv4/sysctl_net_ipv4.c |    2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/net/ipv4/ip_fragment.c b/net/ipv4/ip_fragment.c
+index 5caf506..0c80a91 100644
+--- a/net/ipv4/ip_fragment.c
++++ b/net/ipv4/ip_fragment.c
+@@ -649,7 +649,7 @@ static struct ctl_table ip4_frags_ctl_table[] = {
+ 		.extra1		= &zero
+ 	},
+ 	{
+-		.ctl_name	= NET_IPV4_IPFRAG_OVERLAP_DROP,
++		.ctl_name	= CTL_UNNUMBERED,
+ 		.procname	= "ipfrag_overlap_drop",
+ 		.data		= &sysctl_ipfrag_overlap_drop,
+ 		.maxlen		= sizeof(int),
+diff --git a/net/ipv4/route.c b/net/ipv4/route.c
+index 5462b52..f8ebe1c 100644
+--- a/net/ipv4/route.c
++++ b/net/ipv4/route.c
+@@ -3441,7 +3441,7 @@ static ctl_table ipv4_route_table[] = {
+ 		.strategy	= ipv4_sysctl_rt_secret_interval_strategy,
+ 	},
+ 	{
+-		.ctl_name	= NET_IPV4_ROUTE_SEND_FIRST_REDIRECT_ANYWAY,
++		.ctl_name	= CTL_UNNUMBERED,
+ 		.procname	= "send_first_redirect_anyway",
+ 		.data		= &ip_rt_send_first_redirect_anyway,
+ 		.maxlen		= sizeof(int),
+diff --git a/net/ipv4/sysctl_net_ipv4.c b/net/ipv4/sysctl_net_ipv4.c
+index 6e048ea..0820220 100644
+--- a/net/ipv4/sysctl_net_ipv4.c
++++ b/net/ipv4/sysctl_net_ipv4.c
+@@ -615,7 +615,7 @@ static struct ctl_table ipv4_table[] = {
+ 		.proc_handler	= proc_dointvec,
+ 	},
+ 	{
+-		.ctl_name	= NET_BRIDGE_MAX_FDB_ENTRY,
++		.ctl_name	= CTL_UNNUMBERED,
+ 		.procname	= "bridge_max_fdb_entry",
+ 		.data		= &sysctl_bridge_max_fdb_entry,
+ 		.maxlen		= sizeof(int),
+-- 
+1.7.4.1
+

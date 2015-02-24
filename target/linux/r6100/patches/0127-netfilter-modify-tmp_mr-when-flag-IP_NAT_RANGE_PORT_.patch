@@ -1,0 +1,85 @@
+From 69547aed27b3ed05a7260cda848abeac7ffec7c5 Mon Sep 17 00:00:00 2001
+From: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Date: Mon, 28 Mar 2011 16:19:44 +0800
+Subject: [PATCH 127/137] netfilter: modify tmp_mr when flag IP_NAT_RANGE_PORT_RANGE_ONE_BY_ONE is set
+
+min port and max port of tmp_mr are both modified to:
+port_forwarding_internal_starting_port + "original dst port" -
+port_forwarding_external_starting_port.
+
+Linux kernel 2.6.31 support new port forwarding function following spec 2.0
+
+Modified for adding the new feature of port forwarding in spec 2.0.
+Support transforming port range to another port range.
+
+Solution: When nat port transforming,make port correspond one by one.
+Adding min match port into target struct, then the increase number
+can be calculated when nat port transforming.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_rule.c |   11 +++++++++++
+ 1 files changed, 11 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_rule.c b/net/ipv4/netfilter/nf_nat_rule.c
+index e71de93..3d97985 100644
+--- a/net/ipv4/netfilter/nf_nat_rule.c
++++ b/net/ipv4/netfilter/nf_nat_rule.c
+@@ -94,6 +94,8 @@ ipt_dnat_target(struct sk_buff *skb, const struct xt_target_param *par)
+ 	const struct nf_nat_range *orig_range = &mr->range[0];
+ 	struct nf_nat_multi_range_compat tmp_mr;
+ 	struct nf_nat_multi_range_compat *tmp_mr_ptr;
++	/* Use host order for calculation */
++	u_int16_t add_num, new_port;
+ 
+ 	tmp_mr_ptr = &tmp_mr;
+ 	memcpy(tmp_mr_ptr, mr, sizeof(struct nf_nat_multi_range_compat));
+@@ -106,6 +108,15 @@ ipt_dnat_target(struct sk_buff *skb, const struct xt_target_param *par)
+ 	/* Connection must be valid and new. */
+ 	NF_CT_ASSERT(ct && (ctinfo == IP_CT_NEW || ctinfo == IP_CT_RELATED));
+ 
++	if (orig_range->flags & IP_NAT_RANGE_PORT_RANGE_ONE_BY_ONE) {
++		/* Get original port, and calculate num added to make port correspond one by one */
++		add_num = ntohs(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.all)
++				    - ntohs(orig_range->port_forwarding_external_starting_port);
++		new_port = ntohs(orig_range->min.all) + add_num;
++
++		tmp_mr_ptr->range[0].min.all = tmp_mr_ptr->range[0].max.all = htons(new_port);
++	}
++
+ 	return nf_nat_setup_info(ct, &tmp_mr_ptr->range[0], IP_NAT_MANIP_DST);
+ }
+ 
+-- 
+1.7.4.1
+

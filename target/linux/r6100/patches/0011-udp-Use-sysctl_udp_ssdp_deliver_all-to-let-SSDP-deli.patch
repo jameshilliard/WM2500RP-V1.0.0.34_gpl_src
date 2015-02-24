@@ -1,0 +1,57 @@
+From c7276cea6bd9b36e060a35888457cdb4f3ba2ed4 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Tue, 7 Dec 2010 10:18:19 +0800
+Subject: [PATCH 011/137] udp: Use sysctl_udp_ssdp_deliver_all to let SSDP deliver all or not
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/udp.c |    3 ++-
+ 1 files changed, 2 insertions(+), 1 deletions(-)
+
+diff --git a/net/ipv4/udp.c b/net/ipv4/udp.c
+index f570580..bf2cca0 100644
+--- a/net/ipv4/udp.c
++++ b/net/ipv4/udp.c
+@@ -1376,7 +1376,8 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
+ 				saddr, daddr, udptable);
+ 
+ #ifdef DNI_SSDP_DELIVER_ALL
+-	if (uh->dest == __constant_htons(SSDP_PORT))
++	if ((uh->dest == __constant_htons(SSDP_PORT))
++		&& (sysctl_udp_ssdp_deliver_all != 0))
+ 		return udp_v4_ssdp_deliver(net, skb, udptable);
+ #endif
+ 
+-- 
+1.7.4.1
+

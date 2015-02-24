@@ -1,0 +1,36 @@
+#!/bin/sh
+KVER=`uname -r | cut -f 1 -d '-'`
+MODULE_PATH=/lib/modules/$KVER/offload
+BUS=`cat ${MODULE_PATH}/hif_type`
+MOD_SUFFIX=`cat ${MODULE_PATH}/mod_suffix`
+
+###################################################################
+## The input parameter is either up or down.  We assume that
+## if no argument is provided, UP is intended
+###################################################################
+
+echo "Args: $#"
+
+if [ $1 != down ]; then
+
+#
+# insert the modules
+#
+    insmod $MODULE_PATH/adf${MOD_SUFFIX}.ko
+    insmod $MODULE_PATH/hif_${BUS}${MOD_SUFFIX}.ko
+    insmod $MODULE_PATH/fwd${MOD_SUFFIX}.ko
+    insmod $MODULE_PATH/atd${MOD_SUFFIX}.ko
+
+else
+#
+# First, check to see if all of the VAPs have been eliminated
+# If not, kill them all.  Don't continue, since this script
+# will be called by killVAP all
+#
+
+    rmmod atd${MOD_SUFFIX}.ko
+    rmmod fwd${MOD_SUFFIX}.ko
+    rmmod hif_${BUS}${MOD_SUFFIX}.ko
+    rmmod adf${MOD_SUFFIX}.ko
+
+fi

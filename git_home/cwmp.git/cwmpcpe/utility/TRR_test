@@ -1,0 +1,71 @@
+#! /bin/sh
+
+# guess the CPE session has already finished o(~~ )o
+sleep 10
+
+
+trr_state=`config get TRR_DiagnosticsState`
+host=`config get TRR_Host`
+ttl=`config get TRR_MaxHopCount`
+try_num=`config get TRR_NumberOfTries `
+block_size=`config get TRR_DataBlockSize`
+time_out=`config get TRR_Timeout`
+
+[ "$trr_state" != "Requested" ] && exit
+[ "X$host" = "X" ] && host="127.0.0.1"
+[ "X$ttl" = "X" ] && ttl="30"
+[ "X$try_num" = "X" ] && try_num="3"
+[ "X$block_size" = "X" ] && block_size="38"
+[ "X$time_out" = "X" ] && time_out="3000"
+
+cat /dev/null > /tmp/TRR_result
+traceroute -m $ttl -q $try_num -w $time_out $host $block_size > /tmp/TRR_result &
+
+i=1
+re_time=0
+while [ 1 ]; do
+        tmp=`ps | grep "traceroute"`
+        if [ "X$tmp" != "X" ]; then
+                let i=$i+1
+                usleep 1000
+	else
+		re_time=`echo $i`	
+		break
+	fi
+done
+
+# test finished and set the DiagnosticsState ( 3)'')
+config set TRR_DiagnosticsState="Complete"
+
+config set TRR_ResponseTime="$re_time"
+
+hop_num=`cat /tmp/TRR_result | wc -l`
+config set TRR_RouteHopsNumberOfEntries="$hop_num"
+
+tmp=`cat /tmp/TRR_result`
+
+while read TR; do
+	
+	id=`echo $TR | awk '{print $1}'`
+	host=`echo $TR | awk '{print $2}'`
+	host_ip=`echo $TR | awk '{print $3}' | cut -d \( -f 2 | cut -d \) -f 1`
+	
+	ttl_list=""
+	# get those ttl(id) in the loop U( ^^)U
+	j=1
+	tmp=`echo $TR`
+	while [ $j -le $try_num ]; do
+		tmp=`echo ${tmp%ms*}`
+		val=`echo $tmp | awk '{print $NF}' | cut -d . -f 1`
+		if [ $j -ne $try_num ]; then
+			ttl_list=",$val$ttl_list"
+		else
+			ttl_list="$val$ttl_list"
+		fi
+		let j=$j+1
+	done
+
+	echo "$id $host $host_ip $ttl_list"
+	eval config set TRR_RH_"$id"="\$host*\$host_ip*\$ttl_list"
+
+done < /tmp/TRR_result

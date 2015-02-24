@@ -1,0 +1,14 @@
+diff -Nurp linux-2.6.31.orig//init/main.c linux-2.6.31/init/main.c
+--- linux-2.6.31.orig//init/main.c	2013-01-09 15:51:27.305350394 -0500
++++ linux-2.6.31/init/main.c	2013-01-09 15:52:08.365350388 -0500
+@@ -864,10 +864,6 @@ static noinline int init_post(void)
+ 	 * the opportunity to modify the boot program
+ 	 */
+ 	run_init_process("/etc/preinit");
+-	run_init_process("/sbin/init");
+-	run_init_process("/etc/init");
+-	run_init_process("/bin/init");
+-	run_init_process("/bin/sh");
+ 
+ 	panic("No init found.  Try passing init= option to kernel.");
+ }

@@ -1,0 +1,22 @@
+--- a/drivers/net/hnd/Makefile	2012-11-16 11:11:46.458196046 -0500
++++ b/drivers/net/hnd/Makefile	2012-11-16 12:37:49.258195894 -0500
+@@ -18,12 +18,14 @@
+ # $Id: Makefile,v 1.5 2008-05-02 22:49:54 $
+ #
+ 
+-SHARED   := ../../../../../../../src/shared
+-ROUTER   := ../../../../../../../src/router
+-SRC      := ../../../../../../../src
++SHARED   := ../../../../../shared
++ROUTER   := ../../../../../router
++SRC      := ../../../../..
+ WLSHARED := wlconfig_lx_shared
+-WLCFGDIR := $(src)/../../../../../../../src/wl/config
+-WLSYSDIR := $(src)/../../../../../../../src/wl/sys
++WLCFGDIR := $(src)/../../../../../wl/config
++WLSYSDIR := $(src)/../../../../../wl/sys
++
++EXTRA_CFLAGS += -I$(SRCBASE)/shared/bcmwifi/include
+ 
+ ifneq ($(wildcard $(WLCFGDIR)),)
+ include $(WLCFGDIR)/$(WLSHARED)

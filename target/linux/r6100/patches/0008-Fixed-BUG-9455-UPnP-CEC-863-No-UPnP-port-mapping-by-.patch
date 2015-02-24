@@ -1,0 +1,110 @@
+From d80800f27b3b1f10987579c8b75eb8c47335e42e Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Fri, 3 Dec 2010 19:03:15 +0800
+Subject: [PATCH 008/137] Fixed BUG 9455 [UPnP] [CEC 863] No UPnP port mapping by using MSN8.1 Video--NETGEAR-CEC
+
+Sending SSDP UDP port 1900 packets to all UPnP related sockets, for miniupnpd and wps
+share the same binding port 1900.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/udp.c |   46 ++++++++++++++++++++++++++++++++++++++++++++++
+ 1 files changed, 46 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/udp.c b/net/ipv4/udp.c
+index 2dd2bbc..01ee11d 100644
+--- a/net/ipv4/udp.c
++++ b/net/ipv4/udp.c
+@@ -1279,6 +1279,47 @@ static inline int udp4_csum_init(struct sk_buff *skb, struct udphdr *uh,
+ 	return 0;
+ }
+ 
++#define DNI_SSDP_DELIVER_ALL
++#define SSDP_PORT		1900
++
++#ifdef DNI_SSDP_DELIVER_ALL
++/* 
++ * Modified from `__udp4_lib_mcast_deliver` and `__udp4_lib_lookup_skb`, 
++ * send SSDP UDP port 1900 packet to all UPnP related sockets. 
++ */
++static int udp_v4_ssdp_deliver(struct net *net, struct sk_buff *skb,
++			struct udp_table *udptable)
++{
++	struct sock *sk, *sk_prev;
++	struct hlist_nulls_node *node;
++	struct udp_hslot *hslot = &udptable->hash[udp_hashfn(net, SSDP_PORT)];
++
++	sk_prev = NULL;
++	spin_lock(&hslot->lock);
++
++	sk_nulls_for_each_rcu(sk, node, &hslot->head) {
++		if (net_eq(sock_net(sk), net) && sk->sk_hash == SSDP_PORT &&
++		    !ipv6_only_sock(sk)) {
++			/* printk("Found a socket %p with SSDP port!\n", sk); */
++
++			if (sk_prev != NULL) {
++				struct sk_buff *nskb = skb_clone(skb, GFP_ATOMIC);
++				if (nskb && udp_queue_rcv_skb(sk_prev, nskb) > 0)
++					kfree_skb(nskb);
++			}
++			sk_prev = sk;
++		}
++	}
++	if (sk_prev == NULL || udp_queue_rcv_skb(sk_prev, skb) > 0)
++		kfree_skb(skb);
++
++	spin_unlock(&hslot->lock);
++
++	return 0;
++}
++#endif
++
++
+ /*
+  *	All we need to do is get the socket, and then do a checksum.
+  */
+@@ -1331,6 +1372,11 @@ int __udp4_lib_rcv(struct sk_buff *skb, struct udp_table *udptable,
+ 		return __udp4_lib_mcast_deliver(net, skb, uh,
+ 				saddr, daddr, udptable);
+ 
++#ifdef DNI_SSDP_DELIVER_ALL
++	if (uh->dest == __constant_htons(SSDP_PORT))
++		return udp_v4_ssdp_deliver(net, skb, udptable);
++#endif
++
+ 	sk = __udp4_lib_lookup_skb(skb, uh->source, uh->dest, udptable);
+ 
+ 	if (sk != NULL) {
+-- 
+1.7.4.1
+

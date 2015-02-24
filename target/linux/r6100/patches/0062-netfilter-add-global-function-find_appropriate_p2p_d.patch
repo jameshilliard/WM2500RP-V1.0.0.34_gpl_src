@@ -1,0 +1,60 @@
+From 41b2d29a67ff62b67c960eb80542439a94123d36 Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:46 +0800
+Subject: [PATCH 062/137] netfilter: add global function find_appropriate_p2p_dst()
+
+Modify the conntrack and nat modules to support SNATP2P
+
+Patch as referring to bellowing link:
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-January/023084.html
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-March/023585.html
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |   29 +++++++++++++++++++++++++++++
+ 1 files changed, 29 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index 2f7a4b2..d287623 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -239,6 +239,35 @@ modified_src_occupied(const struct nf_conntrack_tuple *tuple,
+ 	return 0;
+ }
+ 
++int
++find_appropriate_p2p_dst(struct net *net,
++			 const struct nf_conntrack_tuple *tuple,
++			 struct nf_conntrack_tuple *result)
++{
++	unsigned int h = hash_by_src(tuple);
++	const struct nf_conn_nat *nat;
++	const struct nf_conn *ct;
++	const struct hlist_node *n;
++
++	rcu_read_lock();
++	hlist_for_each_entry_rcu(nat, n, &net->ipv4.nat_by_modified_source[h], by_modified_source) {
++		ct = nat->ct;
++		if (same_modified_src(ct, tuple)) {
++			nf_ct_invert_tuplepr(result, ct->status & IPS_SNATP2P_DST 
++					? &ct->tuplehash[IP_CT_DIR_REPLY].tuple
++					: &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
++			result->src = tuple->src;
++
++			rcu_read_unlock();
++			return 1;
++		}
++	}
++	rcu_read_unlock();
++
++	return 0;
++}
++EXPORT_SYMBOL(find_appropriate_p2p_dst);
++
+ /* For [FUTURE] fragmentation handling, we want the least-used
+    src-ip/dst-ip/proto triple.  Fairness doesn't come into it.  Thus
+    if the range specifies 1.2.3.4 ports 10000-10005 and 1.2.3.5 ports
+-- 
+1.7.4.1
+

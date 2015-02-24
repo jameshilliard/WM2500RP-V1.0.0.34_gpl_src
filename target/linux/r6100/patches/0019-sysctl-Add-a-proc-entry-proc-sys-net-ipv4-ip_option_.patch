@@ -1,0 +1,70 @@
+From 98377f95bde11bfff914c5e0c4c38590d367fdfe Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Tue, 7 Dec 2010 14:45:50 +0800
+Subject: [PATCH 019/137] sysctl: Add a proc entry "/proc/sys/net/ipv4/ip_option_rr_ssrr_lsrr_pass_through" interface
+
+set /proc/sys/net/ipv4/ip_option_rr_ssrr_lsrr_pass_through to 1:
+    For IP options Record Route (7), Strict Source Route (9), and Loose Source Route (3),
+    it will let the options pass through without changing anything.
+
+set /proc/sys/net/ipv4/ip_option_rr_ssrr_lsrr_pass_through to 0:
+    ip_options work as normal Linux code
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/sysctl_net_ipv4.c |    9 +++++++++
+ 1 files changed, 9 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/sysctl_net_ipv4.c b/net/ipv4/sysctl_net_ipv4.c
+index 5fbce4b..73bdc26 100644
+--- a/net/ipv4/sysctl_net_ipv4.c
++++ b/net/ipv4/sysctl_net_ipv4.c
+@@ -759,6 +759,15 @@ static struct ctl_table ipv4_table[] = {
+ 		.proc_handler	= proc_dointvec,
+ 		.strategy	= sysctl_intvec,
+ 	},
++	{
++		.ctl_name	= CTL_UNNUMBERED,
++		.procname	= "ip_option_rr_ssrr_lsrr_pass_through",
++		.data		= &sysctl_ip_option_rr_ssrr_lsrr_pass_through,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec,
++		.strategy	= sysctl_intvec,
++	},
+ 	{ .ctl_name = 0 }
+ };
+ 
+-- 
+1.7.4.1
+

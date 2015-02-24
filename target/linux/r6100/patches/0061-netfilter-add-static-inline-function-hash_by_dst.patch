@@ -1,0 +1,43 @@
+From c2cc737707ed832d6416831e9dcaf06fb2750589 Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:46 +0800
+Subject: [PATCH 061/137] netfilter: add static inline function hash_by_dst()
+
+Modify the conntrack and nat modules to support SNATP2P
+
+Patch as referring to bellowing link:
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-January/023084.html
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-March/023585.html
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |   12 ++++++++++++
+ 1 files changed, 12 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index 82e9b7e..2f7a4b2 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -96,6 +96,18 @@ hash_by_src(const struct nf_conntrack_tuple *tuple)
+ static int modified_src_occupied(const struct nf_conntrack_tuple *tuple,
+ 				 const struct nf_conn *conntrack);
+ 
++static inline unsigned int
++hash_by_dst(const struct nf_conntrack_tuple *tuple)
++{
++	unsigned int hash;
++
++	/* Reply dst, to ensure we map it consistently if poss. */
++	hash = jhash_3words((__force u32)tuple->dst.u3.ip,
++			    (__force u32)tuple->dst.u.all,
++			    tuple->dst.protonum, 0);
++	return ((u64)hash * nf_nat_htable_size) >> 32;
++}
++
+ /* Is this tuple already taken? (not by us) */
+ int
+ nf_nat_used_tuple(const struct nf_conntrack_tuple *tuple,
+-- 
+1.7.4.1
+

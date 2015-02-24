@@ -1,0 +1,131 @@
+--- linux-2.6.36.old/arch/arm/mach-brcm-hnd/board_ns.c	2012-12-14 11:17:06.367912914 -0500
++++ linux-2.6.36.new/arch/arm/mach-brcm-hnd/board_ns.c	2012-12-14 11:20:09.707907236 -0500
+@@ -614,7 +614,7 @@
+ 
+ #ifdef	CONFIG_MTD_NFLASH
+ 
+-#define NFLASH_PARTS_NUM	7
++#define NFLASH_PARTS_NUM	15
+ static struct mtd_partition bcm947xx_nflash_parts[NFLASH_PARTS_NUM] = {{0}};
+ 
+ static uint
+@@ -709,6 +709,17 @@
+ 	uint shift = 0;
+ 	uint32 top = 0;
+ 	uint32 bootsz;
++
++	uint32 fw_size;
++	uint32 fw_offset;
++
++	uint32 caldata_size = 0x40000;
++	uint32 pot_size = 0x80000;
++	uint32 language_size = 0x200000;
++	uint32 config_size = 0x80000;
++	uint32 traffic_meter_size = 0x300000;
++	uint32 caldata_backup_size = 0x40000;
++
+ #ifdef CONFIG_FAILSAFE_UPGRADE
+ 	char *img_boot = nvram_get(BOOTPARTITION);
+ 	char *imag_1st_offset = nvram_get(IMAGE_FIRST_OFFSET);
+@@ -773,10 +784,15 @@
+ #endif
+ 		{
+ 			bcm947xx_nflash_parts[nparts].size =
+-				nparts ? (NFL_BOOT_OS_SIZE - NFL_BOOT_SIZE) : NFL_BOOT_OS_SIZE;
++				//nparts ? (NFL_BOOT_OS_SIZE - NFL_BOOT_SIZE) : NFL_BOOT_OS_SIZE;
++				/* 32M - boot(512K) - nvram(1.5M) - caldata(256K) - pot(512K) - language(2M) - config(512K) - traffic_meter(3M) - caldata_backup(256K) */
++				NFL_BOOT_OS_SIZE - NFL_BOOT_SIZE - caldata_size - pot_size - language_size - config_size - traffic_meter_size - caldata_backup_size;
+ 		}
+ 		bcm947xx_nflash_parts[nparts].offset = offset;
+ 
++		fw_size = bcm947xx_nflash_parts[nparts].size;
++		fw_offset = bcm947xx_nflash_parts[nparts].offset;
++
+ 		shift = lookup_nflash_rootfs_offset(nfl, mtd, offset,
+ 			bcm947xx_nflash_parts[nparts].size);
+ 
+@@ -795,13 +811,82 @@
+ 			bcm947xx_nflash_parts[nparts].size = image_second_offset - shift;
+ 		else
+ #endif
+-		bcm947xx_nflash_parts[nparts].size = NFL_BOOT_OS_SIZE - shift;
++		/* rootfs size = NFL_BOOT_SIZE + fw_size - shift*/
++		bcm947xx_nflash_parts[nparts].size = NFL_BOOT_SIZE + fw_size - shift;
+ 		bcm947xx_nflash_parts[nparts].offset = shift;
+ 		bcm947xx_nflash_parts[nparts].mask_flags = MTD_WRITEABLE;
+-		offset = NFL_BOOT_OS_SIZE;
+ 
+ 		nparts++;
+ 
++#if 1
++		/* Setup rootfs_data partition */
++		bcm947xx_nflash_parts[nparts].name = "rootfs_tmp";
++		/* TODO/FIXME: the rootfs_data size should be calculated, not fixed */
++		bcm947xx_nflash_parts[nparts].size = 0x800000;
++		/* offset = NFL_BOOT_SIZE(2M) - fw_size - fixed_8M */
++		bcm947xx_nflash_parts[nparts].offset = NFL_BOOT_SIZE + fw_size - bcm947xx_nflash_parts[nparts].size;
++
++		nparts++;
++#endif
++
++		/* Setup Firmware partition */
++		bcm947xx_nflash_parts[nparts].name = "firmware";
++		/* 32M - boot(512K) - nvram(1.5M) - caldata(256K) - language(2M) - config(512K) - traffic_meter(3M) - caldata_backup(256K) */
++		bcm947xx_nflash_parts[nparts].size = fw_size;
++		bcm947xx_nflash_parts[nparts].offset = fw_offset;
++
++		offset = bcm947xx_nflash_parts[nparts].offset + bcm947xx_nflash_parts[nparts].size;
++		nparts++;
++
++		/* Setup Caldata partition */
++		bcm947xx_nflash_parts[nparts].name = "caldata";
++		bcm947xx_nflash_parts[nparts].size = caldata_size;
++		bcm947xx_nflash_parts[nparts].offset = offset;
++
++		offset = bcm947xx_nflash_parts[nparts].offset + bcm947xx_nflash_parts[nparts].size;
++		nparts++;
++
++		/* Setup POT partition */
++		bcm947xx_nflash_parts[nparts].name = "pot";
++		bcm947xx_nflash_parts[nparts].size = pot_size;
++		bcm947xx_nflash_parts[nparts].offset = offset;
++
++		offset = bcm947xx_nflash_parts[nparts].offset + bcm947xx_nflash_parts[nparts].size;
++		nparts++;
++
++		/* Setup Language partition */
++		bcm947xx_nflash_parts[nparts].name = "language";
++		bcm947xx_nflash_parts[nparts].size = language_size;
++		bcm947xx_nflash_parts[nparts].offset = offset;
++
++		offset = bcm947xx_nflash_parts[nparts].offset + bcm947xx_nflash_parts[nparts].size;
++		nparts++;
++
++		/* Setup Config partition */
++		bcm947xx_nflash_parts[nparts].name = "config";
++		bcm947xx_nflash_parts[nparts].size = config_size;
++		bcm947xx_nflash_parts[nparts].offset = offset;
++
++		offset = bcm947xx_nflash_parts[nparts].offset + bcm947xx_nflash_parts[nparts].size;
++		nparts++;
++
++		/* Setup Traffic_meter partition */
++		bcm947xx_nflash_parts[nparts].name = "traffic_meter";
++		bcm947xx_nflash_parts[nparts].size = traffic_meter_size;
++		bcm947xx_nflash_parts[nparts].offset = offset;
++
++		offset = bcm947xx_nflash_parts[nparts].offset + bcm947xx_nflash_parts[nparts].size;
++		nparts++;
++
++
++		/* Setup caldata_backup partition */
++		bcm947xx_nflash_parts[nparts].name = "caldata_backup";
++		bcm947xx_nflash_parts[nparts].size = caldata_backup_size;
++		bcm947xx_nflash_parts[nparts].offset = offset;
++
++		offset = bcm947xx_nflash_parts[nparts].offset + bcm947xx_nflash_parts[nparts].size;
++		nparts++;
++
+ #ifdef CONFIG_FAILSAFE_UPGRADE
+ 		/* Setup 2nd kernel MTD partition */
+ 		if (dual_image_on) {

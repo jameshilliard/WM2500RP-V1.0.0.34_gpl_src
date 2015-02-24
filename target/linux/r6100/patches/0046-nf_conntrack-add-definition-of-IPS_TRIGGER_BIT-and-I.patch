@@ -1,0 +1,76 @@
+From dfd0d6a4499d4c2b930a0c43fc08ed122c46b6d9 Mon Sep 17 00:00:00 2001
+From: stone.liu <stone.liu@dniserver.dnish.net>
+Date: Wed, 26 Oct 2011 11:55:51 -0400
+Subject: [PATCH 046/137] nf_conntrack: add definition of IPS_TRIGGER_BIT and IPS_TRIGGER
+
+Modified the code on v.26.31-dni to support kmod-trigger and kmod-spiadvDoS
+
+1. Define 'IPS_TRIGGER_BIT' and 'IPS_SPI_DoS_BIT';
+2. Export symbol 'tcp_timeouts' for external using.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+
+Conflicts:
+
+	include/linux/netfilter/nf_conntrack_common.h
+
+Signed-off-by: stone.liu <stone.liu@dniserver.dnish.net>
+---
+ include/linux/netfilter/nf_conntrack_common.h |   11 +++++++++++
+ 1 files changed, 11 insertions(+), 0 deletions(-)
+
+diff --git a/include/linux/netfilter/nf_conntrack_common.h b/include/linux/netfilter/nf_conntrack_common.h
+index 4e10d3c..2fc6d18 100644
+--- a/include/linux/netfilter/nf_conntrack_common.h
++++ b/include/linux/netfilter/nf_conntrack_common.h
+@@ -80,6 +80,17 @@ enum ip_conntrack_status {
+ 	IPS_BT_SESSION = (1 << IPS_BT_SESSION_BIT),
+ #endif	
+ 
++#if defined(CONFIG_IP_NF_TARGET_TRIGGER)
++	/* Create conntrack from wan interface */
++	IPS_WAN_IN_BIT = 12,
++	IPS_WAN_IN = (1 << IPS_WAN_IN_BIT),
++#endif
++
++	IPS_CONENAT_BIT = 13,
++	IPS_CONENAT = (1<< IPS_CONENAT_BIT),
++
++	IPS_TRIGGER_BIT = 14,
++	IPS_TRIGGER	= (1 << IPS_TRIGGER_BIT),
+ };
+ 
+ /* Connection tracking event bits */
+-- 
+1.7.4.1
+

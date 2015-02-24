@@ -1,0 +1,13 @@
+diff -Nurp linux-2.6.31.orig/Makefile linux-2.6.31/Makefile
+--- linux-2.6.31.orig/Makefile	2010-12-27 21:05:37.000000000 +0800
++++ linux-2.6.31/Makefile	2010-12-27 21:06:40.000000000 +0800
+@@ -351,7 +351,8 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstric
+ KBUILD_AFLAGS   := -D__ASSEMBLY__
+ 
+ # Read KERNELRELEASE from include/config/kernel.release (if it exists)
+-KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
++#KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
++KERNELRELEASE = $(VERSION).$(PATCHLEVEL).$(SUBLEVEL)
+ KERNELVERSION = $(VERSION).$(PATCHLEVEL).$(SUBLEVEL)$(EXTRAVERSION)
+ 
+ export VERSION PATCHLEVEL SUBLEVEL KERNELRELEASE KERNELVERSION

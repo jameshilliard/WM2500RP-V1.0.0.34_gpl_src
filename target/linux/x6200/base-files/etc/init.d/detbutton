@@ -1,0 +1,16 @@
+#!/bin/sh /etc/rc.common
+START=15
+
+start() {
+	# Start detbutton
+	gpio &
+}
+
+stop() {
+	killall gpio
+}
+
+restart() {
+	stop
+	start
+}

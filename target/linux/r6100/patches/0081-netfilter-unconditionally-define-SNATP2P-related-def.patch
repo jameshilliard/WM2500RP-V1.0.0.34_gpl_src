@@ -1,0 +1,39 @@
+From f9fbe51190ce90df334af75cde79e1426f3dbb12 Mon Sep 17 00:00:00 2001
+From: stone.liu <stone.liu@dniserver.dnish.net>
+Date: Fri, 28 Oct 2011 06:20:22 -0400
+Subject: [PATCH 081/137] netfilter: unconditionally define SNATP2P related definitions
+
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+
+Conflicts:
+
+	include/linux/netfilter/nf_conntrack_common.h
+
+Signed-off-by: stone.liu <stone.liu@dniserver.dnish.net>
+---
+ include/linux/netfilter/nf_conntrack_common.h |    2 --
+ 1 files changed, 0 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/netfilter/nf_conntrack_common.h b/include/linux/netfilter/nf_conntrack_common.h
+index 8ca5166..ac30ae8 100644
+--- a/include/linux/netfilter/nf_conntrack_common.h
++++ b/include/linux/netfilter/nf_conntrack_common.h
+@@ -93,7 +93,6 @@ enum ip_conntrack_status {
+ 	IPS_SPI_DoS_BIT = 15,
+ 	IPS_SPI_DoS	= (1 << IPS_SPI_DoS_BIT),
+ 
+-#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ 	IPS_SNATP2P_SRC_BIT = 16,
+ 	IPS_SNATP2P_SRC = (1 << IPS_SNATP2P_SRC_BIT),
+ 
+@@ -111,7 +110,6 @@ enum ip_conntrack_status {
+ 
+ 	/* Both together. */
+ 	IPS_SNATP2P_DONE_MASK = (IPS_SNATP2P_DST_DONE | IPS_SNATP2P_SRC_DONE),
+-#endif
+ };
+ 
+ /* Connection tracking event bits */
+-- 
+1.7.4.1
+

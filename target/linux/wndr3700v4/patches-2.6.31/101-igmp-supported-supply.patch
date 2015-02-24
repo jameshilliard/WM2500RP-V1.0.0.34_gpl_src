@@ -1,0 +1,13 @@
+--- linux-2.6.31.org/net/bridge/br.c	2012-01-31 13:54:24.000000000 +0800
++++ linux-2.6.31/net/bridge/br.c	2012-01-30 17:20:27.000000000 +0800
+@@ -191,6 +191,10 @@
+ 	br_fdb_test_addr_hook = br_fdb_test_addr;
+ #endif
+ 
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++	create_porc_entry();
++#endif
++
+ 	return 0;
+ err_out4:
+ 	unregister_netdevice_notifier(&br_device_notifier);

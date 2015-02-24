@@ -1,0 +1,67 @@
+diff -rupN a/arch/mips/atheros/gpio.c b/arch/mips/atheros/gpio.c
+--- a/arch/mips/atheros/gpio.c	2011-05-11 11:46:08.000000000 +0800
++++ b/arch/mips/atheros/gpio.c	2011-05-11 11:46:41.000000000 +0800
+@@ -47,6 +47,7 @@ struct timer_list os_diswps_t; /* WPS LE
+ #define WLAN_BUTTON_GPIO        3
+ #define WIFI_LED_GPIO           7
+ #define RESET_BUTTON_GPIO       10
++#define USB_5V_GPIO		13
+ 
+ #define frdbg printk
+ 
+@@ -148,6 +149,7 @@ static struct proc_dir_entry *tricolor_l
+ static struct proc_dir_entry *wps_entry  = NULL;
+ static struct proc_dir_entry *button_state = NULL;
+ static struct proc_dir_entry *disable_wps = NULL; /* WPS is disabled? write into: 1 => disable, 0 => enable */
++static struct proc_dir_entry *usb5v_en = NULL;
+ static int diswps = 0;  /* 0 => WPS is enabled, 1 => WPS is disabled */
+ static int diswps_blink_count = 0; /* max value: 50, blinking 5 seconds */
+ 
+@@ -769,6 +771,26 @@ SCSET_ERR:
+ }
+ #endif
+ 
++static int usb5v_enable_read (char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++        return 0;
++}
++
++static int usb5v_enable_write (struct file *file, const char *buf,
++                                        unsigned long count, void *data)
++{
++	u_int32_t val;
++	if (sscanf(buf, "%d", &val) != 1)
++		return -EINVAL;
++	if (!val) {
++		ar9380GpioSet(USB_5V_GPIO, 0);
++	} else {
++		ar9380GpioSet(USB_5V_GPIO, 1);
++	}
++	return count;
++}
++
+ static OS_TIMER_FUNC(diswps_led_blink)
+ {
+         static int onoff = 0;
+@@ -1032,6 +1054,12 @@ static int create_simple_config_led_proc
+ 	scset_entry->read_proc = simple_config_set_read;
+ #endif
+ 
++	usb5v_en = create_proc_entry ("usb5v", 0644, simple_config_entry);
++	if (!usb5v_en)
++		return -ENOENT;
++	usb5v_en->write_proc = usb5v_enable_write;
++	usb5v_en->read_proc = usb5v_enable_read;
++
+ 	/* disable ar9380 JTAG to use GPIO0~GPIO4 */
+ 	ar9380DisableJtag(0);
+ 
+@@ -1045,6 +1073,7 @@ static int create_simple_config_led_proc
+ 	ath_gpio_config_output(WAN_GREEN_LED_GPIO);
+ 	ar9380GpioCfgOutput(WLAN_5G_LED_GPIO);
+ 	ar9380GpioCfgOutput(POWER_LED_GPIO);
++	ar9380GpioCfgOutput(USB_5V_GPIO);
+ 
+ 	/* configure gpio as inputs */
+ 	ath_gpio_config_input(WPS_BUTTON_GPIO);

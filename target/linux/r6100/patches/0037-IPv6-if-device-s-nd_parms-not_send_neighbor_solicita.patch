@@ -1,0 +1,56 @@
+From b845ec7a0b4aec21fba1d00c723e39dece4538be Mon Sep 17 00:00:00 2001
+From: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Date: Wed, 29 Jun 2011 12:33:30 +0800
+Subject: [PATCH 037/137] IPv6: if device's nd_parms "not_send_neighbor_solicitation" is set, do not send neighbor solicitation packet
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv6/addrconf.c |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv6/addrconf.c b/net/ipv6/addrconf.c
+index e7ca8f7..4e4fbba 100644
+--- a/net/ipv6/addrconf.c
++++ b/net/ipv6/addrconf.c
+@@ -2908,6 +2908,8 @@ static void addrconf_dad_timer(unsigned long data)
+ 	addrconf_mod_timer(ifp, AC_DAD, ifp->idev->nd_parms->retrans_time);
+ 	spin_unlock_bh(&ifp->lock);
+ 	read_unlock_bh(&idev->lock);
++	if (ifp->idev->nd_parms->not_send_neighbor_solicitation == 1)
++		goto out;
+ 
+ 	/* send a neighbour solicitation for our addr */
+ 	addrconf_addr_solict_mult(&ifp->addr, &mcaddr);
+-- 
+1.7.4.1
+

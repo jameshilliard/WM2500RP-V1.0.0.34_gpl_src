@@ -1,0 +1,71 @@
+config TARGET_LINUX_GIT_TREEISH
+	string
+	prompt "treeish of linux git repository"
+	depends on TARGET_r6200v2
+	default "Please Input a Valid Treeish"
+	help
+           Input the treeish of linux git repository which you want to build
+
+config TARGET_LINUX_GIT_REPOSITORY
+	string
+	prompt "name of linux repository"
+	depends on TARGET_r6200v2
+	default "linux.git"
+	help
+	  input the name of linux repository which you want to build
+
+config TARGET_LINUX_GIT_URL
+	string
+	prompt "url of linux repository"
+	depends on TARGET_r6200v2
+	default "ssh://dniserver/home/jonathan/linux.git"
+	help
+	  input the url of linux repository which you want to build
+
+config TARGET_NETFILTER_GIT_TREEISH
+	string
+	prompt "treeish of netfilter git repository"
+	depends on TARGET_r6200v2
+	default "Please Input a Valid Treeish"
+	help
+           Input the treeish of netfilter git repository which you want to build
+
+config TARGET_NETFILTER_GIT_REPOSITORY
+	string
+	prompt "name of netfilter repository"
+	depends on TARGET_r6200v2
+	default "dni-netfilter.git"
+	help
+	  input the name of netfilter repository which you want to build
+
+config TARGET_NETFILTER_GIT_URL
+	string
+	prompt "url of netfilter repository"
+	depends on TARGET_r6200v2
+	default "ssh://dniserver/home/jonathan/dni-netfilter.git"
+	help
+	  input the url of netfilter repository which you want to build
+
+config LSDK_TREEISH
+	string
+	prompt "treeish of broadcom lsdk git repository"
+	depends on TARGET_r6200v2
+	default "Please Input a Valid Treeish"
+	help
+           Input the treeish of netfilter git repository which you want to build
+
+config TARGET_LSDK_GIT_REPOSITORY
+	string
+	prompt "name of LSDK repository"
+	depends on TARGET_r6200v2
+	default "brcm_sdk.git"
+	help
+	  input the name of LSDK repository which you want to build
+
+config TARGET_LSDK_GIT_URL
+	string
+	prompt "url of lsdk repository"
+	depends on TARGET_r6200v2
+	default "ssh://dniserver/home/jonathan/brcm_sdk.git"
+	help
+	  input the url of lsdk repository which you want to build

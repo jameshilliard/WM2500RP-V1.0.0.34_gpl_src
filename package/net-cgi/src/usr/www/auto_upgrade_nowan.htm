@@ -1,0 +1,19 @@
+<% http_header("style/form.css", "/funcs.js") %>
+
+<body bgcolor=#ffffff>
+<div id="main" class="main">
+<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+<tr><td align=center><h1>$auto_upg_nowan_head</h1></td></tr>
+<script>
+parent.charcount=0;
+<% rm_detwan_files() %>
+</script>
+<tr><td align=center>$auto_upg_nowan</td></tr>	
+<tr><td nowrap align=center><br>
+<input class="short_common_bt" type="button" value="$ok_mark" onClick="location.href='RST_status.htm';">
+</td></tr>
+</table>
+</div>
+<% help_box("1","_auto_upgrade") %>
+</body>
+</html>

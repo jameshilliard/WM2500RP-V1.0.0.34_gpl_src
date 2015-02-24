@@ -1,0 +1,203 @@
+--- linux-2.6.30/drivers/net/rtl819x/rtl_nic.c.old	2011-12-06 08:58:45.113460263 -0500
++++ linux-2.6.30/drivers/net/rtl819x/rtl_nic.c	2011-12-06 09:02:52.903455300 -0500
+@@ -12,6 +12,7 @@
+  *
+  */
+ #define DNI_LINK_CHANGE_NOTIFY 1
++#define DNI_GET_ALL_LINK_INFO 1
+ #define DRV_RELDATE		"Mar 25, 2004"
+ #include <linux/config.h>
+ #include <linux/autoconf.h>
+@@ -224,6 +225,10 @@
+ static void check_phy_change(void);
+ #endif
+ 
++#ifdef DNI_GET_ALL_LINK_INFO
++static int32 get_all_port_info(struct ifreq *rq);
++#endif
++
+ #ifdef CONFIG_RTL8196C_GREEN_ETHERNET
+ static void power_save_timer(unsigned long task_priv);
+ #endif
+@@ -4600,6 +4605,167 @@
+ }
+ 
+ #endif
++
++#ifdef DNI_GET_ALL_LINK_INFO
++static int32 get_all_port_info(struct ifreq *rq)
++{
++       struct mii_ioctl_data {
++               int32 unit0;//LAN0 index
++               int32 unit1;//LAN1 index
++               int32 unit2;//LAN2 index
++               int32 unit3;//LAN3 index
++               int32 unit4;//WAN index
++               int32 addr;
++               int32 data0;//LAN0 link status
++               int32 data1;//LNA1 link status
++               int32 data2;//LAN2 link status
++               int32 data3;//LAN3 link status
++               int32 data4;//WAN link status
++               int32 lan0_speed;
++               int32 lan1_speed;
++               int32 lan2_speed;
++               int32 lan3_speed;
++               int32 wan_speed;
++               int32 lan0_isFullDuplex;
++               int32 lan1_isFullDuplex;
++               int32 lan2_isFullDuplex;
++               int32 lan3_isFullDuplex;
++               int32 wan_isFullDuplex;
++} *pReq;
++ pReq = (struct mii_ioctl_data*)rq->ifr_data;
++       /*      get wan link status , speed , duplex */
++               if(READ_MEM32(PSRP0 + (4) * 4) & PortStatusLinkUp)
++                       pReq->data4 = 1;
++               else
++                       pReq->data4 = 0;
++
++               switch(READ_MEM32(PSRP0 + (4) * 4) & PortStatusLinkSpeed_MASK)
++               {
++                       case PortStatusLinkSpeed10M:
++                               pReq->wan_speed = 10;
++                               break;
++                       case PortStatusLinkSpeed100M:
++                               pReq->wan_speed = 100;
++                               break;
++                       case  PortStatusLinkSpeed1000M:
++                               pReq->wan_speed = 1000;
++                               break;
++                       default:
++                               break;
++               }
++               if(READ_MEM32(PSRP0 + (4) * 4) & PortStatusDuplex)
++                       pReq->wan_isFullDuplex = 1;
++               else
++                       pReq->wan_isFullDuplex = 0;
++               //printk("wan_port_status[%d][%d][%d]\n", pReq->data4, pReq->wan_speed, pReq->wan_isFullDuplex);
++/*      get lan0 link status , speed , duplex */
++               if(READ_MEM32(PSRP0 + (0) * 4) & PortStatusLinkUp)
++                       pReq->data0 = 1;
++               else
++                       pReq->data0 = 0;
++
++               switch(READ_MEM32(PSRP0 + (0) * 4) & PortStatusLinkSpeed_MASK)
++               {
++                       case PortStatusLinkSpeed10M:
++                               pReq->lan0_speed = 10;
++                               break;
++                       case PortStatusLinkSpeed100M:
++                               pReq->lan0_speed = 100;
++                               break;
++                       case  PortStatusLinkSpeed1000M:
++                               pReq->wan_speed = 1000;
++                               break;
++                       default:
++                               break;
++               }
++               if(READ_MEM32(PSRP0 + (0) * 4) & PortStatusDuplex)
++                       pReq->lan0_isFullDuplex = 1;
++               else
++                       pReq->lan0_isFullDuplex = 0;
++               //printk("lan0_port_status[%d][%d][%d]\n", pReq->data0, pReq->lan0_speed, pReq->lan0_isFullDuplex);
++
++
++/*      get lan1 link status , speed , duplex */
++               if(READ_MEM32(PSRP0 + (1) * 4) & PortStatusLinkUp)
++                       pReq->data1 = 1;
++               else
++                       pReq->data1 = 0;
++
++               switch(READ_MEM32(PSRP0 + (1) * 4) & PortStatusLinkSpeed_MASK)
++               {
++                       case PortStatusLinkSpeed10M:
++                               pReq->lan1_speed = 10;
++                               break;
++                       case PortStatusLinkSpeed100M:
++                               pReq->lan1_speed = 100;
++                               break;
++                       case  PortStatusLinkSpeed1000M:
++                               pReq->wan_speed = 1000;
++                              break;
++                       default:
++                               break;
++               }
++               if(READ_MEM32(PSRP0 + (1) * 4) & PortStatusDuplex)
++                       pReq->lan1_isFullDuplex = 1;
++               else
++                       pReq->lan1_isFullDuplex = 0;
++
++//printk("lan1_port_status[%d][%d][%d]\n", pReq->data1, pReq->lan1_speed, pReq->lan1_isFullDuplex);
++/*      get lan2 link status , speed , duplex */
++       if(READ_MEM32(PSRP0 + (2) * 4) & PortStatusLinkUp)
++               pReq->data2 = 1;
++       else
++               pReq->data2 = 0;
++
++       switch(READ_MEM32(PSRP0 + (2) * 4) & PortStatusLinkSpeed_MASK)
++       {
++               case PortStatusLinkSpeed10M:
++                       pReq->lan2_speed = 10;
++                       break;
++               case PortStatusLinkSpeed100M:
++                       pReq->lan2_speed = 100;
++                       break;
++               case  PortStatusLinkSpeed1000M:
++                       pReq->wan_speed = 1000;
++                       break;
++               default:
++                       break;
++       }
++       if(READ_MEM32(PSRP0 + (2) * 4) & PortStatusDuplex)
++               pReq->lan2_isFullDuplex = 1;
++       else
++               pReq->lan2_isFullDuplex = 0;
++       //printk("lan2_port_status[%d][%d][%d]\n", pReq->data2, pReq->lan2_speed, pReq->lan2_isFullDuplex);
++/*      get lan3 link status , speed , duplex */
++               if(READ_MEM32(PSRP0 + (3) * 4) & PortStatusLinkUp)
++                       pReq->data3 = 1;
++               else
++                       pReq->data3 = 0;
++
++               switch(READ_MEM32(PSRP0 + (3) * 4) & PortStatusLinkSpeed_MASK)
++               {
++                       case PortStatusLinkSpeed10M:
++                               pReq->lan3_speed = 10;
++                               break;
++                       case PortStatusLinkSpeed100M:
++                               pReq->lan3_speed = 100;
++                               break;
++                       case  PortStatusLinkSpeed1000M:
++                               pReq->wan_speed = 1000;
++                               break;
++                       default:
++                               break;
++               }
++               if(READ_MEM32(PSRP0 + (3) * 4) & PortStatusDuplex)
++                       pReq->lan3_isFullDuplex = 1;
++               else
++                       pReq->lan3_isFullDuplex = 0;
++               //printk("lan3_port_status[%d][%d][%d]\n", pReq->data3, pReq->lan3_speed, pReq->lan3_isFullDuplex);
++
++               return SUCCESS;
++}
++#endif  //#ifdef DNI_GET_ALL_LINK_INFO
++
+ int re865x_ioctl (struct net_device *dev, struct ifreq *rq, int cmd)
+ {
+ 	int32 rc = 0;
+@@ -4610,6 +4776,13 @@
+ 	uint32	*pU32;
+ 	#endif
+ 
++#ifdef DNI_GET_ALL_LINK_INFO
++       if (cmd == SIOCGMIIREG){
++               rc = get_all_port_info(rq);
++               return rc;
++       }
++#endif  //#ifdef DNI_GET_ALL_LINK_INFO
++
+ 	if (cmd != SIOCDEVPRIVATE)
+ 	{
+ 		#if defined(RTL819X_PRIV_IOCTL_ENABLE)

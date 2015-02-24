@@ -1,0 +1,183 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006 OpenWrt.org
+
+START=10
+
+start() {
+	mkdir -p /var/run
+	mkdir -p /var/log
+	mkdir -p /var/lock
+	mkdir -p /var/state
+	touch /var/log/wtmp
+	touch /var/log/lastlog
+	touch /var/log/log-message
+	ln -sf /tmp/resolv.conf.auto /tmp/resolv.conf
+
+	# create /dev/root if it doesn't exist
+	[ -e /dev/root ] || {
+		ln -s 31:02 /dev/root
+	}
+
+	klogd
+	#syslogd -m 0
+
+	ifconfig lo 127.0.0.1 up
+
+	datalib
+	# Wait 1 sec. for datalib start completely ...
+	sleep 1
+
+	#insmod /lib/modules/2.6.22/bcm57xx.ko
+#	insmod /lib/modules/2.6.22/ctf.ko
+	insmod /lib/modules/2.6.22/et.ko
+	insmod /lib/modules/2.6.22/emf.ko
+	insmod /lib/modules/2.6.22/igs.ko
+	insmod /lib/modules/2.6.22/wl.ko
+
+	# Config the hostname into kernel
+	echo "$($CONFIG get netbiosname)" > /proc/sys/kernel/hostname
+
+	# Set the DUT's wan name in case older board set it as other value
+	# For instance of wnr2000v3:
+	# 	V1.1.1.35: eth0
+	# 	V1.1.1.36: br1
+	/bin/config set wan_ifname="br1"
+
+	/sbin/printhosts
+
+	#set ipv6 proc file
+#	/etc/net6conf/6proc start
+
+	load_modules /etc/modules.d/*
+
+	# generate the firewall rule file after loading the configuration data.
+	/usr/sbin/net-wall rule
+
+	# start SIP ALG module
+#	/sbin/cmd_sipalg
+
+	# indicate the system first boot for first log
+	/bin/config set syslog_up_first=0
+	/usr/sbin/dsyslog start
+
+	# start POT
+	/usr/sbin/potd
+	/usr/sbin/potval
+
+	# Load Default QoS rules if needed.
+	qos_dft="$(/bin/config get qos_list_default)"
+	if [ "$qos_dft" = "1" ]; then
+		count=1
+		while :
+		do
+			qos_rule="$(/bin/config get qos_dft_list$count)"
+			if [ "x$qos_rule" = "x" ]; then
+				break;
+			fi
+			/bin/config set qos_list$count="$qos_rule"
+
+			count=`expr $count + 1`
+		done
+
+		count=`expr $count - 1`
+		echo "$count QoS default rules are Loaded!"
+
+		/bin/config set qos_list_default="0"
+		/bin/config commit
+	fi
+	#read serial number from flash to /tmp/Seria_Number
+	/sbin/artmtd -r sn
+	#read wan mac from flash to /tmp/wan_mac
+	/sbin/artmtd -r mac
+
+	# Check the Board Data region and reset Time Zone & Wirless Region & GUI Region.
+	if [ "x$(/bin/config get board_region_default)" = "x1" ]; then
+		#read board region from flash to /tmp/firmware_region
+		/sbin/artmtd -r region
+		BOARD_REGION=`cat /tmp/firmware_region`
+		case "$BOARD_REGION" in
+			NA)
+				/bin/config set wl_country="10"
+				/bin/config set region_flag="DISABLED"
+				/bin/config set ntpserver_select="GMT+8"
+				/bin/config set ntp_hidden_select="4"
+				/bin/config set time_zone="GMT+8"
+				;;
+			GR)
+				/bin/config set ntpserver_select="GMT-1"
+				/bin/config set ntp_hidden_select="18"
+				/bin/config set time_zone="GMT-1"
+				/bin/config set GUI_Region="German"
+				/bin/config set GUI_Region2="German"
+				;;
+			PR)
+				/bin/config set wl_country="1"
+				/bin/config set ntpserver_select="GMT-8"
+				/bin/config set ntp_hidden_select="32"
+				/bin/config set time_zone="GMT-8"
+				/bin/config set GUI_Region="Chinese"
+				/bin/config set GUI_Region2="Chinese"
+				;;
+			RU)
+				/bin/config set ntpserver_select="GMT-3"
+				/bin/config set ntp_hidden_select="26"
+				/bin/config set time_zone="GMT-3"
+				/bin/config set GUI_Region="Russian"
+				/bin/config set GUI_Region2="Russian"
+				;;
+			BZ)
+				/bin/config set wl_country="9"
+				/bin/config set ntpserver_select="GMT+3"
+				/bin/config set ntp_hidden_select="13"
+				/bin/config set time_zone="GMT+3"
+				;;
+			IN)
+				/bin/config set ntpserver_select="GMT-5:30"
+				/bin/config set ntp_hidden_select="29"
+				/bin/config set time_zone="GMT-5:30"
+				;;
+			KO)
+				/bin/config set wl_country="7"
+				/bin/config set ntpserver_select="GMT-9"
+				/bin/config set ntp_hidden_select="34"
+				/bin/config set time_zone="GMT-9"
+				/bin/config set GUI_Region="Korean"
+				/bin/config set GUI_Region2="Korean"
+				;;
+			JP)
+				/bin/config set wl_country="6"
+				/bin/config set ntpserver_select="GMT-9"
+				/bin/config set ntp_hidden_select="34"
+				/bin/config set time_zone="GMT-9"
+				/bin/config set GUI_Region="Japanese"
+				/bin/config set GUI_Region2="Japanese"
+				;;
+		esac
+
+		/bin/config set board_region_default="0"
+		/bin/config commit
+	fi
+
+	id_dft="$(/bin/config get default_ssphrase)"
+	if [ "$id_dft" = "1" ]; then
+		/sbin/artmtd -r ssid
+		/sbin/artmtd -r passphrase
+
+		# set the security options
+		# fix the bug 23545[wireless]if both exists, then enables security.
+		# fix the bug 36459[ssid]The default SSID should not be blank.
+		# If not, then keep the router in no security by default
+		if [ -s /tmp/ssid-setted ] && [ -s /tmp/passphrase-setted ]; then
+			id_set=$(awk '{print $1}' /tmp/ssid-setted)
+			ps_set=$(awk '{print $1}' /tmp/passphrase-setted)
+			/bin/config set wl_ssid="$id_set"
+			/bin/config set wl_wpa2_psk="$ps_set"
+			/bin/config set wl_sectype="4"
+			/bin/config set wps_status="5"
+		fi
+
+
+		/bin/config set default_ssphrase="0"
+		/bin/config commit
+	fi
+}

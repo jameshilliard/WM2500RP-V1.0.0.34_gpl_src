@@ -1,0 +1,191 @@
+<% echo_set("0", "/proc/sys/net/ipv4/mobile_tag") %>
+<% cfg_set("dns_hijack", "0") %>
+<% cfg_set("refresh_url", "") %>
+<% cfg_set("continue_ca_settings", "") %>
+<% cfg_set("mobile_tag", "0") %>
+<% cfg_set("setup_wizard_tag", "0") %>
+<% cfg_set("auto_upgrade_tag", "1") %>
+
+<% http_header("style/advanced.css", "funcs.js", "region_class.js", "top.js") %>
+<BODY onload="loadvalue();" onResize="change_height();">
+
+<form>
+<script>
+<% web_flag() %>
+var auto_check_for_upgrade="<% cfg_get("auto_check_for_upgrade") %>";
+var refresh_page="<% cfg_get("refresh_page") %>";
+var ca_finish_success="<% cfg_get("ca_finish_success") %>";
+<% cfg_set("refresh_page", "") %>
+<% cfg_set("ca_finish_success", "0") %>
+<% commit() %>
+
+var netgear_region="<% get_firmware_region() %>"
+var con_status="<% cat_file("/tmp/wl0_status") %>";
+var client_name;
+var wps_status;
+var pin_refresh_time=0;
+var enable_action=1;
+var setup_open=0;
+var admin_open=0;
+var advanced_open=0;
+var security_open=0;
+var region_class;
+var gui_region="<% cfg_get("GUI_Region") %>";
+var enabled_wps=<% wps_menu() %>;
+var enable_ap_flag="<% cfg_get("ap_mode") %>";//bug 24666 according to the page 128 of spec 2.0,add AP mode
+
+var ssid_null_tag="first_null";
+var wps_process=0;
+var wl0_ssid="NETGEAR";
+var conn_time=0;
+charcount=0;
+pls_wait=0;
+flag_page=0;
+wizard=0;
+same_sec_type=0;
+
+var index_ts = 0;
+
+var auto_change_lang = 0;
+var browser_lang = "<% get_browser_language() %>";
+var lang_select="<% cfg_get("Language_Selection") %>";
+var gui_region="<% cfg_get("GUI_Region") %>";
+if(lang_select == "Auto" && browser_lang != gui_region)
+	auto_change_lang = 1;
+
+function loadvalue()
+{
+	var page="RST_status.htm";
+	setFooterClass();
+	change_height();
+	
+	region_class = initClass(gui_region);
+	
+	//if(auto_change_lang == 1)
+		//page="lang_check.htm";
+	if(ca_finish_success == 1 || refresh_page == "client_setting" || auto_check_for_upgrade == 0)
+	{
+		page="RST_status.htm";
+		open_or_close_sub('admin');
+		admin_open++;
+		menu_color_change('status');
+	}
+	else if(refresh_page == "ap_setting")
+	{
+		page="ap_settings.htm";
+		open_or_close_sub('setup'); 
+		setup_open++;
+		menu_color_change('wireless');
+	}
+//	else if(refresh_page == "summery_show")
+//        page="ca_summery.htm";
+	else
+		menu_class_default();
+		formframe.location.href = page;
+}
+</script>
+
+<div id="top">
+	<iframe name="topframe" id="topframe" src="top.htm" allowtransparency="true" height="100%" width="100%" frameborder="0"></iframe>
+</div>
+
+<div id="container" class="container_center">
+<div id="middle">
+
+<div id="menu">
+	<div id="setup_wizard" class="advanced_black_button" style="display: none" onclick="click_action('setup_wizard');"><b><span>$wizard_head</span></b></div>
+	<div id="wps" class="advanced_black_button" onclick="click_action('wps');"><b><span>$wps_menu</span></b></div>
+	
+	<div id="setup_bt" class="advanced_white_close_button" onclick="open_or_close_sub('setup'); setup_open++;"><b><span>$setup_head</span></b></div>
+	<div id="setup_sub" class="sub_men"  style="display: none">
+	<dl>
+		<!--<dt id="internet" class="sub_back"><a  target="formframe" onclick="click_action('internet');"><b><span>$ca_client_settings</span></b></a></dt>-->
+		<dt id="wireless" class="sub_back"><a  target="formframe" onclick="click_action('wireless');"><b><span>$wlan_mark_ws</span></b></a></dt>
+		<% sub_back_menu("guest", "wlan_mark_guest") %>
+		<dt id="bas_ether" class="sub_back"><a  target="formframe" onclick="click_action('bas_ether');"><b><span>$menu_internet_head</span></b></a></dt>
+		<dt id="coax" class="sub_back"><a  target="formframe" onclick="click_action('coax');"><b><span>$menu_coax</span></b></a></dt>
+	</dl>
+	</div>
+	
+	<div id="admin_bt" class="advanced_white_close_button" onclick="open_or_close_sub('admin'); admin_open++;"><b><span>$manage_head</span></b></div>
+	<div id="admin_sub" class="sub_men"  style="display: none">
+	<dl>
+	    <dt id="status" class="sub_back"><a  target="formframe" onclick="click_action('status');">
+		<script>
+		if(gui_region == "Japanese")
+			document.write("<b><span>$info_mark_head&nbsp;&nbsp;</span></b>")
+		else
+			document.write("<b><span>$info_mark_head</span></b>")
+		</script>	
+		</a></dt>
+		<dt id="attached" class="sub_back"><a  target="formframe" onclick="click_action('attached');">
+		<script>
+		if(gui_region == "Japanese")
+			document.write("<b><span>$menu_attach_device&nbsp;</span></b>")
+		else
+			document.write("<b><span>$menu_attach_device</span></b>")
+		</script>
+		</a></dt>
+		<dt id="bak_set" class="sub_back"><a  target="formframe" onclick="click_action('bak_set');">
+		<script>
+		if(gui_region == "Japanese")
+			document.write("<b><span>$backup_head&nbsp;</span></b>")
+		else
+			document.write("<b><span>$backup_head</span></b>")
+		</script>
+		</a></dt>
+		<dt id="passwd" class="sub_back"><a  target="formframe" onclick="click_action('passwd');">
+		<script>
+		if(gui_region == "Japanese")
+			document.write("<b><span>$passwd_head&nbsp;</span></b>")
+		else
+			document.write("<b><span>$passwd_head</span></b>")
+		</script>
+		</a></dt>
+		<dt id="upgrade" class="sub_back"><a  target="formframe" onclick="click_action('upgrade');">
+		<script>
+		if(gui_region == "Japanese")
+			document.write("<b><span>$upgrade_head&nbsp;</span></b>")
+		else
+			document.write("<b><span>$upgrade_head</span></b>")
+		</script>
+		</a></dt>
+	</dl>	
+	</div>
+	
+	<div id="advanced_bt" class="advanced_white_close_button" onclick="open_or_close_sub('advanced'); advanced_open++;"><b><span>$adva_head</span></b></div>
+	<div id="advanced_sub" class="sub_men"  style="display: none">
+	<dl>
+		<dt id="wladv" class="sub_back"><a  target="formframe" onclick="click_action('wladv');"><b><span>$wlan_mark_ws</span></b></a></dt>
+		<dt id="vlan" class="sub_back"><a  target="formframe" onclick="click_action('vlan');"><b><span>$wlan_vlan</span></b></a></dt>	
+		<dt id="ipv6" class="sub_back"><a  target="formframe" onclick="click_action('ipv6');"><b><span>$ipv6_head</span></b></a></dt>
+		<dt id="tr069" class="sub_back"><a  target="formframe" onclick="click_action('tr069');"><b><span>TR069</span></b></a></dt>
+		<dt id="snmp" class="sub_back"><a  target="formframe" onclick="click_action('snmp');"><b><span>$snmp_string</span></b></a></dt>
+	</dl>	
+	</div>
+	
+	</div>
+<div id="formframe_div">
+		<iframe name="formframe" id="formframe" allowtransparency="true" height="100%" width="100%" scrolling="no" frameborder="0">
+		</iframe>
+</div>
+<div id="footer" class="footer">
+	<img class="footer_img" src="image/footer/footer.gif">
+<div id="support">
+	<b>$help_and_support</b> &nbsp;
+		<a target="_blank" href="$docu_href">$docu_head</a> | 
+		<a target="_blank" href="http://support.netgear.com">Online Support</a> | 
+		<a target="_blank" href="http://kb.netgear.com/app/answers/detail/a_id/12923">$router_faq</a> |
+		<a target="_blank" href="license.htm">GNU GPL</a>
+</div>
+<div id="search">	
+	<b>$search_help</b>	
+	<input type="text" name="search" value="$ent_srh_item" onkeypress="detectEnter('num',event);" onFocus="this.select();">
+	<input id="search_button" class="search_button" type="button" name="dosearch" value="$go_mark" onClick="do_search();">
+</div>
+</div>	
+</div>
+</div>
+</form>
+</BODY>
+</HTML>

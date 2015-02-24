@@ -1,0 +1,192 @@
+<% echo_set("0", "/proc/sys/net/ipv4/mobile_tag") %>
+<% cfg_set("mobile_tag", "0") %>
+<% cfg_set("refresh_url", "") %>
+<% cfg_set("setup_wizard_tag", "1") %>
+
+<% http_header("style/wizard.css", "/funcs.js", "/region_class.js") %>
+
+<BODY onload="loadvalue();">
+<form>
+
+<script>
+var continue_ca_settings="<% cfg_get("continue_ca_settings") %>";
+<% cfg_set("continue_ca_settings", "") %>
+var dns_hijack="<% cfg_get("dns_hijack") %>"
+var setup_wizard_tag="<% cfg_get("setup_wizard_tag") %>";
+
+var ca_finish_success="<% cfg_get("ca_finish_success") %>";
+var gui_region="<% cfg_get("GUI_Region") %>";
+var index_ts = 0;
+
+if(gui_region == "French")
+	var region_class=new class_region(20, 40, 24, 40);
+else if(gui_region == "Italian")
+	var region_class=new class_region(22, 40, 22, 35);
+else if(gui_region == "Russian")
+	var region_class=new class_region(20, 40, 22, 30);
+else if(gui_region == "Spanish")
+	var region_class=new class_region(18, 40, 22, 36);
+else 
+	var region_class=new class_region(20, 40, 22, 35);
+	
+//function resize_win(){
+   // self.resizeTo(screen.width,screen.height);
+    //self.moveTo(0,0);
+//}
+//resize_win();
+
+<% web_flag() %>
+
+var welcome_wan_type;
+//static
+
+var static_ip="";
+var static_subnet="";
+var static_gateway="";
+var static_dns1="";
+var static_dns2="";
+
+//dhcp
+
+var account_name=host_name;
+var domain_name="";
+var wan_assign="0";
+
+//pppoe
+
+var pppoe_username="";
+var pppoe_password="";
+var pppoe_server="";
+var pppoe_idle=5;
+var pppoe_wan_assign="0";
+var pppoe_static_ip="";
+var pppoe_dns_assign="0";
+var pppoe_dns1="";
+var pppoe_dns2="";
+//pptp
+var pptp_username="";
+var pptp_password="";
+var pptp_idle_time=5;
+var pptp_local_ipaddr="";
+var pptp_server_ipaddr="10.0.0.138";
+var pptp_connect_id="";
+var pptp_wan_assign=0;
+
+//bpa
+var telstra_bigpond_user_name="";
+var telstra_bigpond_password="";
+var telstra_idletime=5;
+var telstra_bigpond_ip="";
+
+var wl0_ssid="NETGEAR";	
+var choice="2";			
+var wl_country="4"
+var wl0_sec_mode="none";			
+var wl0_pskkey="";			
+var wl0_wpaenc="";
+var temp_password="";	
+var wirelessMode=2;
+
+//for ca_10_EnterWEP_Key.cgi
+var wl0_key1="";				
+var wl0_keylength="40";		
+var wl0_txkey="";
+var w10_keystr="";
+
+//ap_wep
+var wlan_ap_wifi="";
+var ap_sec_auth="";
+var ap_sec_keylen="";
+var ap_wepkey1="";
+var ap_wepkey2="";
+var ap_wepkey3="";
+var ap_wepkey4="";
+
+//ap_psk
+var ap_sec_wpaphrase_len="";
+var ap_sec_type="";
+var ap_list_reset="";
+var ssid_null_tag="first_null";
+var num=0;
+//wizard
+var wizard=0;
+
+var iswireless="";
+var link_status="<% cat_file("/tmp/wl0_status") %>";
+var led_color="<% cfg_get("led_color") %>";
+var succ_conn_login="<% cfg_get("succ_conn_login") %>";
+
+var conn_time=0;
+
+function loadvalue()
+{
+        //setFooterClass();
+        change_wizard_height();
+
+        region_class = initClass(gui_region);
+}
+
+ if( ca_finish_success == "1" )
+        location.href="index.htm";
+</script>
+<table style="display:none">
+<tr><td colspan=2><img style="display:none" src="/image/menus.gif"></td></tr>
+<tr><td colspan=2><input style="display:none" class="wizard_gray_high_button" type="button"></td></tr>
+<tr><td colspan=2><input style="display:none" class="wizard_gray_button" type="button"></td></tr>
+<tr><td colspan=2><input style="display:none" class="wizard_gray_long_button" type="button"></td></tr>
+<tr><td colspan=2><input style="display:none" class="wizard_purple_high_button" type="button"></td></tr>
+<tr><td colspan=2><input style="display:none" class="wizard_purple_button" type="button"></td></tr>
+<tr><td colspan=2><input style="display:none" class="wizard_purple_long_button" type="button"></td></tr>
+</table>
+<div id="top">
+        <iframe name="topframe" id="topframe" src="ca_top.htm" allowtransparency="true" height="100%" width="100%" frameborder="0"></iframe>
+</div>
+<div id="container" class="wizard_container_center">
+<div id="wizard_middle">
+<div id="wizard_menu">
+<script>
+if(gui_region == "Russian" || gui_region == "Japanese" || ((gui_region == "Korean" || gui_region == "Spanish" || gui_region == "Italian") && IE_version() == 9) )
+	document.write('<div id="IA_menu_1" name="IA_menu_1" class="wizard_gray_long_button"><b><span>$connect_process1</span></b></div>')
+else
+	document.write('<div id="IA_menu_1" name="IA_menu_1" class="wizard_gray_button"><b><span>$connect_process1</span></b></div>')
+if(gui_region == "Italian" || gui_region == "French" || gui_region == "Russian" || gui_region == "Spanish" || gui_region == "Japanese")
+	document.write('<div id="IA_menu_2" name="IA_menu_2" class="wizard_gray_long_button"><b><span>$connect_process2</span></b></div>')
+else
+	document.write('<div id="IA_menu_2" name="IA_menu_2" class="wizard_gray_button"><b><span>$connect_process2</span></b></div>')
+if(gui_region == "French" || gui_region == "German" || ((gui_region == "Russian" || gui_region == "Spanish" || gui_region == "Italian") && IE_version() == 9) )
+	document.write('<div id="IA_menu_3" name="IA_menu_3" class="wizard_gray_long_button"><b><span>$connect_process3</span></b></div>')
+else
+	document.write('<div id="IA_menu_3" name="IA_menu_3" class="wizard_gray_button"><b><span>$connect_process3</span></b></div>')
+</script>
+
+</div> <!--menu -->
+<script>
+	document.write('<div id="wizard_formframe_div">');
+	var page="wait_for_searching.htm";
+    if(link_status=="1" && dns_hijack=="0" && led_color != "1")
+        page="ca_connect_success.htm";
+	else if(link_status=="1" && dns_hijack=="0" && led_color == "1")
+		page="ca_connect_uncomplete.htm"
+    else
+        {
+            if(continue_ca_settings=="ap_settings")
+                page="ca_ap_settings.htm";
+            //else if("$continue_ca_settings"=="summery_show")
+                //page="ca_summery.htm";
+            else if(continue_ca_settings=="connect_status")
+                page="ca_connect_rightpage.htm";
+            //else if("$IA_from" == "1" )
+                //page="if_from_IA.htm";
+            else
+                page="wait_for_searching.htm";
+        }
+		document.write("<iframe name=IA_frame id=\"formframe\" src=\""+page+"\" allowtransparency=\"true\" height=\"100%\" width=\"100%\"  frameBorder=0></iframe>");
+		document.write("</div>");
+</script>
+
+</div> <!-- middle -->
+</div> <!-- container -->
+
+</form>
+</body>
+</html>

@@ -1,0 +1,102 @@
+From 018419fd3920e0dc8dc4013e3ce981a8e3672093 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Tue, 7 Dec 2010 16:20:05 +0800
+Subject: [PATCH 020/137] ip_options: Remove CONFIG_IP_NF_CT_ROUTE related
+
+Remove CONFIG_IP_NF_CT_ROUTE from ip_options.c
+Remove IP_NF_CT_ROUTE from Kconfig
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/Kconfig      |    8 --------
+ net/ipv4/ip_options.c |    4 ----
+ 2 files changed, 0 insertions(+), 12 deletions(-)
+
+diff --git a/net/ipv4/Kconfig b/net/ipv4/Kconfig
+index 08814f7..77d2208 100644
+--- a/net/ipv4/Kconfig
++++ b/net/ipv4/Kconfig
+@@ -285,14 +285,6 @@ config IP_PIMSM_V2
+ 	  gated-5). This routing protocol is not used widely, so say N unless
+ 	  you want to play with it.
+ 
+-
+-config IP_NF_CT_ROUTE
+-	bool "IP Route option wihtout SNAT"
+-	default y
+-	help
+-	  For IP options Record Route (7), Strict Source Route (9), and Loose Source Route (3),
+-	  an implementation SHOULD let the options pass through without changing anything.
+-
+ config ARPD
+ 	bool "IP: ARP daemon support (EXPERIMENTAL)"
+ 	depends on EXPERIMENTAL
+diff --git a/net/ipv4/ip_options.c b/net/ipv4/ip_options.c
+index edcd765..a271328 100644
+--- a/net/ipv4/ip_options.c
++++ b/net/ipv4/ip_options.c
+@@ -288,7 +288,6 @@ int ip_options_compile(struct net *net,
+ 		switch (*optptr) {
+ 		      case IPOPT_SSRR:
+ 		      case IPOPT_LSRR:
+-#ifdef CONFIG_IP_NF_CT_ROUTE
+ 			/*
+ 			 *  NETGEAR Home Wireless Router Engineer Spec v1.6
+ 			 *  1.1 Basic NAT
+@@ -308,7 +307,6 @@ int ip_options_compile(struct net *net,
+ 
+ 				return 0;
+ 			}
+-#endif
+ 			if (optlen < 3) {
+ 				pp_ptr = optptr + 1;
+ 				goto error;
+@@ -335,7 +333,6 @@ int ip_options_compile(struct net *net,
+ 			opt->srr = optptr - iph;
+ 			break;
+ 		      case IPOPT_RR:
+-#ifdef CONFIG_IP_NF_CT_ROUTE
+ 			/*
+ 			 *  NETGEAR Home Wireless Router Engineer Spec v1.6
+ 			 *  1.1 Basic NAT
+@@ -353,7 +350,6 @@ int ip_options_compile(struct net *net,
+ 
+ 				return 0;
+ 			}
+-#endif
+ 			if (opt->rr) {
+ 				pp_ptr = optptr;
+ 				goto error;
+-- 
+1.7.4.1
+

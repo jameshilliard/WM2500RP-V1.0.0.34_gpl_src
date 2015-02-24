@@ -1,0 +1,101 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% body_header("_coax_settings", "coax.htm", "set_coax") %>
+
+<script>
+var coax_channel="<% cfg_get("coax_channel") %>";
+<!-- coax_encry_abled : 1-Enable, 0-Disable -->
+var coax_encry_abled="<% cfg_get("coax_encry_abled") %>";
+var coax_encry_key="<% cfg_get("coax_encry_key") %>";
+function set_able(cf)
+{
+	if(cf.encry_key[0].checked == true)
+		cf.key_num.disabled = true;
+	else
+		cf.key_num.disabled = false;
+}
+
+function check_coax(cf)
+{
+	cf.hid_coax_channel.value = cf.coax_chan.value;
+	if(cf.encry_key[0].checked == true)
+		cf.hid_coax_encry.value = 0;
+	else
+	{
+		cf.hid_coax_encry.value = 1;
+		if( cf.key_num.value.checkNum() || cf.key_num.value.length > 17 || cf.key_num.value.length < 12)
+		{
+			alert("$coax_key_warning");
+			return false;
+		}
+	}
+	cf.hid_coax_key.value = cf.key_num.value;
+}
+
+function loadvalue()
+{
+	var cf=document.forms[0];
+	cf.coax_chan.value = coax_channel;
+		if(cf.coax_chan.selectedIndex == -1)
+			cf.coax_chan.options[0].selected = true;
+	if(coax_encry_abled == 1)
+		cf.encry_key[1].checked = true;
+	else
+		cf.encry_key[0].checked = true;
+	cf.key_num.value = coax_encry_key;
+	set_able(cf);
+}
+</script>
+
+<div class="page_title">$menu_coax</div>
+<div class="fix_button">
+<TABLE width=100% border=0 cellpadding=0 cellspacing=2>
+<TR>
+    <TD nowrap colspan=2 align=center>
+	<input class="cancel_bt" type="button" value="$cancel_mark" onClick="location.href='coax.htm';">&nbsp;&nbsp;&nbsp;
+	<input class="apply_bt" type="submit" value="$apply_mark" onclick="return check_coax(document.forms[0])"></td>
+</tr>
+</TABLE>
+</div>
+<div id="main" class="main_top_button"> 
+<% table_header() %>
+<input type="hidden" name="hid_coax_channel">
+<input type="hidden" name="hid_coax_encry">
+<input type="hidden" name="hid_coax_key">
+<TR> 
+	<TD nowrap width=35%><A tabindex=-1 href="javascript:loadhelp('_coax_settings','coax_channel')"><B>$wlan_mark_chan:</B></A></TD>
+	<TD nowrap>
+	<select name="coax_chan" size="1">
+		<option value=0 selected>$coax_scan</option>
+		<option value=15>15(1150 Mhz)</option>
+		<option value=17>17(1200 Mhz)</option>
+		<option value=19>19(1250 Mhz)</option>
+		<option value=21>21(1300 Mhz)</option>
+		<option value=23>23(1350 Mhz)</option>
+		<option value=25>25(1400 Mhz)</option>
+		<option value=27>27(1450 Mhz)</option>
+		<option value=29>29(1500 Mhz)</option>
+		<option value=31>31(1550 Mhz)</option>
+		<option value=33>33(1600 Mhz)</option>
+	</select>
+	</TD>
+</TR>
+<TR>
+	<TD nowrap colspan=2><A tabindex=-1 href="javascript:loadhelp('_coax_settings','coax_encry')"><B>$coax_key</B></A></TD>
+</TR>
+<tr><td nowrap colspan=2>
+<input type="radio" name="encry_key" value="0" onClick="set_able(document.forms[0])">$r_disable
+</td></tr>
+<TR> 
+	<TD nowrap width=35%><input type="radio" name="encry_key" value="1" onClick="set_able(document.forms[0])">$r_enable</TD>
+	<TD nowrap>
+	<input type="text" name="key_num" size="17" maxlength="17" onFocus="this.select();" onKeyPress="return getkey('num',event)" value="">$coax_num
+	</TD>
+</TR>
+</table>
+$bluebar
+</div>
+<% help_box("0","_coax_settings") %>
+</FORM>
+</BODY>
+</HTML>
+

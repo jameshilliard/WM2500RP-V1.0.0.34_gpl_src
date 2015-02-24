@@ -1,0 +1,12 @@
+--- linux-2.6.36/fs/fs-writeback.c	2013-01-15 11:30:59.000000000 -0500
++++ linux-2.6.36/fs/fs-writeback.c.new	2013-03-15 11:17:16.498932531 -0400
+@@ -975,6 +975,9 @@
+ 		if (!was_dirty) {
+ 			bdi = inode_to_bdi(inode);
+ 
++			if( !bdi)
++				goto out;
++
+ 			if (bdi_cap_writeback_dirty(bdi)) {
+ 				WARN(!test_bit(BDI_registered, &bdi->state),
+ 				     "bdi-%s not registered\n", bdi->name);

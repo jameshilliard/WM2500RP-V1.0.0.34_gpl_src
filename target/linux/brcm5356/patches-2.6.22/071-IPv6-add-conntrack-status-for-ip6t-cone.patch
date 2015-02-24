@@ -1,0 +1,13 @@
+diff -Nur linux-2.6.22.old//include/linux/netfilter/nf_conntrack_common.h linux-2.6.22/include/linux/netfilter/nf_conntrack_common.h
+--- linux-2.6.22.old//include/linux/netfilter/nf_conntrack_common.h	2012-06-12 07:23:08.458913941 -0400
++++ linux-2.6.22/include/linux/netfilter/nf_conntrack_common.h	2012-06-12 07:24:16.168913957 -0400
+@@ -101,6 +101,9 @@
+ 
+ 	IPS_SNATP2P_DST_DONE_BIT = 18,
+ 	IPS_SNATP2P_DST_DONE = (1 << IPS_SNATP2P_DST_DONE_BIT),
++	
++	IPS_IPV6_ROUTING_FILTERING_BIT=19,
++	IPS_IPV6_ROUTING_FILTERING = (1<< IPS_IPV6_ROUTING_FILTERING_BIT),
+ 
+ 	/* Both together. */
+ 	IPS_SNATP2P_DONE_MASK = (IPS_SNATP2P_DST_DONE | IPS_SNATP2P_SRC_DONE),

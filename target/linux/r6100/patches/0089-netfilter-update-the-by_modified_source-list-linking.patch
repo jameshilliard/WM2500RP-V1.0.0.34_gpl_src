@@ -1,0 +1,61 @@
+From daf52245ce41e940492fb20dcee10845d5cd9eaa Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Fri, 19 Nov 2010 08:30:22 +0800
+Subject: [PATCH 089/137] netfilter: update the by_modified_source list linking if the nat structure moved
+
+By referring to
+'hlist_replace_rcu(&old_nat->bysource, &new_nat->bysource);'
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index d3d1271..a6ab219 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -753,6 +753,10 @@ static void nf_nat_move_storage(void *new, void *old)
+ 	spin_lock_bh(&nf_nat_lock);
+ 	new_nat->ct = ct;
+ 	hlist_replace_rcu(&old_nat->bysource, &new_nat->bysource);
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE) || defined(CONFIG_IP_NF_TARGET_HAIRPIN) || defined(CONFIG_IP_NF_TARGET_HAIRPIN_MODULE)
++	if ((ct->status & IPS_SNATP2P_MASK) && (ct->status & IPS_SNATP2P_DONE_MASK))
++		hlist_replace_rcu(&old_nat->by_modified_source, &new_nat->by_modified_source);
++#endif
+ 	spin_unlock_bh(&nf_nat_lock);
+ }
+ 
+-- 
+1.7.4.1
+

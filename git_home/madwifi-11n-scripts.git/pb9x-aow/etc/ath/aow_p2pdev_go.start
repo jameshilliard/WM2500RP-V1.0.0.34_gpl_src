@@ -1,0 +1,37 @@
+#!/bin/sh
+
+P2P_CONF_FILE=/tmp/aow_p2pdev.conf
+
+# Check if the conf file exists
+if [ ! -e "${P2P_CONF_FILE}" ]; then
+    echo "P2P config file not present"
+    echo "Run cp_p2pconf first"
+    exit
+fi    
+
+# Check if the connection parameter is specified
+if [ $# -lt 1 ]; then
+    echo "Usage : $0 mode(wps_pbc/wps_pin)"
+    exit
+fi
+
+MODE=$1
+
+killVAP all
+slee 5
+/etc/ath/p2p/p2pload &
+sleep 10
+wpa_supplicant -Dathr -iwlan1 -c /tmp/aow_p2pdev.conf &
+sleep 10
+echo "Adding Initializing P2P GO"
+wpa_cli -i wlan1 p2p_group_add
+sleep 5
+echo "Configuring ${MODE}"
+if [ ${MODE} = "wps_pbc" ]; then
+    wpa_cli -i wlan2 ${MODE}
+elif [ ${MODE} = "wps_pin" ]; then
+    echo "Enter wps_pin any PIN"
+    wpa_cli -i wlan2 
+fi
+sleep 5
+echo "Done"

@@ -1,0 +1,96 @@
+From 0dcbaa431271ef16915ab4689cd7a89e50bd163a Mon Sep 17 00:00:00 2001
+From: michell.dong <michell.dong@dniserver.dnish.net>
+Date: Wed, 28 Nov 2012 12:21:17 -0500
+Subject: [PATCH] Add code changes unconditionally
+
+Signed-off-by: michell.dong <michell.dong@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |   14 --------------
+ 1 files changed, 0 insertions(+), 14 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index e42514b..dcd0bc9 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -93,7 +93,6 @@ hash_by_src(const struct nf_conntrack_tuple *tuple)
+ 	return ((u64)hash * nf_nat_htable_size) >> 32;
+ }
+ 
+-#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ static int modified_src_occupied(const struct nf_conntrack_tuple *tuple,
+ 				 const struct nf_conn *conntrack);
+ 
+@@ -108,7 +107,6 @@ hash_by_dst(const struct nf_conntrack_tuple *tuple)
+ 			    tuple->dst.protonum, 0);
+ 	return ((u64)hash * nf_nat_htable_size) >> 32;
+ }
+-#endif
+ /* Is this tuple already taken? (not by us) */
+ int
+ nf_nat_used_tuple(const struct nf_conntrack_tuple *tuple,
+@@ -204,7 +202,6 @@ find_appropriate_src(struct net *net,
+ 	return 0;
+ }
+ 
+-#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ static inline int
+ same_modified_src(const struct nf_conn *ct,
+ 		  const struct nf_conntrack_tuple *tuple)
+@@ -276,7 +273,6 @@ find_appropriate_p2p_dst(struct net *net,
+ 	return 0;
+ }
+ EXPORT_SYMBOL(find_appropriate_p2p_dst);
+-#endif
+ 
+ /* For [FUTURE] fragmentation handling, we want the least-used
+    src-ip/dst-ip/proto triple.  Fairness doesn't come into it.  Thus
+@@ -438,9 +434,7 @@ nf_nat_setup_info(struct nf_conn *ct,
+ 	int flag_ori;
+ 	#endif
+ 	int have_to_hash = !(ct->status & IPS_NAT_DONE_MASK);
+-#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ 	int have_to_hash_modified = (ct->status & IPS_SNATP2P_MASK) && !(ct->status & IPS_SNATP2P_DONE_MASK);
+-#endif
+ 
+ 	/* nat helper or nfctnetlink also setup binding */
+ 	nat = nfct_nat(ct);
+@@ -530,16 +524,12 @@ nf_nat_setup_info(struct nf_conn *ct,
+ 
+ 	/* It's done. */
+ 	if (maniptype == IP_NAT_MANIP_DST) {
+-#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ 		if (ct->status & IPS_SNATP2P_DST)
+ 			set_bit(IPS_SNATP2P_DST_DONE_BIT, &ct->status);
+-#endif
+ 		set_bit(IPS_DST_NAT_DONE_BIT, &ct->status);
+ 	} else {
+-#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ 		if (ct->status & IPS_SNATP2P_SRC)
+ 			set_bit(IPS_SNATP2P_SRC_DONE_BIT, &ct->status);
+-#endif
+ 		set_bit(IPS_SRC_NAT_DONE_BIT, &ct->status);
+ 	}
+ 
+@@ -919,9 +909,7 @@ nfnetlink_parse_nat_setup(struct nf_conn *ct,
+ 
+ static int __net_init nf_nat_net_init(struct net *net)
+ {
+-#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ 	unsigned int nat_htable_size;
+-#endif
+ 
+ 	net->ipv4.nat_bysource = nf_ct_alloc_hashtable(&nf_nat_htable_size,
+ 						      &net->ipv4.nat_vmalloced, 0);
+@@ -949,9 +937,7 @@ static int clean_nat(struct nf_conn *i, void *data)
+ 		return 0;
+ 	memset(nat, 0, sizeof(*nat));
+ 	i->status &= ~(IPS_NAT_MASK | IPS_NAT_DONE_MASK | IPS_SEQ_ADJUST);
+-#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+ 	i->status &= ~(IPS_SNATP2P_MASK | IPS_SNATP2P_DONE_MASK);
+-#endif
+ 	return 0;
+ }
+ 
+-- 
+1.7.4.1
+

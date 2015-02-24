@@ -1,0 +1,12 @@
+diff -ruN a/drivers/serial/serial_core.c b/drivers/serial/serial_core.c
+--- a/drivers/serial/serial_core.c	2011-01-13 17:51:28.000000000 +0800
++++ b/drivers/serial/serial_core.c	2011-01-13 17:25:52.000000000 +0800
+@@ -2362,7 +2362,7 @@
+ 		struct uart_state *state = drv->state + i;
+ 
+ 		state->close_delay     = 500;	/* .5 seconds */
+-		state->closing_wait    = 30000;	/* 30 seconds */
++		state->closing_wait    = USF_CLOSING_WAIT_NONE;	/* no wait */
+ 		mutex_init(&state->mutex);
+ 
+ 		tty_port_init(&state->info.port);

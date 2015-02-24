@@ -1,0 +1,102 @@
+From 7dbd058c38ade4e299aab891eb0b2622c2a20186 Mon Sep 17 00:00:00 2001
+From: stone.liu <stone.liu@dniserver.dnish.net>
+Date: Fri, 28 Oct 2011 07:02:15 -0400
+Subject: [PATCH 098/137] netfilter: add a special feature to enlarge timeout of TCP master connection
+
+Fixed [BUG 14158][mercury-mms] Big Files (About 3G files) cannot download complete from FTP server
+
+Defect ID 143, Defect Details:
+  Download 3 big files (1GB, 1GB, 870MB) from FTP server (ftp.ntu.edu.tw), the 1GB files
+cannot download complete. This issue is the sample all home routers. The WNR1000v1 fixed
+this issue.
+
+---------- Refer to WNR1000 ----------
+
+Root Cause:
+  If the downloading time is longer than 30 mins, the conntrack item of FTP control session
+would be timeout and removed. In this case, after finishing the downloadling files, the FTP
+server will send "226 Transfer OK" or "226 File Successfully transferred" to the client. But
+this packet is dropped by firewall rule for lacking of a conn-track item to related to this
+connection.
+
+Solution:
+  Refresh the timer of the FTP control session when the FTP data session is keeping transmitting
+data (It is all TCP protocol).
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+
+Conflicts:
+
+	net/netfilter/nf_conntrack_proto_tcp.c
+
+Signed-off-by: stone.liu <stone.liu@dniserver.dnish.net>
+---
+ net/netfilter/nf_conntrack_proto_tcp.c |   14 ++++++++++++++
+ 1 files changed, 14 insertions(+), 0 deletions(-)
+
+diff --git a/net/netfilter/nf_conntrack_proto_tcp.c b/net/netfilter/nf_conntrack_proto_tcp.c
+index aa420ad..2c01819 100644
+--- a/net/netfilter/nf_conntrack_proto_tcp.c
++++ b/net/netfilter/nf_conntrack_proto_tcp.c
+@@ -855,6 +855,7 @@ static int tcp_packet(struct nf_conn *ct,
+ 	#if defined(CONFIG_RTL_819X)
+ 	rtl_nf_conntrack_inso_s	conn_info;
+ 	#endif
++	struct nf_conn *master;
+ 
+ 	th = skb_header_pointer(skb, dataoff, sizeof(_tcph), &_tcph);
+ 	BUG_ON(th == NULL);
+@@ -1077,6 +1078,19 @@ static int tcp_packet(struct nf_conn *ct,
+ #endif
+ 	//nf_ct_refresh_acct(ct, ctinfo, skb, timeout);
+ 
++	/*
++	 * The protocol state of `master` conntrack and its refreshing time value SHOULD
++	 * be considered more. --HY@20090119
++	 */
++	if ((sysctl_conntrack_refresh_support != 0)
++	    && (master = ct->master) != NULL
++	    && (master->status & IPS_ALG_REFRESH)
++	    && (master->proto.tcp.state == TCP_CONNTRACK_ESTABLISHED)
++	    && (del_timer(&master->timeout))) {
++		master->timeout.expires = jiffies + tcp_timeouts[TCP_CONNTRACK_ESTABLISHED];
++		add_timer(&master->timeout);
++	}
++
+ 	return NF_ACCEPT;
+ }
+ 
+-- 
+1.7.4.1
+

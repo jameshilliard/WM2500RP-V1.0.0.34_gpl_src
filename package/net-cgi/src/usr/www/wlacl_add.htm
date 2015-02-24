@@ -1,0 +1,102 @@
+<% http_header("style/form.css", "/funcs.js", "/wlacl.js") %>
+<% noload_header("_WLG_acl_add", "wlacl.htm", "wlacl_add") %>
+
+<script>
+<% wlacl_items_xss() %>
+</script>
+<div class="page_title">$adva_wlan_acl</div>
+<div id="main" class="main">
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<TR><TD colSpan=3></TD></TR><TR><td colspan=3><img src=/liteblue.gif width=100% height=12></td></TR>
+<tr><td nowrap colspan=2><a tabindex=-1 href="javascript:loadhelp('_WLG_acl_add','card')"><b>$adva_wlan_acl_cards</b></a></td></tr>
+  <tr>
+	<td nowrap colspan=2 align=center>
+	<table class=tables align=center border=0 cellpadding=2 cellspacing=0 width="100%">
+		<tr class=table_header>
+			<td nowrap> &nbsp;</td>
+			<td nowrap align=center><span class="subhead">$adva_wlan_devicename</span></td>
+			<td nowrap align=center><span class="subhead">$adva_wlan_acl_mac</span></td>
+		</tr>
+<script>
+var stalist="<% wl_stalist("bgn") %>";
+var sta_array=stalist.split(' #@#');
+var sta_mac_array = new Array();
+var sta_name_array = new Array();
+var p=1;
+
+var attach_device_list="<% echo_file("/tmp/netscan/attach_device") %>";
+var attach_array=attach_device_list.split(' @#$$&*! ');
+var attach_mac_array = new Array();
+var attach_name_array = new Array();
+
+if(stalist != "")
+{
+	for(i=0;i<sta_array.length-1;i++)
+	{
+		var each_info=sta_array[i].split(' ');
+		if(each_info[0]!="UAPSD")
+		{
+			sta_mac_array[p]=each_info[1];
+			p++;
+		}
+	}
+	for ( i=1;i<sta_mac_array.length;i++ )
+	{
+		var flag = 0;
+		for(j=0;j<attach_array.length;j++)
+		{
+			var each_info_attach = attach_array[j].split(' ');			
+			if( sta_mac_array[i].toUpperCase() == each_info_attach[1].toUpperCase() )		
+			{
+				flag = flag + 1;
+				sta_name_array[i] = each_info_attach[2];
+			}	
+		}
+		if ( flag == 0 )
+			sta_name_array[i] = "<unknown>";		
+	}
+}
+
+if( stalist != "" )
+{
+	for(i=1;i<sta_mac_array.length;i++)
+	{
+		if( i%2== 0 )
+			document.write("<TR class=\"even_line\">");
+		else
+			document.write("<TR class=\"odd_line\">");
+		if(sta_name_array[i].toLowerCase()!="<unknown>")
+			document.write('<td nowrap align=center><input type="radio" name="select_mac" value="'+i+'"  onclick="mac_data_select('+i+')"></td><td nowrap align=center>&nbsp;'+sta_name_array[i]+'&nbsp;</td><td nowrap align=center>'+sta_mac_array[i]+'</td></tr>');
+		else
+			document.write('<td nowrap align=center><input type="radio" name="select_mac" value="'+i+'"  onclick="mac_data_select('+i+')"></td><td nowrap align=center>&nbsp;&lt;unknown&gt;&nbsp;</td><td nowrap align=center>'+sta_mac_array[i]+'</td></tr>');
+	}
+}
+</script>
+	</table>
+	</td>
+  </tr>
+$bluebar
+<tr><td nowrap colspan=2><a tabindex=-1 href="javascript:loadhelp('_WLG_acl','entry')"><b>$adva_wlan_acl_entry</b></a></td></tr>	
+<tr>
+<td nowrap>$adva_wlan_devicename</td>
+	<td nowrap><input type="text" name="device" maxLength="20" size="20" onKeyPress="return getkey('ssid', event)"></td>
+</tr>	
+<tr><td nowrap>$adva_wlan_acl_mac</td>
+	<td nowrap>
+		<input type="text" value="" name="this_mac" maxlength="17" size="20" onKeyPress="return getkey('mac',event)">
+	</td>
+  </tr>	
+$bluebar
+<TR>
+<td nowrap colspan=2 align=center>
+<input class="apply_bt" type="submit" value="$apply_mark" onClick="return check_wlacl_add(document.forms[0],'add')">&nbsp;&nbsp;
+<input class="cancel_bt" type="button" value="$cancel_mark" onClick="location.href='wlacl.htm';">&nbsp;&nbsp;
+<input class="common_bt" type="button"  value="$refresh_mark" onClick="location.href='wlacl_add_wait.htm';"></td>
+</TR>  
+</TABLE>
+</div>
+<% help_box("1","_WLG_acl_add") %>
+
+</FORM>
+</body>
+</html>

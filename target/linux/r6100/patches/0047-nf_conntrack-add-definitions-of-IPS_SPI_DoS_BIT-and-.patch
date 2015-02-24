@@ -1,0 +1,62 @@
+From ad4dc05b750db8e07749e14e69c271752f2fc06d Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Fri, 12 Nov 2010 08:17:16 +0800
+Subject: [PATCH 047/137] nf_conntrack: add definitions of IPS_SPI_DoS_BIT and IPS_SPI_DoS
+
+Modified the code on v.26.31-dni to support kmod-trigger and kmod-spiadvDoS
+
+1. Define 'IPS_TRIGGER_BIT' and 'IPS_SPI_DoS_BIT';
+2. Export symbol 'tcp_timeouts' for external using.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/linux/netfilter/nf_conntrack_common.h |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/include/linux/netfilter/nf_conntrack_common.h b/include/linux/netfilter/nf_conntrack_common.h
+index 2fc6d18..619c722 100644
+--- a/include/linux/netfilter/nf_conntrack_common.h
++++ b/include/linux/netfilter/nf_conntrack_common.h
+@@ -91,6 +91,9 @@ enum ip_conntrack_status {
+ 
+ 	IPS_TRIGGER_BIT = 14,
+ 	IPS_TRIGGER	= (1 << IPS_TRIGGER_BIT),
++
++	IPS_SPI_DoS_BIT = 14,
++	IPS_SPI_DoS	= (1 << IPS_SPI_DoS_BIT),
+ };
+ 
+ /* Connection tracking event bits */
+-- 
+1.7.4.1
+

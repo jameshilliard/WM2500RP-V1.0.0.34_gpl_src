@@ -1,0 +1,22 @@
+#!/bin/sh
+# this script is to judge whether a usb device is added or not, fix bug 40807
+old_usbdisknum=$(cat /tmp/usbdisknum)
+new_usbdisknum=$(grep "Driver=usb-storage" /proc/bus/usb/devices | wc -l)
+
+if [ "x$old_usbdisknum" = "x" ]; then
+       old_usbdisknum=0
+fi
+
+if [ $new_usbdisknum -gt 0 -a $new_usbdisknum -gt $old_usbdisknum ]; then
+       for i in {1 2 3 4 5}
+       do
+               ledcontrol -n usb -c green -s on;
+               usleep 500000;
+               ledcontrol -n usb -c green -s off;
+               usleep 500000;
+       done
+
+
+fi
+
+echo $new_usbdisknum > /tmp/usbdisknum

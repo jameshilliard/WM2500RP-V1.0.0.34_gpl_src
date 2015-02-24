@@ -1,0 +1,14 @@
+#!/bin/sh
+
+/sbin/ifconfig $interface $ip broadcast $broadcast netmask $subnet up
+ip route add default via $router
+#ip route add default dev eth0 via $ip
+
+# get dns information
+RESOLV_CONF="/etc/resolv.conf"
+echo -n > $RESOLV_CONF
+[ -n "$domain" ] && echo search $domain >> $RESOLV_CONF
+for i in $dns ; do
+        echo adding dns $i
+        echo nameserver $i >> $RESOLV_CONF
+done;

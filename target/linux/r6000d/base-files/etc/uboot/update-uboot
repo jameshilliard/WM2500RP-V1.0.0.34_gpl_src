@@ -1,0 +1,46 @@
+#! /bin/sh
+
+RESULT=/tmp/uboot-result
+UBOOT=/etc/uboot/u-boot-v0.9.bin
+DEV=/dev/mtd0
+UBOOT_TMP=/tmp/u-boot_tmp
+UBOOT_VER=/tmp/u-boot_version
+PATTERN="Jun 27 2013"
+
+# Does need to update u-boot
+dd if=$DEV of=$UBOOT_TMP bs=128k count=1
+grep "$PATTERN" $UBOOT_TMP
+if [ "$?" == "0" ] ; then
+	echo "update u-boot: need not to update u-boot" > $RESULT
+	echo "V0.9" > $UBOOT_VER
+	rm $UBOOT_TMP
+	exit
+else
+	echo "update u-boot: need to update u-boot" > $RESULT
+	echo "V0.8" > $UBOOT_VER
+	rm $UBOOT_TMP
+fi
+
+# update u-boot
+[ -f $UBOOT ] && echo "update u-boot: $UBOOT exit" >> $RESULT || \
+	( echo "update u-boot: $UBOOT not exit" >> $RESULT && exit )
+
+/sbin/mtd erase $DEV && echo "update u-boot: mtd erase $DEV" >> $RESULT || \
+	( echo "update u-boot: mtd erase $DEV fail" >> $RESULT && exit )
+
+/sbin/mtd write $UBOOT $DEV && echo "update u-boot: mtd write /dev/mtd0" >> $RESULT || \
+	( echo "update u-boot: mtd erase /dev/mtd0 fail" >> $RESULT && exit )
+
+# check if update success
+dd if=$DEV of=$UBOOT_TMP bs=128k count=1
+grep "$PATTERN" $UBOOT_TMP
+
+if [ "$?" == "0" ] ; then
+	echo "update u-boot: u-boot version is the newest" >> $RESULT 
+	echo "V0.9" > $UBOOT_VER
+	rm $UBOOT_TMP
+else
+	echo "update u-boot: upgrade fail" >> $RESULT
+	echo "V0.8" > $UBOOT_VER
+	rm $UBOOT_TMP
+fi

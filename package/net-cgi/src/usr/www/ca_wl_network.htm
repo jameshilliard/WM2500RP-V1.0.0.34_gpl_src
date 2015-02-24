@@ -1,0 +1,274 @@
+<% http_header("style/form.css", "/funcs.js", "wlan.js") %>
+
+<% cfg_set("refresh_message", "1") %>
+<% cfg_set("try_connect", "0") %>
+
+<script>
+<% mobile_ca_wl_network() %>
+var mobile_tag="<% cfg_get("mobile_tag") %>";
+var gui_region="<% cfg_get("GUI_Region") %>";
+var dns_hijack="<% cfg_get("dns_hijack") %>";
+var setup_wizard_tag="<% cfg_get("setup_wizard_tag") %>";
+
+if(setup_wizard_tag=="0"){
+	document.write('<body onLoad="loadvalue();" bgcolor=#ffffff>');
+	document.write('<form method="post" action="/apply.cgi?/" target=formframe>');
+}
+else{
+	document.write('<body onLoad="loadvalue();" bgcolor=#ffffff>');
+	document.write('<form method="post" action="/apply.cgi?/" target=IA_frame>');
+}
+document.write('<input type=hidden name=submit_flag value="ca_ap_wlan">');
+<% refresh_timestamp("ca_ap_wlan") %>
+var ts='<% cfg_get("ca_ap_wlan") %>';
+function loadvalue()
+{
+	var hight = document.body.clientHeight - 150;
+	document.getElementById("ca_network").style.height = hight;
+	if(ap_list_num == 0 && parent.conn_time < 3)
+	{
+		location.href="wait_for_searching.htm";
+		parent.conn_time=parent.conn_time+1;
+	}
+	else
+		parent.conn_time=0;
+}
+var num=0;
+var maxchars=3;
+var delay_time=1500;
+parent.ap_list_reset="";
+var lan_dhcp="<% cfg_get("lan_dhcp") %>";
+var sta_list = "<% cat_file("/tmp/check_link") %>";
+var link_status="<% cat_file("/tmp/link_status" %>";
+
+function ca_wl_back()
+{
+   if(parent.wizard==1)
+   location.href='setup_wizard.htm';
+   else
+   location.href='welcome_setup.htm';
+}
+function pro_up(num)
+{    
+	fresh_string=document.getElementById("progress").src="<td width=30% bgcolor=#0099cc align=left><font color=#0099cc align=left>1234</font></td>";	
+	document.write(fresh_string);
+	
+		if (num < maxchars)
+		{   
+			num ++;
+			
+			setTimeout(pro_up(num),delay_time);
+            
+		}
+}
+function checkTdBg(obj)
+{
+	var obj_td = document.getElementsByTagName('tr');
+	for( var int_i = 0 ; int_i < obj_td.length ; int_i ++ )
+	{
+    	if( obj_td[int_i] == obj )
+		{
+		   obj_td[int_i].className = 'tdBg';
+		}
+    	else
+		{
+		    obj_td[int_i].className = '';
+		}
+	}
+}
+			
+function get(_this)
+{ 
+var item_num=_this.rowIndex
+ap_list_reset=eval ( 'ap_list' + (item_num - 1));
+parent.ap_list_reset=ap_list_reset;
+} 
+
+</script>
+<!--<style>
+			td { padding:5px 10px; color:#000000; font-weight:700; font-size:13px; }
+			.tdBg { background-color:#dddddd; color:#ffff00; font-weight:700; }
+		</style>
+<style type="text/css">
+subhead_two {
+	FONT-WEIGHT: bold; FONT-SIZE: 12px; BACKGROUND: brown; COLOR: #808080; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+</style>-->
+<input type="hidden" name="refresh_url">
+<input type="hidden" name="refresh_page">
+<input type="hidden" name="select_edit">
+<input type="hidden" name="select_del">
+<input type="hidden" name="wl_access_ctrl_on">
+<input type="hidden" name="wlan_ap_wifi">
+<input type="hidden" name="wlan_ca_ap_wifi" value="">
+<input type="hidden" name="hidden_sec_ap_type">
+<input type="hidden" name="wlan_channel">
+<input type="hidden" name="ap_transmit" value="<% cfg_get("wl_same_sec") %>">
+<script>
+//if(dns_hijack==0)
+//{
+/*if( gui_region == "German" || gui_region == "Russian" )
+{
+	document.write('<div class="ca_page_title">')
+	document.write(mobile_wireless_ap+'</div>')
+	document.write('<div id="main" class="main_big">')
+}
+else
+{
+	document.write('<div class="ca_page_title">')
+	document.write(mobile_wireless_ap+'</div>')*/
+	document.write('<div id="main" class="ca_main">')
+//}
+//}
+</script>
+<table align=left border=0 cellpadding=0 cellspacing=0 width="100%">
+  	<tr><td width="3%">&nbsp;</td><td><h1>$mobile_wireless_ap
+	</h1></td><td width="3%">&nbsp;</td></tr>	
+		<!--<script>
+			if(dns_hijack==1)
+			{
+				document.write('<tr><td  rowspan=100 width=70 align=center valign=top>');document.write(ca_icon+"<br><br><br>");icons_show_status();document.write('&nbsp;</td>');
+				document.write(hd);
+				document.write('<H1>'+ca_wireless_ap+'</H1></TD></TR>')
+			}
+			</script>-->
+
+	<TR><td width="3%">&nbsp;</td>
+		<td><img src=/liteblue.gif width=100% height=12></td><td width="3%">&nbsp;</td></TR>
+	<tr>
+    <td nowrap colspan=2 align=right>
+	<input class="short_common_bt" type="button" value="$refresh_mark" name="add" onClick="location.href='wait_for_searching.htm'">&nbsp;&nbsp;
+    <!--</td>
+  </tr>
+	<TR>
+    <td align=right>-->
+	<script>
+	if(parent.ap_list_reset=="")
+		document.write('<input class="short_common_gr_bt" type="button" name="next_button" value="$next_mark" disabled onClick="match_security_mode(document.forms[0]);"></TD>');
+	else
+	 	document.write('<input class="short_common_bt" type="button" name="next_button" value="$next_mark" onClick="match_security_mode(document.forms[0]);"></TD>');
+	 </script>
+  <td width="3%">&nbsp;</td></TR>
+  <tr><td colspan=3>&nbsp;</td></tr>
+	<tr><td width="3%">&nbsp;</td><td>
+	<div id="ca_network" style="overflow-x: hidden; overflow-y:scroll;">
+	<table class=tables align=center border=0 cellpadding=2 cellspacing=0 width="100%">
+		<tr class=table_header>
+			
+			<td nowrap align=center><span class="subhead">&nbsp;&nbsp;</span></td>
+			<td nowrap align=center><span class="subhead">$ca_ap_ssid</span></td>
+	<!--17822	<td nowrap align=center><span class="subhead_two" bgcolor="#808080"><script>document.write(ca_ap_mac)</script></span></td> -->
+  			<td nowrap align=center><span class="subhead">$ca_ap_channel</span></td>
+  			<td nowrap align=center><span class="subhead">$ca_ap_signal</span></td>
+   			<td nowrap align=center><span class="subhead">$ca_ap_security</span></td>
+		</tr>
+		
+		<script>
+    var i;
+	var j;
+	var k;
+	list_array = new Array();
+	for(i=0;i<ap_list_num;i++)
+	{
+	    
+		list_array[i] = eval ( 'ap_list' + i );
+		list_array[i] = list_array[i].split('#&');
+	}
+
+	sort_by_num(list_array,3)
+	  
+	function sort_by_num(datas, col_num)
+	{
+	  var length= datas.length;
+	  for (i=length;i>1;i--) {
+	    for (j=0;j<(i-1);j++) {
+	      if (parseInt(datas[j][col_num]) < parseInt(datas[j+1][col_num])) {
+	        tmp_datas = datas[j];
+	        datas[j] = datas[j+1];
+	        datas[j+1] = tmp_datas;
+	      }
+	    }
+	  }
+	}		
+		
+	if( ap_list_num > 0 )
+	{
+		for(i=0;i<ap_list_num;i++)
+		{
+			var m=0;
+			var each_info = list_array[i];
+		    for(j=0;j<5;j++)
+			{
+			    if(each_info[j]=="")
+				each_info[j]="&nbsp;&nbsp;";
+			}
+			for(k=0;k<each_info[1].length;k++)
+			{
+				if(each_info[1].charAt(k)==" ")
+				{
+					m++;
+				}
+				
+			}
+			if(each_info[1].length == m)
+			{
+				parent.ssid_null_tag=i;
+				each_info[1]=each_info[1]+"&nbsp;";
+			}
+                get_before=each_info[4].split('|');
+			    security=get_before[0];
+				if( i%2!= 0 )
+                    document.write("<TR class=\"even_line\">");
+				else
+                    document.write("<TR class=\"odd_line\">");
+				//document.write('<tr onclick=\'checkTdBg(this);get(this)\'> <td nowrap align=center> '+each_info[1]+'</td>');
+				document.write('<td nowrap align=center><input type="radio" name="select_ap_cl" value="'+i+'" onclick="reset_ap('+i+')"></td>');
+				each_info[1]=each_info[1].replace(/<lt;/g,'&lt;');
+				each_info[1]=each_info[1].replace(/>gt;/g,'&gt;');
+				each_info[1]=each_info[1].replace(/ /g,"&nbsp;");
+				document.write('<td nowrap align=center> '+each_info[1]+'</td>');
+		//17822		document.write('<td nowrap align=center> '+each_info[0]+'</td>');
+				document.write('<td nowrap align=center> '+each_info[2]+'</td>');
+				document.write('<td nowrap align=center> '+each_info[3]+'</td>');
+				document.write('<td nowrap align=center> '+security+'</td></tr>');
+				document.forms[0].wlan_ap_wifi.value=each_info[1];
+				
+		}
+	}
+    function reset_ap(num)
+    {
+	    if(num=="manual")
+			parent.ap_list_reset=num;
+		else
+		{			
+			if(parent.ssid_null_tag == num)
+				parent.ssid_null_tag="n";
+			parent.ap_list_reset=list_array[num];
+			var each_info= parent.ap_list_reset;
+			parent.scan_channel=each_info[2];
+			document.forms[0].wlan_channel.value=each_info[2];
+		}
+		document.forms[0].next_button.disabled=false;
+		document.forms[0].next_button.className="short_common_bt";
+	}	
+	</script>
+	<script>
+	if( ap_list_num%2!= 0 )
+        document.write("<TR class=\"even_line\">");
+	else
+        document.write("<TR class=\"odd_line\">");
+	</script>
+	<td nowrap align=center>
+	<input type="radio" name="select_ap_cl" value="manual_set" onclick="reset_ap('manual')"></td>
+			<td colspan=4>$ca_manual_wl_ssid</td>
+		</tr>
+	</table></td><td width="3%">&nbsp;</td></tr>	
+</TABLE>
+</div>
+<% wizard_help_box("1", "_connect") %>
+</FORM>
+</body>
+</html>
+<% cfg_set("wire_message", "0") %>
+<% cfg_set("adv_wire_page", "2") %>
+

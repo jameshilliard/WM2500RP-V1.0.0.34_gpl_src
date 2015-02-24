@@ -1,0 +1,70 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% nobody_header("mobile_ca_connect_success.htm", "ca_connect_finish") %>
+
+<% cfg_set("refresh_page", "client_setting") %>
+
+<script>
+var gui_region="<% cfg_get("GUI_Region") %>";
+var sta_list = "<% cat_file("/tmp/check_link") %>";
+var link_status="<% cat_file("/tmp/wl0_status" %>";
+var link_rate="<% cat_file("/tmp/link_rate_min") %>";
+var dns_hijack="<% cfg_get("dns_hijack") %>";
+var led_color="<% cfg_get("led_color") %>";
+var mobile_tag="<% cfg_get("mobile_tag") %>";
+
+function click_next()
+{
+	var browser=eval ( '"' + top.location + '"' );
+		if  ( "<% cfg_get("lan_dhcp") %>" == "1" )
+    	{
+        	judge_browser(document.forms[0],browser);
+    	}
+	document.forms[0].submit();
+}
+</script>
+<style type="text/css">
+H1 {
+	FONT-WEIGHT: bold; FONT-SIZE: 36px; BACKGROUND: white; COLOR: #9d98ff; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+TD {
+	FONT-SIZE: 30px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+.mobile_button{ height: 44px; color: #f2f2f2; font-family: Arial; font-weight: Bold; font-size: 28px; background-color: transparent; border: none; cursor: pointer; padding-bottom: 4px;width:198px; background: url(../test_2x.gif) no-repeat;}
+</style>
+<input type="hidden" name="related_region" value="">
+<input type="hidden" name="refresh_url">
+<input type="hidden" name="refresh_page">
+
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+	<TR>
+	<TD colSpan=2><H1>$ca_con_success_head</H1></TD></TR>
+	$bluebar
+		<tr>
+		<td>
+			<script>
+			if(link_status=="1" && led_color=="2")
+				document.write("$ca_con_amber");
+			else
+				document.write("$ca_con_success");
+
+			</script>
+			
+		</td></tr>
+		
+	$bluebar
+
+	<tr>
+	<td nowrap align=center>
+		<input name="next" class="mobile_short_common_bt" type="button" value="$finish" onClick="msg_close();">
+	</td>
+	</tr>
+</table>
+</form>
+</body>
+</html>
+<% cfg_set("ca_finish", "1") %>
+<% cfg_set("ca_finish_success", "1") %>
+<% cfg_set("configured", "1") %>
+<% cfg_set("dns_hijack", "0") %>
+<% echo_set("0", "/proc/sys/net/ipv4/dns_hijack") %>
+<% commit() %>

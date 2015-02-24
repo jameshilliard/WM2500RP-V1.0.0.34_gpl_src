@@ -1,0 +1,28 @@
+#!/bin/sh
+# QoS solution for PB44 wireless router.
+PATH_PREFIX=/var/local/tmp
+# Read configuration:
+#/etc/qos/qos.conf
+. ${PATH_PREFIX}/qos.conf 2> /dev/null
+
+
+       . ${PATH_PREFIX}/qos-StopScript 2> /dev/null 
+        exit
+
+
+
+
+
+
+    . ${PATH_PREFIX}/qos-StopScript  2> /dev/null
+
+    . ${PATH_PREFIX}/qos-StartScript  2> /dev/null
+
+	if [ "$BANDWIDTH_ENABLE" = "1" ]; then
+		#/etc/qos/qos-bandwidth
+		. ${PATH_PREFIX}/qos-bandwidth  2> /dev/null
+	fi
+
+
+
+

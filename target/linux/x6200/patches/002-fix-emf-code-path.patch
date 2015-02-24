@@ -1,0 +1,23 @@
+--- linux-2.6.36.4.org/drivers/net/emf/Makefile	2012-11-21 10:45:58.000000000 -0500
++++ linux-2.6.36.4.new/drivers/net/emf/Makefile	2012-11-21 11:00:09.598144720 -0500
+@@ -18,9 +18,9 @@
+ # $Id: Makefile,v 1.3 2008-08-13 20:20:16 $
+ #
+ 
+-EMFSRCDIR := ../../../../../../../src/router/emf/emf
+-EMFCSRCDIR := ../../../../../../../src/emf/emf
+-EMFDIR := ../../../../../../../src/router/emf
++EMFSRCDIR := ../../../../../router/emf/emf
++EMFCSRCDIR := ../../../../../emf/emf
++EMFDIR := ../../../../../router/emf
+ 
+ EMF_OBJS := $(EMFCSRCDIR)/emfc.o $(EMFSRCDIR)/emf_linux.o
+ 
+@@ -32,6 +32,7 @@
+ ifneq ($(wildcard $(src)/$(EMFSRCDIR)),)
+ 	EXTRA_CFLAGS += -I$(SRCBASE)/router/emf/emf -I$(SRCBASE)/router/emf/igs
+ 	EXTRA_CFLAGS += -I$(SRCBASE)/include/emf/emf -I$(SRCBASE)/include/emf/igs
++	EXTRA_CFLAGS += -I$(SRCBASE)/include
+ 	emf-objs := $(EMF_OBJS)
+ else
+ 	emf-objs := $(EMFDIR)/emf.o

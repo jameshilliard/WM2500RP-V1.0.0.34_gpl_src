@@ -1,0 +1,47 @@
+From 38f9769780d99cfd91e11b947f39bfbd9efec6ee Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:46 +0800
+Subject: [PATCH 059/137] netfilter: add static inline function same_modified_src()
+
+Modift the conntrack and nat modules to support SNATP2P
+
+Patch as referring to bellowing link:
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-January/023084.html
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-March/023585.html
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |   16 ++++++++++++++++
+ 1 files changed, 16 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index cb7bca7..07b6b28 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -181,6 +181,22 @@ find_appropriate_src(struct net *net,
+ 	return 0;
+ }
+ 
++static inline int
++same_modified_src(const struct nf_conn *ct,
++		  const struct nf_conntrack_tuple *tuple)
++{
++	const struct nf_conntrack_tuple *t;
++
++	if (ct->status & IPS_SNATP2P_DST)
++		t = &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple;
++	else
++		t = &ct->tuplehash[IP_CT_DIR_REPLY].tuple;
++
++	return (t->dst.protonum	== tuple->dst.protonum &&
++		t->dst.u3.ip == tuple->src.u3.ip &&
++		t->dst.u.all == tuple->src.u.all);
++}
++
+ /* For [FUTURE] fragmentation handling, we want the least-used
+    src-ip/dst-ip/proto triple.  Fairness doesn't come into it.  Thus
+    if the range specifies 1.2.3.4 ports 10000-10005 and 1.2.3.5 ports
+-- 
+1.7.4.1
+

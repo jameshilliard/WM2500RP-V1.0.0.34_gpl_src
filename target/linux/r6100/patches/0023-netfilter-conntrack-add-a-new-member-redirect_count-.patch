@@ -1,0 +1,54 @@
+From 3d98ce49fd75ea17f17c0fa16ec27ebc22b2763d Mon Sep 17 00:00:00 2001
+From: Jonathan Chang <jonathan@dniserver.dnish.net>
+Date: Thu, 27 Jan 2011 10:11:36 +0800
+Subject: [PATCH 023/137] netfilter: conntrack: add a new member redirect_count in struct netns_ct
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netns/conntrack.h |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/netns/conntrack.h b/include/net/netns/conntrack.h
+index 9dc5840..e8c6014 100644
+--- a/include/net/netns/conntrack.h
++++ b/include/net/netns/conntrack.h
+@@ -10,6 +10,7 @@ struct nf_conntrack_ecache;
+ 
+ struct netns_ct {
+ 	atomic_t		count;
++	atomic_t		redirect_count;
+ 	unsigned int		expect_count;
+ 	struct hlist_nulls_head	*hash;
+ 	struct hlist_head	*expect_hash;
+-- 
+1.7.4.1
+

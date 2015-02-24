@@ -1,0 +1,45 @@
+config TARGET_MODELNAME
+    string "Define the model name for wndr3400v3"
+    depends TARGET_wndr3400v3
+    default "WNDR3400v3"
+
+config TARGET_BOARD_HW_ID
+    string "Define the board hw id for wndr3400v3"
+    depends TARGET_wndr3400v3
+    default "29764037+8+64"
+
+config TARGET_FW_VERSION
+    string "Define the firmware version"
+    depends TARGET_wndr3400v3
+    default "V1.0.0.12"
+
+config TARGET_LG_VERSION
+    string "Define the language table version"
+    depends TARGET_wndr3400v3
+    default "V1.0.0.104"
+
+config TARGET_MAGIC_NUMBER
+    string
+    prompt "define the magic number for the target"
+    depends on TARGET_wndr3400v3
+    default "0x33343033"
+
+config TARGET_HEAD_LENGTH
+    string "Define the length of wndr3400v3's firmware header."
+    depends TARGET_wndr3400v3
+    default "128"
+
+config TARGET_KERNEL_SIZE
+    string "Define the kernel size of wndr3400v3's firmware"
+    depends TARGET_wndr3400v3
+    default "1152k"
+
+config TARGET_MAX_KERNEL_SIZE
+    string "Define the max kernel size of wndr3400v3's firmware"
+    depends TARGET_wndr3400v3
+    default "1179648"
+
+config TARGET_MAX_IMAGE_SIZE
+    string "Define the max image size of wndr3400v3's firmware"
+    depends TARGET_wndr3400v3
+    default "25034752"

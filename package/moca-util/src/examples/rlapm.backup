@@ -1,0 +1,15 @@
+#------------------------------------------------------------------------------
+# Example File Format of "/etc/clink/en0/rlapm.conf"
+#
+# Depends upon etc/clink/en0/clink.conf phyMargin = 10 (2dB).
+#
+# rlapmprofileid nn     // nn = -1 disables RLAPM, nn=0 specifies first profile.
+# rxLevel L m           // L  = Receive level to add the indicated additional
+#                               bitloading margin.
+#                       // m  = Amount of additional bitloading margin to be added.
+#------------------------------------------------------------------------------
+rlapmprofileid -1
+Profile 0
+rxLevel 0 0
+rxLevel 50 0
+

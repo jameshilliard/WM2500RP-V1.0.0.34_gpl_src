@@ -1,0 +1,275 @@
+diff --git a/drivers/mtd/mtdpart.c b/drivers/mtd/mtdpart.c
+index 0159ed3..a073010 100644
+--- a/drivers/mtd/mtdpart.c
++++ b/drivers/mtd/mtdpart.c
+@@ -21,6 +21,38 @@
+ #include <linux/root_dev.h>
+ #include <linux/magic.h>
+ 
++#define DNI_PARTITION_MAPPING	1
++
++#ifdef DNI_PARTITION_MAPPING
++/* 
++ * definicate one mapping table for squashfs
++ * partition, because squashfs do not know bad block.
++ * So we have to do the valid mapping between logic block
++ * and phys block.
++ */
++
++#include <linux/mtd/nand.h>
++
++#define MAX_MAPPING_COUNT	1
++
++struct logic_phys_map {
++    struct mtd_info *part_mtd;	/* Mapping partition mtd */
++    unsigned *map_table;	/* Mapping from logic block to phys block */
++    unsigned nBlock;		/* Logic block number */
++};
++
++static struct logic_phys_map *logic_phys_mapping[MAX_MAPPING_COUNT];
++static int mapping_count = -1;
++#endif
++
++#ifdef CONFIG_MTD_ROOTFS_SPLIT || DNI_PARTITION_MAPPING
++struct squashfs_super_block {
++	__le32 s_magic;
++	__le32 pad0[9];
++	__le64 bytes_used;
++};
++#endif
++
+ /* Our partition linked list */
+ static LIST_HEAD(mtd_partitions);
+ 
+@@ -53,6 +85,29 @@ static int part_read(struct mtd_info *mtd, loff_t from, size_t len,
+ 
+ 	stats = part->master->ecc_stats;
+ 
++#ifdef DNI_PARTITION_MAPPING
++	/* Calculate physical address from the partition mapping */
++	unsigned logic_b, phys_b;
++	int i;
++
++	if (mapping_count > 0) {
++		for (i = 0; i < MAX_MAPPING_COUNT; i++) {
++			if (logic_phys_mapping[i] && logic_phys_mapping[i]->part_mtd == mtd) {
++				/* remap from logic block to physical block */
++				logic_b = from >> mtd->erasesize_shift;
++				if (logic_b < logic_phys_mapping[i]->nBlock) {
++					phys_b = logic_phys_mapping[i]->map_table[logic_b];
++					from = (phys_b << mtd->erasesize_shift) | (from & (mtd->erasesize - 1));
++				} else {
++					/* the offset is bigger than good block range, don't read data */
++					*retlen = 0;
++					return -EINVAL;
++				}
++			}
++		}
++	}
++#endif
++
+ 	if (from >= mtd->size)
+ 		len = 0;
+ 	else if (from + len > mtd->size)
+@@ -309,6 +364,138 @@ static int part_block_markbad(struct mtd_info *mtd, loff_t ofs)
+ 	return res;
+ }
+ 
++#ifdef DNI_PARTITION_MAPPING
++/*
++ * This function search squashfs magic data, and record offset and bad block values
++ */
++static int find_rootfs_header(struct mtd_info *master, struct mtd_info *mtd, uint64_t *offset, int *bad_blocks)
++{
++	struct mtd_part *part = PART(mtd);
++	struct squashfs_super_block sb;
++	int len, res;
++
++	while (*offset < mtd->size) {
++		if (mtd->block_isbad && mtd->block_isbad(part, *offset)) {
++			*bad_blocks++;
++			*offset += mtd->erasesize;
++			continue;
++		}
++
++		res = master->read(master, *offset + part->offset, sizeof(sb), &len, (void *) &sb);
++		if (res || (len != sizeof(sb))) {
++			printk(KERN_ALERT "%s: error occured while reading from partition \"%s\" of \"%s\"!\n",
++					__func__, mtd->name, master->name);
++			return -1;
++		}
++
++		if (SQUASHFS_MAGIC == le32_to_cpu(sb.s_magic)) {
++			printk(KERN_INFO "mtd: find squashfs magic at 0x%llx of \"%s\"\n",
++					*offset + part->offset, master->name);
++			break;
++		}
++
++		*offset += mtd->erasesize;
++	}
++
++	if (*offset >= mtd->size) {
++		printk(KERN_ALERT "%s: no squashfs found in partition \"%s\" of \"%s\"!\n",
++				__func__, mtd->name, master->name);
++		return -1;
++	}
++
++	return 0;
++}
++
++/*
++ * This function create a partition mapping from logic block to phys block
++ */
++static int create_partition_mapping (struct mtd_info *part_mtd)
++{
++	struct logic_phys_map *map;
++	int index;
++	loff_t offset;
++	unsigned logical_b, phys_b;
++
++	if (!part_mtd) {
++		printk(KERN_ALERT "null mtd or it is no nand chip!\n");
++		return -1;
++	}
++
++	if (mapping_count < 0) {
++		/* Init the part mapping table when this function called first time */
++		memset(logic_phys_mapping, 0, sizeof(struct logic_phys_map *) * MAX_MAPPING_COUNT);
++		mapping_count = 0;
++	}
++
++	for (index = 0; index < MAX_MAPPING_COUNT; index++) {
++		if (logic_phys_mapping[index] == NULL)
++			break;
++	}
++
++	if (index >= MAX_MAPPING_COUNT) {
++		printk(KERN_ALERT "partition mapping is full!\n");
++		return -1;
++	}
++
++	map = kmalloc(sizeof(struct logic_phys_map), GFP_KERNEL);
++	if (!map) {
++		printk(KERN_ALERT "memory allocation error while creating partitions mapping for %s\n",
++		       part_mtd->name);
++		return -1;
++	}
++
++	map->map_table = kmalloc(sizeof(unsigned) * (part_mtd->size >> part_mtd->erasesize_shift), GFP_KERNEL);
++	if (!map->map_table) {
++		printk(KERN_ALERT "memory allocation error while creating partitions mapping for %s\n",
++		       part_mtd->name);
++		kfree(map);
++		return -1;
++	}
++
++	memset(map->map_table, 0xFF, sizeof(unsigned) * (part_mtd->size >> part_mtd->erasesize_shift));
++
++	/* Create partition mapping table from logic block to phys block */
++	logical_b = 0;
++	for (offset = 0; offset < part_mtd->size; offset += part_mtd->erasesize) {
++		if (part_mtd->block_isbad && part_mtd->block_isbad(part_mtd, offset))
++			continue;
++
++		phys_b = offset >> part_mtd->erasesize_shift;
++		map->map_table[logical_b] = phys_b;
++		//printk(KERN_INFO "part[%s]: logic[%u]=phys[%u]\n", part_mtd->name, logical_b, phys_b);
++		logical_b++;
++	}
++
++	map->nBlock = logical_b;
++	map->part_mtd = part_mtd;
++	logic_phys_mapping[index] = map;
++	mapping_count++;
++
++	return 0;
++}
++
++/*
++ * This function delete all the partition mapping from logic block to phys block
++ */
++static void del_partition_mapping(struct mtd_info *part_mtd)
++{
++	int index;
++	struct logic_phys_map *map;
++
++	if (mapping_count > 0) {
++		for (index = 0; index < MAX_MAPPING_COUNT; index++) {
++			map = logic_phys_mapping[index];
++			if (map && map->part_mtd == part_mtd) {
++				kfree(map->map_table);
++				kfree(map);
++				logic_phys_mapping[index] = NULL;
++				mapping_count--;
++			}
++		}
++	}
++}
++#endif
++
+ /*
+  * This function unregisters and destroy all slave MTD objects which are
+  * attached to the given master MTD object.
+@@ -320,6 +507,10 @@ int del_mtd_partitions(struct mtd_info *master)
+ 
+ 	list_for_each_entry_safe(slave, next, &mtd_partitions, list)
+ 		if (slave->master == master) {
++#ifdef DNI_PARTITION_MAPPING
++			/* Free partition mapping if created */
++			del_partition_mapping(&slave->mtd);
++#endif
+ 			list_del(&slave->list);
+ 			del_mtd_device(&slave->mtd);
+ 			kfree(slave);
+@@ -501,6 +692,25 @@ out_register:
+ 	/* register our partition */
+ 	add_mtd_device(&slave->mtd);
+ 
++#ifdef DNI_PARTITION_MAPPING
++	/* Search rootfs header and reset the offset and size of rootfs partition */
++	uint64_t rootfs_offset = 0;
++	int bad_blocks = 0;
++	if (slave->mtd.name && !strcmp(slave->mtd.name, "rootfs") &&
++	    !(find_rootfs_header(master, &slave->mtd, &rootfs_offset, &bad_blocks))) {
++		slave->offset += rootfs_offset;
++		slave->mtd.size -= rootfs_offset;
++		if (master->block_isbad)
++			slave->mtd.ecc_stats.badblocks -= bad_blocks;
++
++		printk(KERN_INFO "the correct location of partition \"%s\": 0x%012llx-0x%012llx\n", slave->mtd.name,
++		       (unsigned long long)slave->offset, (unsigned long long)(slave->offset + slave->mtd.size));
++
++		/* Build partition mapping for rootfs partition */
++		create_partition_mapping(&slave->mtd);
++	}
++#endif
++
+ 	return slave;
+ }
+ 
+@@ -508,12 +718,6 @@ out_register:
+ #define ROOTFS_SPLIT_NAME "rootfs_data"
+ #define ROOTFS_REMOVED_NAME "<removed>"
+ 
+-struct squashfs_super_block {
+-	__le32 s_magic;
+-	__le32 pad0[9];
+-	__le64 bytes_used;
+-};
+-
+ 
+ static int split_squashfs(struct mtd_info *master, int offset, int *split_offset)
+ {
+@@ -558,7 +762,12 @@ static int split_rootfs_data(struct mtd_info *master, struct mtd_info *rpart, co
+ 	int split_offset = 0;
+ 	int ret;
+ 
++#ifdef DNI_PARTITION_MAPPING
++	struct mtd_part *tmp_part = PART(rpart);
++	ret = split_squashfs(master, tmp_part->offset, &split_offset);
++#else
+ 	ret = split_squashfs(master, part->offset, &split_offset);
++#endif
+ 	if (ret)
+ 		return ret;
+ 

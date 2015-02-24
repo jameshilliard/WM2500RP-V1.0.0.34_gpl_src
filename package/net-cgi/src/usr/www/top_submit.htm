@@ -1,0 +1,40 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<% http_header("style/top.css", "funcs.js", "top.js") %>
+<% top_body_header("top_nochange.htm", "change_language") %>
+
+<script>
+var language_oriArray = "<% lang_en() %>".split(" ");
+var language_showArray="<% lang_show() %>".split(" ");
+var gui_region = "<% cfg_get("GUI_Region") %>";
+var new_language = "<% cfg_get("New_Language") %>";
+var type = parent.type;
+
+//for firmware version checking
+var wan_status = "<% detwan_valid() %>";
+var config_status = <% autoup_status() %>;
+<% check_version() %>
+<% auto_detwan() %>
+//apmode
+var enable_ap_flag="<% cfg_get("ap_mode") %>";
+
+function loadvalue()
+{
+	document.forms[0].lang_avi.disabled = true;
+	document.forms[0].lang_avi.value = new_language;
+        form=document.forms[0];
+	form.submit();
+}
+</script>
+<input type=hidden name=hidden_lang_avi>
+<input type=hidden name=browser_or_top>
+<div id="logo"></div>
+<div id="router-name"><% cat_file("/hardware_version") %></div>
+<div id="firm_version">$info_mark_ver<br /><% cat_file("/firmware_version") %></div>
+<div id="select_language" align=right style="display:none">
+	<select align=right id="language" name="lang_avi" size=1 onChange="doDisable()">
+		<script>languageShowlist();</script>
+	</select>
+</div>
+</form>
+</body>
+</html>

@@ -1,0 +1,138 @@
+#
+# Add by Dni
+#
+
+include $(PKG_BUILD_DIR)/files/net-cgi.config
+CP=cp -fpR
+
+install:
+	echo "Net-cgi install prefix is $(PREFIX)"
+	echo "Net-cgi install web_path is $(WEB_PATH)"
+	echo "Net-cgi install pkg_build_dir is $(PKG_BUILD_DIR)"
+	install -d -m0755 $(PREFIX)/usr/sbin
+	install -d -m0755 $(PREFIX)/usr/sbin
+	install -m0755 $(PKG_BUILD_DIR)/net-cgi $(PREFIX)/usr/sbin
+	install -m0755 $(PKG_BUILD_DIR)/inetd $(PREFIX)/usr/sbin/
+	install -m0755 $(PKG_BUILD_DIR)/files/wget_netgear $(PREFIX)/usr/sbin/
+	
+ifeq 	($(HAVE_USB_STORAGE), 1)
+	install -m0755 $(PKG_BUILD_DIR)/usb_cfg $(PREFIX)/usr/sbin/
+	install -m0755 $(PKG_BUILD_DIR)/files/select_partition $(PREFIX)/usr/sbin/
+endif
+	
+ifeq 	($(HAVE_PLC), 1)
+	install -m0755 $(PKG_BUILD_DIR)/detplc $(PREFIX)/usr/sbin/
+endif
+	
+	install -d -m0755 $(PREFIX)/$(WEB_PATH)
+	install -d -m0755 $(PREFIX)/$(WEB_PATH)/image
+	install -d -m0755 $(PREFIX)/$(WEB_PATH)/style
+	install -d -m0755 $(PREFIX)/$(WEB_PATH)/help
+	install -d -m0755 $(PREFIX)/$(WEB_PATH)/cgi-bin
+	install -d -m0755 $(PREFIX)/$(WEB_PATH)/language
+	install -d -m0755 $(PREFIX)/$(WEB_PATH)/var_language
+	install -m0644 $(PKG_BUILD_DIR)/$(WEB_PATH)/*.* $(PREFIX)/$(WEB_PATH)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/image/* $(PREFIX)/$(WEB_PATH)/image
+	install -m0644 $(PKG_BUILD_DIR)/$(WEB_PATH)/style/*.* $(PREFIX)/$(WEB_PATH)/style
+	install -m0644 $(PKG_BUILD_DIR)/$(WEB_PATH)/help/*.* $(PREFIX)/$(WEB_PATH)/help
+	install -m0755 $(PKG_BUILD_DIR)/$(WEB_PATH)/cgi-bin/*.* $(PREFIX)/$(WEB_PATH)/cgi-bin
+	-install -m0755 $(PKG_BUILD_DIR)/$(WEB_PATH)/var_language/*.* $(PREFIX)/$(WEB_PATH)/var_language
+	-install -m0755 $(PKG_BUILD_DIR)/$(WEB_PATH)/language/*.* $(PREFIX)/$(WEB_PATH)/language
+	-install -m0755 $(PKG_BUILD_DIR)/lang/*.* $(PREFIX)/$(WEB_PATH)/language
+	
+ifeq 	($(CD_LESS),1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/browser_hijack/* $(PREFIX)/$(WEB_PATH)
+endif
+	
+ifeq 	($(HAVE_USB_STORAGE), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/usb_storage/* $(PREFIX)/$(WEB_PATH)
+	
+ifeq 	($(GREEN_DOWNLOAD), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/green_download/* $(PREFIX)/$(WEB_PATH)
+endif
+endif
+	
+ifeq 	($(READYSHARE_REMOTE), 1)
+	install -d -m0755 $(PREFIX)/$(WEB_PATH)/pluging
+	install -m0755 $(PKG_BUILD_DIR)/$(WEB_PATH)/readyshare_remote/RemoteShare.htm $(PREFIX)/$(WEB_PATH)/pluging
+	install -m0755 $(PKG_BUILD_DIR)/$(WEB_PATH)/readyshare_remote/RMT_invite.cgi $(PREFIX)/$(WEB_PATH)/cgi-bin/
+	install -m0755 $(PKG_BUILD_DIR)/$(WEB_PATH)/readyshare_remote/RMT_invite.htm $(PREFIX)/$(WEB_PATH)/cgi-bin/
+	install -m0755 $(PKG_BUILD_DIR)/$(WEB_PATH)/readyshare_remote/func.sh $(PREFIX)/$(WEB_PATH)/cgi-bin/
+	install -m0755 $(PKG_BUILD_DIR)/$(WEB_PATH)/readyshare_remote/RMT_remote.htm $(PREFIX)/$(WEB_PATH)/
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/readyshare_remote/help/* $(PREFIX)/$(WEB_PATH)/help/
+endif
+ifeq 	($(READYSHARE_PRINT), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/readyshare_print/* $(PREFIX)/$(WEB_PATH)/
+endif
+ifeq 	($(HAVE_L2TP), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/l2tp/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq 	($(HAVE_BIGPOND), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/bigpond/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq 	($(HAVE_GUEST_NETWORK), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/guest/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq 	($(HAVE_QOS), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/qos/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq 	($(HAVE_WDS), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/wds/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq 	($(HAVE_IPv6), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/ipv6/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq 	($(HAVE_TRAFFIC_METER), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/traffic/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq 	($(HAVE_BLOCK_SITES), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/block_sites/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq 	($(HAVE_TR069), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/tr069/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq 	($(HAVE_PLC), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/plc/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq 	($(HAVE_AP_MODE), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/apmode/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq ($(HDD_MULTI_USER),1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/centria_cd_less/*.* $(PREFIX)/$(WEB_PATH)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/user_hdd_storage/* $(PREFIX)/$(WEB_PATH)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/centria_user/* $(PREFIX)/$(WEB_PATH)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/centria_cd_less/image/* $(PREFIX)/$(WEB_PATH)/image
+endif
+ifeq ($(HAVE_VAULT), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/readyshare_vault/* $(PREFIX)/$(WEB_PATH)/
+endif
+ifeq ($(HAVE_FAST_LANE), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/fastlane/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq ($(HAVE_QUICK_QOS), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/quick_qos/* $(PREFIX)/$(WEB_PATH)
+endif
+ifneq ($(HAVE_WIRELESS_AN), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/bgn_wireless/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq ($(FORWARD_RANGE), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/forwarding_range/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq ($(HAVE_ACCESS_CONTROL), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/access_control/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq ($(READYSHARE_MOBILE), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/readyshare_mobile/* $(PREFIX)/$(WEB_PATH)
+endif
+#ifeq ($(HAVE_JP), 1)
+#	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/multipppoe/* $(PREFIX)/$(WEB_PATH)
+#endif
+ifeq ($(HAVE_BROADBAND), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/3g/* $(PREFIX)/$(WEB_PATH)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/browser_hijack_3g/* $(PREFIX)/$(WEB_PATH)
+endif
+ifeq ($(HAVE_LTE), 1)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/lte/* $(PREFIX)/$(WEB_PATH)
+	$(CP) $(PKG_BUILD_DIR)/$(WEB_PATH)/browser_hijack_3g/* $(PREFIX)/$(WEB_PATH)
+endif
+

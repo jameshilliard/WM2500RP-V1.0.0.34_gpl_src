@@ -1,0 +1,69 @@
+From 9e793977e9da2031f60deadaf6d97d4fc51ac919 Mon Sep 17 00:00:00 2001
+From: stone.liu <stone.liu@dniserver.dnish.net>
+Date: Tue, 1 Nov 2011 09:58:45 -0400
+Subject: [PATCH 134/137] port overlap_flag for from linux-2.6.30 common code
+
+Signed-off-by: stone.liu <stone.liu@dniserver.dnish.net>
+---
+ net/ipv4/ip_fragment.c |   10 ++++++++++
+ 1 files changed, 10 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/ip_fragment.c b/net/ipv4/ip_fragment.c
+index 0c80a91..884ac39 100644
+--- a/net/ipv4/ip_fragment.c
++++ b/net/ipv4/ip_fragment.c
+@@ -48,6 +48,7 @@
+  * as well. Or notify me, at least. --ANK
+  */
+ 
++static int sysctl_ipfrag_overlap_drop = 0;
+ static int sysctl_ipfrag_max_dist __read_mostly = 64;
+ 
+ struct ipfrag_skb_cb
+@@ -67,6 +68,7 @@ struct ipq {
+ 	__be32		daddr;
+ 	__be16		id;
+ 	u8		protocol;
++	int             overlap_flag;   /* 0: no overlaps, 1: fragments overlap */
+ 	int             iif;
+ 	unsigned int    rid;
+ 	struct inet_peer *peer;
+@@ -140,6 +142,7 @@ static void ip4_frag_init(struct inet_frag_queue *q, void *a)
+ 	qp->saddr = arg->iph->saddr;
+ 	qp->daddr = arg->iph->daddr;
+ 	qp->user = arg->user;
++	qp->overlap_flag = 0;
+ 	qp->peer = sysctl_ipfrag_max_dist ?
+ 		inet_getpeer(arg->iph->saddr, 1) : NULL;
+ }
+@@ -377,6 +380,7 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
+ 		int i = (FRAG_CB(prev)->offset + prev->len) - offset;
+ 
+ 		if (i > 0) {
++			qp->overlap_flag = 1;
+ 			offset += i;
+ 			err = -EINVAL;
+ 			if (end <= offset)
+@@ -393,6 +397,7 @@ static int ip_frag_queue(struct ipq *qp, struct sk_buff *skb)
+ 
+ 	while (next && FRAG_CB(next)->offset < end) {
+ 		int i = end - FRAG_CB(next)->offset; /* overlap is 'i' bytes */
++		qp->overlap_flag = 1;
+ 
+ 		if (i < next->len) {
+ 			/* Eat head of the next overlapped fragment
+@@ -470,6 +475,11 @@ static int ip_frag_reasm(struct ipq *qp, struct sk_buff *prev,
+ 	int ihlen;
+ 	int err;
+ 
++        if ((qp->overlap_flag == 1) && (sysctl_ipfrag_overlap_drop == 1)) {
++                printk("[DoS Attack: Teardrop] from source: %u.%u.%u.%u,\n",
++                        NIPQUAD(qp->saddr));
++                goto out_fail;
++        }
+ 	ipq_kill(qp);
+ 
+ 	/* Make the one we just received the head. */
+-- 
+1.7.4.1
+

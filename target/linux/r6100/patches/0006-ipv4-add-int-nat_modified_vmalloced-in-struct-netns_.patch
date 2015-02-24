@@ -1,0 +1,28 @@
+From 1911da7b65f78125b3b43f2c5610e2320929f9a3 Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:44 +0800
+Subject: [PATCH 006/137] ipv4: add int nat_modified_vmalloced in struct netns_ipv4
+
+Define new variables for supporting SNATP2P in conntrack module.
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netns/ipv4.h |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/netns/ipv4.h b/include/net/netns/ipv4.h
+index 2ac1b62..76557fc 100644
+--- a/include/net/netns/ipv4.h
++++ b/include/net/netns/ipv4.h
+@@ -41,6 +41,7 @@ struct netns_ipv4 {
+ 	struct xt_table		*nat_table;
+ 	struct hlist_head	*nat_bysource;
+ 	struct hlist_head	*nat_by_modified_source;
++	int			nat_modified_vmalloced;
+ 	int			nat_vmalloced;
+ #endif
+ 
+-- 
+1.7.4.1
+

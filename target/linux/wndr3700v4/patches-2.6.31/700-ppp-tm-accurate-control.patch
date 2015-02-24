@@ -1,0 +1,229 @@
+--- linux-2.6.31/drivers/net/ppp_generic.c.org	2012-05-08 17:20:29.398455220 +0800
++++ linux-2.6.31/drivers/net/ppp_generic.c	2012-05-09 10:47:57.069704676 +0800
+@@ -48,6 +48,13 @@
+ #include <linux/stddef.h>
+ #include <linux/device.h>
+ #include <linux/mutex.h>
++
++#ifdef CONFIG_PPP_TM_ACCURATE_CONTROL
++#include <net/sock.h>
++#include <linux/netlink.h>
++#define PPP_NETLINK_TM 22
++#endif
++
+ #ifdef CONFIG_SYSCTL
+ #include <linux/sysctl.h>
+ #endif
+@@ -81,6 +88,31 @@
+ #define MPHDRLEN_SSN	4	/* ditto with short sequence numbers */
+ #define MIN_FRAG_SIZE	64
+ 
++#ifdef CONFIG_PPP_TM_ACCURATE_CONTROL
++#define TM_PPP_ONE_DIRECTION 0
++#define TM_PPP_BOTH_DIRECTION 1
++#define TM_PPP_CONTROL_ABOLISH 2
++#define TM_PPP_DROP_PACKET 3
++#define TM_PPP_MAX_LIMIT 0xffffffffffffffff
++
++unsigned long long ppp_tm_limit = TM_PPP_MAX_LIMIT;
++int ppp_tm_dir;
++unsigned long long ppp_counter_rx = 0;
++unsigned long long ppp_counter_tx = 0;
++struct sock *ppp_nl_sk = NULL;
++int ppp_send = 0;
++int need_drop = 0;
++unsigned long long tmp_counter;
++struct ppp_msg_data{
++        int backpid;
++        unsigned long long leftdata;
++        int tm_dir; /* 1--both,0--only download,
++		     * 2--abolish,3--drop packet */
++
++};
++
++#endif
++
+ /*
+  * An instance of /dev/ppp can be associated with either a ppp
+  * interface unit or a ppp channel.  In both cases, file->private_data
+@@ -956,9 +988,56 @@
+ 
+ /* Called at boot time if ppp is compiled into the kernel,
+    or at module load time (from init_module) if compiled as a module. */
++#ifdef CONFIG_PPP_TM_ACCURATE_CONTROL
++void ppp_test_netlink(struct sk_buff *__skb)
++{
++         struct sk_buff * skb = NULL;
++         struct sk_buff *skb_send = NULL;
++         struct nlmsghdr * nlh = NULL;
++         struct ppp_msg_data *msgdata;
++
++         skb = skb_get(__skb);
++         if (skb == NULL || skb->len < NLMSG_LENGTH(0)){
++         	printk("PPP Driver recive message ERROR ...\n");
++		return;
++         }
++
++         nlh = nlmsg_hdr(skb);
++         msgdata = (struct msg_data *)NLMSG_DATA(nlh);
++
++         if (msgdata->tm_dir == TM_PPP_CONTROL_ABOLISH || msgdata->tm_dir == TM_PPP_DROP_PACKET)
++                ppp_tm_limit = TM_PPP_MAX_LIMIT;
++         else
++                ppp_tm_limit = msgdata->leftdata;
++
++         ppp_tm_dir = msgdata->tm_dir;
++         ppp_send = 1;
++         if (msgdata->tm_dir == TM_PPP_DROP_PACKET)
++                need_drop = 1;
++         else
++                need_drop = 0;
++         
++	  kfree_skb(skb);
++         printk("PPP Driver recive message, dir is %d ...\n",ppp_tm_dir);
++
++         ppp_counter_rx = 0;
++         ppp_counter_tx = 0;
++
++}
++#endif
++
++
+ static int __init ppp_init(void)
+ {
+ 	int err;
++#ifdef CONFIG_PPP_TM_ACCURATE_CONTROL
++        ppp_nl_sk = netlink_kernel_create(&init_net,PPP_NETLINK_TM,1,ppp_test_netlink,NULL,THIS_MODULE);
++        
++	 if (ppp_nl_sk < 0) {
++                printk("Netlink for ppp driver create error ...\n");
++        }
++#endif
++
+ 
+ 	printk(KERN_INFO "PPP generic driver version " PPP_VERSION "\n");
+ 
+@@ -1281,9 +1360,19 @@
+ #endif /* CONFIG_PPP_FILTER */
+ 	}
+ 
++#ifdef CONFIG_PPP_TM_ACCURATE_CONTROL
++       if (need_drop == 1)
++                 goto drop;
++#endif
++
+ 	++ppp->dev->stats.tx_packets;
+ 	ppp->dev->stats.tx_bytes += skb->len - 2;
+ 
++#ifdef CONFIG_PPP_TM_ACCURATE_CONTROL
++        if (ppp_tm_limit != TM_PPP_MAX_LIMIT)
++               ppp_counter_tx += skb->len - 2;
++#endif
++
+ 	switch (proto) {
+ 	case PPP_IP:
+ 		if (!ppp->vj || (ppp->flags & SC_COMP_TCP) == 0)
+@@ -1774,6 +1863,13 @@
+ 	struct sk_buff *ns;
+ 	int proto, len, npi;
+ 
++#ifdef CONFIG_PPP_TM_ACCURATE_CONTROL
++        struct sk_buff *skb_send = NULL;
++        struct nlmsghdr * nlh = NULL;
++        struct ppp_msg_data sendata;
++        int ppp_ret;
++#endif
++
+ 	/*
+ 	 * Decompress the frame, if compressed.
+ 	 * Note that some decompressors need to see uncompressed frames
+@@ -1843,9 +1939,64 @@
+ 		break;
+ 	}
+ 
++#ifdef CONFIG_PPP_TM_ACCURATE_CONTROL
++       if (need_drop == 1)
++               goto err;
++#endif
++
+ 	++ppp->dev->stats.rx_packets;
+ 	ppp->dev->stats.rx_bytes += skb->len - 2;
+ 
++#ifdef CONFIG_PPP_TM_ACCURATE_CONTROL
++        if (ppp_tm_limit != TM_PPP_MAX_LIMIT) {
++		ppp_counter_rx += skb->len - 2;
++
++                if (ppp_tm_dir == TM_PPP_BOTH_DIRECTION)
++                	tmp_counter = ppp_counter_rx + ppp_counter_tx;
++                else 
++                        tmp_counter = ppp_counter_rx;
++
++                if (tmp_counter >= ppp_tm_limit && ppp_send == 1 ){
++                        sendata.backpid = 0;
++                        sendata.leftdata = 0;
++                        ppp_send =0 ;
++
++                        skb_send = alloc_skb(NLMSG_SPACE(1024), GFP_KERNEL);
++                        if (skb_send == NULL) {
++                                  printk("alloc skb failed\n");
++                                  return;
++                        }
++
++                        NETLINK_CB(skb_send).pid = 0;
++                        NETLINK_CB(skb_send).dst_group = 1;
++
++
++                        nlh = NLMSG_PUT(skb_send, 0, 0, 0, 1024);
++                        memcpy(NLMSG_DATA(nlh),&sendata,sizeof(sendata));
++                        
++			if (ppp_tm_dir != TM_PPP_CONTROL_ABOLISH ) {
++                        	ppp_ret = netlink_broadcast(ppp_nl_sk, skb_send, 0, 1, GFP_KERNEL);
++                        	need_drop = 1;
++                                printk("Need drop packet ...\n");
++                        
++			if (ppp_ret < 0)
++                                printk("PPP Driver send failed %d ... \n",ppp_ret);
++                }
++		 ppp_counter_tx = 0;
++                ppp_counter_rx = 0;
++                tmp_counter = 0;
++                ppp_tm_limit = TM_PPP_MAX_LIMIT;
++
++	nlmsg_failure:
++                ppp_counter_rx = 0;
++                ppp_counter_tx = 0;
++                tmp_counter = 0;
++                ppp_tm_limit = TM_PPP_MAX_LIMIT;
++
++                }
++       }
++#endif
++
+ 	npi = proto_to_npindex(proto);
+ 	if (npi < 0) {
+ 		/* control or unknown frame - pass it to pppd */
+@@ -2928,9 +3079,24 @@
+ 	skb_queue_purge(&pch->file.rq);
+ 	kfree(pch);
+ }
++#ifdef CONFIG_PPP_TM_ACCURATE_CONTROL
++void sk_release_kernel(struct sock *sk)
++{
++         if (sk == NULL || sk->sk_socket == NULL)
++                     return;
++
++         sock_hold(sk);
++         sock_release(sk->sk_socket);
++         sock_put(sk);
++}
++#endif
+ 
+ static void __exit ppp_cleanup(void)
+ {
++#ifdef CONFIG_PPP_TM_ACCURATE_CONTROL
++        sk_release_kernel(ppp_nl_sk);
++#endif
++
+ 	/* should never happen */
+ 	if (atomic_read(&ppp_unit_count) || atomic_read(&channel_count))
+ 		printk(KERN_ERR "PPP: removing module but units remain!\n");

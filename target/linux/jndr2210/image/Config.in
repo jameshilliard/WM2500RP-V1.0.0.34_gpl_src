@@ -1,0 +1,19 @@
+config TARGET_MODELNAME
+    string "Define the model name for jndr2210"
+    depends TARGET_jndr2210
+    default "jndr2210"
+
+config TARGET_BOARD_HW_ID
+    string "Define the board hw id for jndr2210"
+    depends TARGET_jndr2210
+    default "29763754+4+32"
+
+config TARGET_FW_VERSION
+    string "Define the firmware version"
+    depends TARGET_jndr2210
+    default "V1.0.0.5"
+
+config TARGET_LG_VERSION
+    string "Define the language table version"
+    depends TARGET_jndr2210
+    default "V1.0.0.107"

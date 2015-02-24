@@ -1,0 +1,34 @@
+diff -Nur linux-2.6.30.old//net/ipv6/addrconf.c linux-2.6.30/net/ipv6/addrconf.c
+--- linux-2.6.30.old//net/ipv6/addrconf.c	2012-11-29 06:22:21.638064153 -0500
++++ linux-2.6.30/net/ipv6/addrconf.c	2012-11-29 06:24:00.278064135 -0500
+@@ -1423,6 +1423,30 @@
+ 		printk(KERN_INFO "%s: IPv6 duplicate address detected!\n",
+ 			ifp->idev->dev->name);
+ 
++	if (idev->cnf.accept_dad > 2 && !idev->cnf.disable_ipv6 && ifp->scope == IFA_LINK) {
++		struct in6_addr addr;
++		struct inet6_ifaddr * ifr;
++		u32 addr_flags = IFA_F_PERMANENT;
++
++		ipv6_del_addr(ifp);
++
++		addr.s6_addr32[0] = htonl(0xfe800000);
++		addr.s6_addr32[1] = 0;
++
++		get_random_bytes(addr.s6_addr + 8, sizeof(struct in6_addr)-8);
++
++#ifdef CONFIG_IPV6_OPTIMISTIC_DAD
++		if (idev->cnf.optimistic_dad &&
++				!dev_net(idev->dev)->ipv6.devconf_all->forwarding)
++			addr_flags |= IFA_F_OPTIMISTIC;
++#endif
++
++		ifr = ipv6_add_addr(idev, &addr, 64, IFA_LINK, addr_flags);
++		addrconf_dad_start(ifr, 0);
++		in6_ifa_put(ifr);
++		return;
++	}
++
+ 	if (idev->cnf.accept_dad > 1 && !idev->cnf.disable_ipv6) {
+ 		struct in6_addr addr;
+ 

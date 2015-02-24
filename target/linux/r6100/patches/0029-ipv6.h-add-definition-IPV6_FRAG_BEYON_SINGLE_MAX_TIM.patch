@@ -1,0 +1,66 @@
+From d7db210b9e08c14d518514bd756b20585eb11918 Mon Sep 17 00:00:00 2001
+From: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Date: Wed, 11 May 2011 15:20:38 +0800
+Subject: [PATCH 029/137] ipv6.h: add definition IPV6_FRAG_BEYON_SINGLE_MAX_TIMEOUT to ipv6.h
+
+NETGEAR SPCE P280:
+The next 90 seconds should not accept fragment from the same packet.
+
+In NETGEAR's SEPC,if an implementation has already received more than
+32 fragments of an IPv6 packet,the implementation MUST discard these
+32 fragments and also discard any fragment, belonging to the same IPv6
+packet, received in the next 90 seconds.
+
+Add this definition to limiting how long refusing accept the same
+packet fragments.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/ipv6.h |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/ipv6.h b/include/net/ipv6.h
+index c1f16fc..bed42fd 100644
+--- a/include/net/ipv6.h
++++ b/include/net/ipv6.h
+@@ -238,6 +238,7 @@ int ip6_frag_nqueues(struct net *net);
+ int ip6_frag_mem(struct net *net);
+ 
+ #define IPV6_FRAG_TIMEOUT	(60*HZ)		/* 60 seconds */
++#define IPV6_FRAG_BEYOND_SINGLE_MAX_TIMEOUT	(90*HZ)		/* 90 seconds */
+ 
+ extern int __ipv6_addr_type(const struct in6_addr *addr);
+ static inline int ipv6_addr_type(const struct in6_addr *addr)
+-- 
+1.7.4.1
+

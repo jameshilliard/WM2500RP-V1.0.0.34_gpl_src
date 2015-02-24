@@ -1,0 +1,64 @@
+From dbc6b3081449e1a66a8bfe30944e850a0095a1b8 Mon Sep 17 00:00:00 2001
+From: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Date: Mon, 28 Mar 2011 16:19:44 +0800
+Subject: [PATCH 122/137] netfilter: add definition of IP_NAT_RANGE_PORT_RANGE_ONE_BY_ONE
+
+Linux kernel 2.6.31 support new port forwarding function following spec 2.0
+
+Modified for adding the new feature of port forwarding in spec 2.0.
+Support transforming port range to another port range.
+
+Solution: When nat port transforming,make port correspond one by one.
+Adding min match port into target struct, then the increase number
+can be calculated when nat port transforming.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netfilter/nf_nat.h |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/netfilter/nf_nat.h b/include/net/netfilter/nf_nat.h
+index a9f72b1..1b23353 100644
+--- a/include/net/netfilter/nf_nat.h
++++ b/include/net/netfilter/nf_nat.h
+@@ -19,6 +19,7 @@ enum nf_nat_manip_type
+ #define IP_NAT_RANGE_PROTO_SPECIFIED 2
+ #define IP_NAT_RANGE_PROTO_RANDOM 4
+ #define IP_NAT_RANGE_PERSISTENT 8
++#define IP_NAT_RANGE_PORT_RANGE_ONE_BY_ONE 16
+ 
+ /* NAT sequence number modifications */
+ struct nf_nat_seq {
+-- 
+1.7.4.1
+

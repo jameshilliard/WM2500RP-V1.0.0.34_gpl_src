@@ -1,0 +1,78 @@
+From 893729250328fa76e85ee3ef7c420eb8bb1ac5e4 Mon Sep 17 00:00:00 2001
+From: Xinwei.Niu <xinwei.niu@dniserver.dnish.net>
+Date: Tue, 21 Dec 2010 21:53:16 +0800
+Subject: [PATCH 116/137] netfilter: add ip_conntrack_helper_register and export it.
+
+Kmod-starcraft should call the functions: nf_conntrack_helper_register
+and nf_conntrack_helper_unregister, But they are GPL License, so add
+another two functions and export them for Kmod-starcraft using.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Xinwei.Niu <xinwei.niu@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netfilter/nf_conntrack_helper.h |    2 ++
+ net/netfilter/nf_conntrack_helper.c         |    6 ++++++
+ 2 files changed, 8 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/netfilter/nf_conntrack_helper.h b/include/net/netfilter/nf_conntrack_helper.h
+index ee2a4b3..7eef214 100644
+--- a/include/net/netfilter/nf_conntrack_helper.h
++++ b/include/net/netfilter/nf_conntrack_helper.h
+@@ -46,6 +46,8 @@ __nf_conntrack_helper_find_byname(const char *name);
+ extern int nf_conntrack_helper_register(struct nf_conntrack_helper *);
+ extern void nf_conntrack_helper_unregister(struct nf_conntrack_helper *);
+ 
++extern int ip_conntrack_helper_register(struct nf_conntrack_helper *);
++
+ extern struct nf_conn_help *nf_ct_helper_ext_add(struct nf_conn *ct, gfp_t gfp);
+ 
+ extern int __nf_ct_try_assign_helper(struct nf_conn *ct, gfp_t flags);
+diff --git a/net/netfilter/nf_conntrack_helper.c b/net/netfilter/nf_conntrack_helper.c
+index 0fa5a42..3bcf0b5 100644
+--- a/net/netfilter/nf_conntrack_helper.c
++++ b/net/netfilter/nf_conntrack_helper.c
+@@ -207,6 +207,12 @@ void nf_conntrack_helper_unregister(struct nf_conntrack_helper *me)
+ }
+ EXPORT_SYMBOL_GPL(nf_conntrack_helper_unregister);
+ 
++int ip_conntrack_helper_register(struct nf_conntrack_helper *me)
++{
++	return nf_conntrack_helper_register(me);
++}
++EXPORT_SYMBOL(ip_conntrack_helper_register);
++
+ static struct nf_ct_ext_type helper_extend __read_mostly = {
+ 	.len	= sizeof(struct nf_conn_help),
+ 	.align	= __alignof__(struct nf_conn_help),
+-- 
+1.7.4.1
+

@@ -1,0 +1,71 @@
+From d0b7cdddab269a73c4800219e046e9fd02d772b3 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Wed, 8 Dec 2010 11:02:37 +0800
+Subject: [PATCH 112/137] sysctl_netfilter: Add proc entry /proc/sys/dni_netfiler/conntrack_refresh_outbound_only interface
+
+When set /proc/sys/dni_netfiler/conntrack_refresh_outbound_only to 1:
+Enable supporting established TCP NAT Outbound & established UDP NAT
+Outbound refresh feature
+
+Default: /proc/sys/dni_netfiler/conntrack_refresh_outbound_only is 0,
+and nf_conntrack_proto_tcp & nf_conntrack_proto_udp work as original
+Linux Kernel.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/netfilter/dni_netfilter_sysctl.c |    9 +++++++++
+ 1 files changed, 9 insertions(+), 0 deletions(-)
+
+diff --git a/net/netfilter/dni_netfilter_sysctl.c b/net/netfilter/dni_netfilter_sysctl.c
+index c09c666..d12fb972 100644
+--- a/net/netfilter/dni_netfilter_sysctl.c
++++ b/net/netfilter/dni_netfilter_sysctl.c
+@@ -22,6 +22,15 @@ ctl_table dni_table[] = {
+ 		.proc_handler	= proc_dointvec,
+ 		.strategy	= sysctl_intvec,
+ 	},
++	{
++		.ctl_name	= CTL_UNNUMBERED,
++		.procname	= "conntrack_refresh_outbound_only",
++		.data		= &sysctl_conntrack_refresh_outbound_only,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec,
++		.strategy	= sysctl_intvec,
++	},
+ 	{0}
+ };
+ 
+-- 
+1.7.4.1
+

@@ -1,0 +1,44 @@
+config TARGET_MODELNAME
+    string "Define the model name for r6000d"
+    depends TARGET_r6000d
+    default "R6000D"
+
+config TARGET_BOARD_HW_ID
+    string "Define the board hw id for r6000d"
+    depends TARGET_r6000d
+    default "29764037+8+64"
+
+config TARGET_FW_VERSION
+    string "Define the firmware version"
+    depends TARGET_r6000d
+    default "V0.0.0.1"
+
+config TARGET_LG_VERSION
+    string "Define the language table version"
+    depends TARGET_r6000d
+    default "V1.0.0.104"
+
+config TARGET_MAGIC_NUMBER
+    string "Define the magic number for the firmware"
+    depends TARGET_r6000d
+    default "0x36303030"
+
+config TARGET_HEAD_LENGTH
+    string "Define the length of r6000d's firmware header."
+    depends TARGET_r6000d
+    default "128"
+
+config TARGET_KERNEL_SIZE
+    string "Define the kernel size of r6000d's firmware"
+    depends TARGET_r6000d
+    default "1152k"
+
+config TARGET_MAX_KERNEL_SIZE
+    string "Define the max kernel size of r6000d's firmware"
+    depends TARGET_r6000d
+    default "1179648"
+
+config TARGET_MAX_IMAGE_SIZE
+    string "Define the max image size of r6000d's firmware"
+    depends TARGET_r6000d
+    default "25034752"

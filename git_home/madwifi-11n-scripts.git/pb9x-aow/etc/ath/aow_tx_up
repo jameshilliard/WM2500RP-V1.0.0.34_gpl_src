@@ -1,0 +1,24 @@
+#!/bin/sh
+
+AOW_NUM_FRAMES_DEFAULT=1
+AOW_EXPECTED_ALT_SETTING_DEFAULT=7
+
+if [ "$AOW_NUM_FRAMES" = "" ]; then
+    AOW_NUM_FRAMES=$AOW_NUM_FRAMES_DEFAULT
+fi
+
+if [ "$AOW_EXPECTED_ALT_SETTING" = "" ]; then
+    AOW_EXPECTED_ALT_SETTING=$AOW_EXPECTED_ALT_SETTING_DEFAULT
+fi
+
+apup
+
+echo "Setting number of AoW Frames to $AOW_NUM_FRAMES"
+iwpriv ath0 set_aow_num_frm $AOW_NUM_FRAMES
+
+echo "Setting expected USB alt setting to $AOW_EXPECTED_ALT_SETTING"
+iwpriv ath0 set_aow_alt_stg $AOW_EXPECTED_ALT_SETTING
+
+confusbdev
+
+echo "Installed wlan and usb drivers"

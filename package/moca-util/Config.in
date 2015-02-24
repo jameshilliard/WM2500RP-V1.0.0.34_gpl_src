@@ -1,0 +1,20 @@
+config MOCA_UTIL_GIT_TREEISH
+	string
+	prompt "treeish of moca-util git repository"
+	default "moca-v1.01-final-dni06"
+	help
+           Input the treeish of moca-util git repository which you want to build
+
+config MOCA_UTIL_GIT_REPOSITORY
+	string
+	prompt "name of moca-util git repository"
+	default "moca-util.git"
+	help
+	   Input the name of moca-util git repository which you want to build
+
+config MOCA_UTIL_GIT_URL
+	string
+	prompt "url of moca-util git repository"
+	default "ssh://dniserver/scm/dnigit/common/apps/moca-util.git"
+	help
+	   Input the url of moca-util git repository which you want to build

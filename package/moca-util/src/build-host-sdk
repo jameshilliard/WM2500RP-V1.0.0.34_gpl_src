@@ -1,0 +1,41 @@
+#!/bin/bash
+
+##############################################################################
+# Copyright (c) 2001-2012 Entropic Communications, Inc. All rights reserved. #
+##############################################################################
+##############################################################################
+# This file is licensed under the terms of your license agreement(s) with    #
+# Entropic covering this file. Redistribution, except as permitted by the    #
+# terms of your license agreement(s) with Entropic, is strictly prohibited.  #
+##############################################################################
+##############################################################################
+# \note This file is subject to the \ref EntropicLicenseAgreement "Entropic" #
+# licenses.                                                                  #
+##############################################################################
+
+
+echo Building SDK code
+if [  ! -e host/ ] ; then echo "No host directory found!!!"; exit 1; fi
+
+if [ "$1" == "c" ] ; then
+  echo =======================
+  echo Cleaning host codes 
+  echo =======================
+  make -C host clean
+elif [ "$#" == "0" ] || [ "$1" != "XMII" -a "$1" != "PCI" ] ; then
+  echo "Usage: $0 <XMII | PCI> [CROSS_COMPILE]"
+  echo "   or  $0 c  --- to clean former build"
+  echo "You should select XMII or PCI interface type for a new build."
+  exit 1
+else
+  TARGET=$1
+  shift
+  echo =======================
+  echo Building host codes 
+  echo =======================
+  make -C host TGT_INF=$TARGET $1
+  echo Copied the following executables to bin directory:
+  ls do/bin/
+fi
+echo All Done
+

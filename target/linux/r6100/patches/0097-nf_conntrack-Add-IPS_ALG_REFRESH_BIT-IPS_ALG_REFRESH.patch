@@ -1,0 +1,58 @@
+From 7b525bced44091f0a3d6035ab5f5d4dd5e6a97c4 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Wed, 8 Dec 2010 09:29:00 +0800
+Subject: [PATCH 097/137] nf_conntrack: Add IPS_ALG_REFRESH_BIT & IPS_ALG_REFRESH definitions
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/linux/netfilter/nf_conntrack_common.h |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/include/linux/netfilter/nf_conntrack_common.h b/include/linux/netfilter/nf_conntrack_common.h
+index 017d691..c4d9720 100644
+--- a/include/linux/netfilter/nf_conntrack_common.h
++++ b/include/linux/netfilter/nf_conntrack_common.h
+@@ -120,6 +120,10 @@ enum ip_conntrack_status {
+ 	 */
+ 	IPS_IPV6_ROUTING_FILTERING_BIT = 20,
+ 	IPS_IPV6_ROUTING_FILTERING = (1 << IPS_IPV6_ROUTING_FILTERING_BIT),
++
++	/* Refresh the idle time of ALG data session's master conntrack */
++	IPS_ALG_REFRESH_BIT = 21,
++	IPS_ALG_REFRESH = (1 << IPS_ALG_REFRESH_BIT),
+ };
+ 
+ /* Connection tracking event bits */
+-- 
+1.7.4.1
+

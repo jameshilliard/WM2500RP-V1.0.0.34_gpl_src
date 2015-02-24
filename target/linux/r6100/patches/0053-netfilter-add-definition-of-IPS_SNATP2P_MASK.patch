@@ -1,0 +1,30 @@
+From ce946585d85aff8dca96258c1540795f22d19a9f Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:43 +0800
+Subject: [PATCH 053/137] netfilter: add definition of IPS_SNATP2P_MASK
+
+Define IPS_SNATP2P_*_BIT for track SNATP2P conntrack status.
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/linux/netfilter/nf_conntrack_common.h |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/include/linux/netfilter/nf_conntrack_common.h b/include/linux/netfilter/nf_conntrack_common.h
+index a6dcb09..f788f3d 100644
+--- a/include/linux/netfilter/nf_conntrack_common.h
++++ b/include/linux/netfilter/nf_conntrack_common.h
+@@ -98,6 +98,9 @@ enum ip_conntrack_status {
+ 
+ 	IPS_SNATP2P_DST_BIT = 16,
+ 	IPS_SNATP2P_DST = (1 << IPS_SNATP2P_DST_BIT),
++
++	/* Both together. */
++	IPS_SNATP2P_MASK = (IPS_SNATP2P_DST | IPS_SNATP2P_SRC),
+ };
+ 
+ /* Connection tracking event bits */
+-- 
+1.7.4.1
+

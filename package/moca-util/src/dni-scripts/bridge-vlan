@@ -1,0 +1,12 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006 OpenWrt.org
+
+. $IPKG_INSTROOT/etc/moca.conf
+
+START=16
+
+start() {
+	brctl addbr $BR_VLAN
+	brctl setfd $BR_VLAN 0
+	brctl stp $BR_VLAN 0
+}

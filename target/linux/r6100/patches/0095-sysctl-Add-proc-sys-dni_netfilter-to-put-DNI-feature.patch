@@ -1,0 +1,126 @@
+From 550b3112e209390be8982fd01dd7f231e48e5220 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Tue, 7 Dec 2010 18:07:26 +0800
+Subject: [PATCH 095/137] sysctl: Add /proc/sys/dni_netfilter/ to put DNI feature proc entry
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/netfilter/Makefile                  |    2 +-
+ net/netfilter/dni_netfilter_sysctl.c    |   24 ++++++++++++++++++++++++
+ net/netfilter/nf_conntrack_standalone.c |   11 +++++++++++
+ 3 files changed, 36 insertions(+), 1 deletions(-)
+ create mode 100644 net/netfilter/dni_netfilter_sysctl.c
+
+diff --git a/net/netfilter/Makefile b/net/netfilter/Makefile
+index 3a81b40..251dd2b 100644
+--- a/net/netfilter/Makefile
++++ b/net/netfilter/Makefile
+@@ -1,6 +1,6 @@
+ netfilter-objs := core.o nf_log.o nf_queue.o nf_sockopt.o
+ 
+-nf_conntrack-y	:= nf_conntrack_core.o nf_conntrack_standalone.o nf_conntrack_expect.o nf_conntrack_helper.o nf_conntrack_proto.o nf_conntrack_l3proto_generic.o nf_conntrack_proto_generic.o nf_conntrack_proto_tcp.o nf_conntrack_proto_udp.o nf_conntrack_extend.o nf_conntrack_acct.o
++nf_conntrack-y	:= nf_conntrack_core.o nf_conntrack_standalone.o nf_conntrack_expect.o nf_conntrack_helper.o nf_conntrack_proto.o nf_conntrack_l3proto_generic.o nf_conntrack_proto_generic.o nf_conntrack_proto_tcp.o nf_conntrack_proto_udp.o nf_conntrack_extend.o nf_conntrack_acct.o dni_netfilter_sysctl.o
+ nf_conntrack-$(CONFIG_NF_CONNTRACK_EVENTS) += nf_conntrack_ecache.o
+ 
+ obj-$(CONFIG_NETFILTER) = netfilter.o
+diff --git a/net/netfilter/dni_netfilter_sysctl.c b/net/netfilter/dni_netfilter_sysctl.c
+new file mode 100644
+index 0000000..ef49da4
+--- /dev/null
++++ b/net/netfilter/dni_netfilter_sysctl.c
+@@ -0,0 +1,24 @@
++/*
++ * dni_netfilter_sysctl.c: DNI netfilter sysctl interface to net subsystem.
++ *
++ * Copyright (C) 2010 Delta Networks Inc.
++ *
++ */
++#ifdef CONFIG_SYSCTL
++#include <linux/sysctl.h>
++
++ctl_table dni_table[] = {
++	{0}
++};
++
++ctl_table dni_netfilter_sysctl_table[2] = {
++	{
++		.ctl_name	= CTL_UNNUMBERED,
++		.procname	= "dni_netfilter",
++		.mode		= 0555,
++		.child		= dni_table
++	},
++	{0}
++};
++EXPORT_SYMBOL(dni_netfilter_sysctl_table);
++#endif
+diff --git a/net/netfilter/nf_conntrack_standalone.c b/net/netfilter/nf_conntrack_standalone.c
+index 5f96573..a292055 100644
+--- a/net/netfilter/nf_conntrack_standalone.c
++++ b/net/netfilter/nf_conntrack_standalone.c
+@@ -356,6 +356,8 @@ static int log_invalid_proto_min = 0;
+ static int log_invalid_proto_max = 255;
+ 
+ static struct ctl_table_header *nf_ct_netfilter_header;
++static struct ctl_table_header *dni_netfilter_sysctl_header;
++extern ctl_table dni_netfilter_sysctl_table[];
+ 
+ #if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
+ extern unsigned int conntrack_min;
+@@ -506,8 +508,15 @@ static int nf_conntrack_standalone_init_sysctl(struct net *net)
+ 	if (!net->ct.sysctl_header)
+ 		goto out_unregister_netfilter;
+ 
++	dni_netfilter_sysctl_header = register_sysctl_table(dni_netfilter_sysctl_table);
++	if (!dni_netfilter_sysctl_header)
++		goto out_unregister_dni_netfilter;
++
+ 	return 0;
+ 
++out_unregister_dni_netfilter:
++	unregister_sysctl_table(dni_netfilter_sysctl_header);
++
+ out_unregister_netfilter:
+ 	kfree(table);
+ out_kmemdup:
+@@ -522,6 +531,8 @@ static void nf_conntrack_standalone_fini_sysctl(struct net *net)
+ {
+ 	struct ctl_table *table;
+ 
++	unregister_sysctl_table(dni_netfilter_sysctl_header);
++
+ 	if (net_eq(net, &init_net))
+ 		unregister_sysctl_table(nf_ct_netfilter_header);
+ 	table = net->ct.sysctl_header->ctl_table_arg;
+-- 
+1.7.4.1
+

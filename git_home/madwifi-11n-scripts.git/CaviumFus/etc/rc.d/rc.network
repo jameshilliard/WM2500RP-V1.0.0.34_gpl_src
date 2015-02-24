@@ -1,0 +1,43 @@
+#!/bin/sh
+#########################################################################
+##  Network Configuration
+##
+##  This script sets up the WAN/LAN ports to the appropriate configuration
+##
+#########################################################################
+
+. /etc/ath/apcfg
+
+##
+## Check the WAN mode.  If not bridged, check for DHCP client, else
+## simply set the address
+##
+
+if [ "${WAN_MODE}" != "bridged" ]; then
+    ##
+    ## Static IP address
+    ##
+
+    ifconfig eth0 $WAN_IPADDR netmask $WAN_NETMASK up
+fi
+
+##
+## Bring up the 4 port interface
+##
+
+ifconfig eth1 up
+
+##
+## Bring up the bridge (always assume eth0 and eth1 are bridged
+##
+
+brctl addbr br0
+if [ "${WAN_MODE}" = "bridged" ]; then
+    ifconfig eth0 up
+    brctl addif br0 eth0
+fi
+brctl addif br0 eth0
+brctl setfd br0 0
+
+ifconfig br0 $AP_IPADDR netmask $AP_NETMASK up
+

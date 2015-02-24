@@ -1,0 +1,37 @@
+From a0e677098bd6c3e3238f22760884f688e9214134 Mon Sep 17 00:00:00 2001
+From: stone.liu <stone.liu@dniserver.dnish.net>
+Date: Wed, 26 Oct 2011 14:32:09 -0400
+Subject: [PATCH 079/137] Modify the Kconfig and Makefile for SNATP2P and HAIRPIN
+
+Modify the Kconfig and Makefile for adding SNATP2P and HAIRPIN.
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+
+Conflicts:
+
+	net/ipv4/netfilter/Kconfig
+	net/ipv4/netfilter/Makefile
+
+Signed-off-by: stone.liu <stone.liu@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/Kconfig |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/Kconfig b/net/ipv4/netfilter/Kconfig
+index 3c18065..61b61a9 100644
+--- a/net/ipv4/netfilter/Kconfig
++++ b/net/ipv4/netfilter/Kconfig
+@@ -151,6 +151,9 @@ config IP_NF_TARGET_ULOG
+ 
+ 	  To compile it as a module, choose M here.  If unsure, say N.
+ 
++config IP_NF_TARGET_TRIGGER
++	tristate "port triggering match support"
++
+ # NAT + specific targets: nf_conntrack
+ config NF_NAT
+ 	tristate "Full NAT"
+-- 
+1.7.4.1
+

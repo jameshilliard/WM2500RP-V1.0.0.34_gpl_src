@@ -1,0 +1,52 @@
+html, body{ margin: 0; border:none; background-color:transparent; }
+body{ background-image: url(../image/top-oneline.gif); background-repeat: repeat-x; overflow:hidden; }
+
+#logo{ width: 300px; height: 38px; background: url(../image/tops.gif) no-repeat -110px -54px; position: absolute; left : 0px; top: 5px;}
+#router-name{position:absolute; left: 0px; top: 40px; font-family: Arial; font-size: 18px; font-weight: Bold; color: #c0c0c0; text-align: left; }
+#labels{ position:absolute; left: 0px; top: 67px; width:450px; height:30px; }
+#labels #space_label{ width:3px; height:inherit; float:left; }
+.label_click{width: auto; height: 30px; float:left; text-align: center; font-family: Arial; font-size: 17px; font-weight: Bold; margin-right: 3px; }
+.label_unclick{ width: auto; height: 30px; float:left; text-align: center; font-family: Arial; font-size: 17px; font-weight: Bold; cursor:pointer; margin-right: 3px; }
+.label_click b, .label_unclick b { line-height: 30px }
+.label_click #label_left { width: 15px; height: 30px; background: url(../image/tops.gif) no-repeat 0 -23px; float: left; position: relative }
+.label_click #label_middle { width: auto; height: 30px; background: url(../image/tops.gif) no-repeat -5px -23px; float: left; position: relative }
+.label_click #label_right { width: 15px; height: 30px; background: url(../image/tops.gif) no-repeat -210px -23px;  float: left; position: relative }
+.label_unclick #label_left { width: 15px; height: 30px; background: url(../image/tops.gif) no-repeat -225px -23px; float: left; position: relative }
+.label_unclick #label_middle { width: auto; height: 30px; background: url(../image/tops.gif) no-repeat -230px -23px; float: left; position: relative }
+.label_unclick #label_right { width: 15px; height: 30px; background: url(../image/tops.gif) no-repeat -435px -23px;  float: left; position: relative }
+
+/*
+.label_click{width: 120px; height: 30px; float:left; text-align: center;  background-image:url(../image/top/label_click.gif); background-repeat: no-repeat; font-family: Arial; font-size: 17px; font-weight: Bold; }
+.label_unclick{ width: 120px; height: 30px; float:left; text-align: center;  background-image:url(../image/top/label_unclick.gif); background-repeat: no-repeat; font-family: Arial; font-size: 17px; font-weight: Bold; cursor:pointer; }
+.label_click b, .label_unclick b { position: relative; top:5px; }
+
+.label_click_middle{width: 160px; height: 30px; float:left; text-align: center;  background-image:url(../image/top/label_click_middle.gif); background-repeat: no-repeat; font-family: Arial; font-size: 17px; font-weight: Bold; }
+.label_unclick_middle{ width: 160px; height: 30px; float:left; text-align: center;  background-image:url(../image/top/label_unclick_middle.gif); background-repeat: no-repeat; font-family: Arial; font-size: 17px; font-weight: Bold; cursor:pointer; }
+.label_click_middle b, .label_unclick_middle b { position: relative; top:5px; }
+
+.label_click_long{width: 200px; height: 30px; float:left; text-align: center;  background-image:url(../image/top/label_click_long.gif); background-repeat: no-repeat; font-family: Arial; font-size: 17px; font-weight: Bold;}
+.label_unclick_long{ width: 200px; height: 30px; float:left; text-align: center;  background-image:url(../image/top/label_unclick_long.gif); background-repeat: no-repeat; font-family: Arial; font-size: 17px; font-weight: Bold; cursor:pointer; }
+.label_click_long b, .label_unclick_long b { position: relative; top:5px; }
+
+.label_click_longest{width: 220px; height: 30px; float:left; text-align: center;  background-image:url(../image/top/label_click_longest.gif); background-repeat: no-repeat; font-family: Arial; font-size: 17px; font-weight: Bold;}
+.label_unclick_longest{ width: 220px; height: 30px; float:left; text-align: center;  background-image:url(../image/top/label_unclick_longest.gif); background-repeat: no-repeat; font-family: Arial; font-size: 17px; font-weight: Bold; cursor:pointer;  }
+.label_click_longest b, .label_unclick_longest b { position: relative; top:5px; }
+*/
+.logout_bt{right:0px; top:3px; width: 110px; height: 22px; position:absolute; background: url(../image/tops.gif) no-repeat 0 -54px;  font-family: Arial; font-size: 14px; text-align: center; color: #ffffff; cursor: pointer; line-height: 22px; }
+.logout_bt b {position: relative; top:2px;}
+
+#firm_version{ position:absolute; right: 0px; top: 25px; font-family: Arial; font-size: 14px; font-weight: Bold; color: #c0c0c0; text-align: right; }
+#update_info{ width: 374px; height: 23px; position:absolute; background-image: url(../image/top/top_warning.gif); background-repeat: no-repeat;  font-family: Arial; font-style: italic; font-size: 12px; color: #ffffff; cursor: pointer; display: none; }
+.update_info_down { left: 250px; top: 70px;  }
+.update_info_up { left: 250px; top: 42px; }
+.i_normal { position:absolute; left: 23px; font-size: 12px; line-height: 23px; width: 350px; height: 23px;}
+.i_middle { position:absolute; left: 23px; font-size: 10px; line-height: 23px; width: 350px; height: 23px;}
+.i_long {position:absolute; left: 23px; top:1px; font-size: 10px; line-height: 10px; width: 350px; height: 23px;}
+#select_language{width: 181px; height: 22px; position:absolute; right: 0px; top: 70px; text-align: right; }
+#select_language #language{height: 22px;}
+#update_info_left { height: 23px; width: 24px; background: url(../image/tops.gif) no-repeat 0 0; position: relative; float: left; }
+#update_info_middle{ height: 23px; width: auto; background: url(../image/tops.gif) no-repeat -23px 0; position: relative; float: left; }
+.update_info_down { top: 70px;  }
+.update_info_up { top: 42px; }
+#update_info_right{ height: 23px; width: 10px; background: url(../image/tops.gif) no-repeat -440px 0; position: relative; float: left; }
+#select_language{ width: 181px; height: 22px; position:absolute; right: 0px; top: 70px; text-align: right; }

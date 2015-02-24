@@ -1,0 +1,871 @@
+diff -Nur linux-2.6.22.old//include/linux/netfilter_bridge/ebt_ip.h linux-2.6.22/include/linux/netfilter_bridge/ebt_ip.h
+--- linux-2.6.22.old//include/linux/netfilter_bridge/ebt_ip.h	2012-07-13 10:20:44.189556722 -0400
++++ linux-2.6.22/include/linux/netfilter_bridge/ebt_ip.h	2012-07-13 10:20:54.239556126 -0400
+@@ -21,10 +21,14 @@
+ #define EBT_IP_PROTO 0x08
+ #define EBT_IP_SPORT 0x10
+ #define EBT_IP_DPORT 0x20
++#define EBT_IP_MSIP  0x40
++#define EBT_IP_DRANGE 0x80
+ #define EBT_IP_MASK (EBT_IP_SOURCE | EBT_IP_DEST | EBT_IP_TOS | EBT_IP_PROTO |\
+- EBT_IP_SPORT | EBT_IP_DPORT )
++ EBT_IP_SPORT | EBT_IP_DPORT | EBT_IP_MSIP | EBT_IP_DRANGE )
+ #define EBT_IP_MATCH "ip"
+ 
++#define SOURCE_SIZE 	8
++
+ /* the same values are used for the invflags */
+ struct ebt_ip_info
+ {
+@@ -38,6 +42,8 @@
+ 	uint8_t  invflags;
+ 	uint16_t sport[2];
+ 	uint16_t dport[2];
++	uint32_t msip[SOURCE_SIZE];
++	uint32_t dip_range[2];
+ };
+ 
+ #endif
+diff -Nur linux-2.6.22.old//net/bridge/br.c linux-2.6.22/net/bridge/br.c
+--- linux-2.6.22.old//net/bridge/br.c	2012-07-13 10:20:44.169556722 -0400
++++ linux-2.6.22/net/bridge/br.c	2012-07-13 10:20:54.239556126 -0400
+@@ -23,8 +23,130 @@
+ 
+ #include "br_private.h"
+ 
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++#include <linux/proc_fs.h>
++struct __mac_cache mac_cache[MCAST_ENTRY_SIZE];
++int igmp_snoop_enable;
++struct __mgroup_list *mhead = NULL;
++static struct proc_dir_entry *mcast_proc_entry;
++static struct proc_dir_entry *igmp_snoop_proc_entry;
++static struct proc_dir_entry *mcast_set_proc_entry;
++#endif
++
+ int (*br_should_route_hook) (struct sk_buff **pskb) = NULL;
+ 
++
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++unsigned long a2n(char *addr)
++{
++       int i1 = 0, i2 = 0, i3 = 0, i4 = 0;
++       sscanf(addr,"%d.%d.%d.%d", &i1, &i2, &i3, &i4);
++       return (unsigned long)( (i1<<24) | (i2<<16) | (i3<<8) | (i4));
++}
++
++int mcast_read( char *page, char **start, off_t off,
++		int count, int *eof, void *data )
++{
++	struct __mgroup_list *ptr = mhead;
++	struct __mgroup_mbr_list *mptr;
++	int i;
++	while (ptr)
++	{
++		printk("group %8x has wireless member :\n", ptr->gip);
++		mptr = ptr->member;
++		while (mptr)
++		{
++			printk("client : %8x\n", mptr->sip);
++			mptr = mptr->next;
++		}
++		ptr = ptr->next;
++	}
++	for (i = 0; i < MCAST_ENTRY_SIZE; i++)
++	{
++		if (mac_cache[i].valid)
++			printk("mac cache entry %d for %x (%2x:%2x:%2x:%2x:%2x:%2x)\n",
++					i, mac_cache[i].sip, mac_cache[i].mac[0], mac_cache[i].mac[1], mac_cache[i].mac[2],
++					mac_cache[i].mac[3], mac_cache[i].mac[4], mac_cache[i].mac[5]);
++	}
++	return 0;
++}
++
++ssize_t mcast_write( struct file *filp, const char __user *buff,
++		unsigned long len, void *data )
++{
++	char line[36];
++	char *ptr, *tmp = line;
++	unsigned long ip, gip;
++	if (copy_from_user( line, buff, len ))
++		return -EFAULT;
++	line[len] = 0;
++	ptr = strsep(&tmp, " ");
++	switch(line[0])
++	{
++		case 'a':
++		case 'd':
++			ptr = strsep(&tmp, " ");
++			ip = a2n(ptr);
++			gip = a2n(tmp);
++			proc_mcast_entry(line[0], ip, gip);
++			break;
++		default:
++			break;
++	}
++	return len;
++}
++
++int igmp_snoop_read( char *page, char **start, off_t off,
++		int count, int *eof, void *data )
++{
++	printk("IGMP Snoop %s.\n", (igmp_snoop_enable)?"Enable":"Disable");
++	return 0;
++}
++
++ssize_t igmp_snoop_write( struct file *filp, const char __user *buff,
++		unsigned long len, void *data )
++{
++	char line[4];
++	if (copy_from_user( line, buff, len ))
++		return -EFAULT;
++	igmp_snoop_enable = line[0] - '0';
++	return len;
++}
++
++void create_porc_entry(void)
++{
++	mcast_proc_entry = create_proc_entry(BR_PROC_MCAST_NAME, 0666, NULL);
++
++	if(mcast_proc_entry) {
++		mcast_proc_entry->read_proc = mcast_read;
++		mcast_proc_entry->write_proc = mcast_write;
++	}
++
++	igmp_snoop_proc_entry = create_proc_entry(BR_IGMP_SNOOP_NAME, 0666, NULL);
++
++	if(igmp_snoop_proc_entry) {
++		igmp_snoop_proc_entry->read_proc = igmp_snoop_read;
++		igmp_snoop_proc_entry->write_proc = igmp_snoop_write;
++	}
++
++	memset(mac_cache, 0, MCAST_ENTRY_SIZE* sizeof(struct __mac_cache));
++	igmp_snoop_enable = 0;
++
++	mcast_set_proc_entry = create_proc_entry(BR_MCAST_SET_NAME, 0666, NULL);
++
++	if (mcast_set_proc_entry) {
++		mcast_set_proc_entry->read_proc = mcast_set_read;
++		mcast_set_proc_entry->write_proc = mcast_set_write;
++	}
++}
++
++void delete_porc_entry(void)
++{
++	remove_proc_entry(BR_PROC_MCAST_NAME, &proc_root);
++}
++#endif
++
++
+ static struct llc_sap *br_stp_sap;
+ 
+ static int __init br_init(void)
+@@ -59,6 +181,9 @@
+ 	br_fdb_get_hook = br_fdb_get;
+ 	br_fdb_put_hook = br_fdb_put;
+ 
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++	create_porc_entry();
++#endif
+ 	return 0;
+ err_out3:
+ 	unregister_netdevice_notifier(&br_device_notifier);
+@@ -88,6 +213,10 @@
+ 
+ 	br_handle_frame_hook = NULL;
+ 	br_fdb_fini();
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++	delete_porc_entry();
++#endif
++
+ }
+ 
+ EXPORT_SYMBOL(br_should_route_hook);
+diff -Nur linux-2.6.22.old//net/bridge/br_forward.c linux-2.6.22/net/bridge/br_forward.c
+--- linux-2.6.22.old//net/bridge/br_forward.c	2012-07-13 10:20:44.169556722 -0400
++++ linux-2.6.22/net/bridge/br_forward.c	2012-07-13 10:20:54.239556126 -0400
+@@ -20,11 +20,346 @@
+ #include <linux/netfilter_bridge.h>
+ #include "br_private.h"
+ 
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++#include <linux/ip.h>
++static inline struct __mac_cache *
++find_mac_cache(unsigned long sip, unsigned long gip)
++{
++	int i;
++	for (i = 0; i < MCAST_ENTRY_SIZE; i++)
++	{
++		if (mac_cache[i].valid)
++		{
++			if (mac_cache[i].sip == sip)
++				return &mac_cache[i];
++		}
++	}
++	return NULL;
++}
++
++static inline struct __mgroup_mbr_list *
++mbr_find(struct __mgroup_list *mg, unsigned long sip)
++{
++	struct __mgroup_mbr_list *ptr = mg->member;
++
++	while (ptr)
++	{
++		if (ptr->sip == sip)
++			break;
++		ptr = ptr->next;
++	}
++
++	return ptr;
++}
++
++static inline struct __mgroup_mbr_list *
++mbr_add(struct __mac_cache *cache)
++{
++	struct __mgroup_mbr_list *ptr = NULL;
++
++	ptr = kmalloc( sizeof(struct __mgroup_mbr_list), GFP_ATOMIC);
++	if (likely(ptr))
++	{
++		memcpy(ptr->mac, cache->mac, 6);
++		ptr->sip = cache->sip;
++		ptr->dev = cache->dev;
++		ptr->next = NULL;
++	}
++	return ptr;
++}
++
++static inline void
++mbr_del(struct __mgroup_list *mg, unsigned long sip)
++{
++	struct __mgroup_mbr_list *ptr = mg->member, *preptr = NULL;
++
++	while (ptr)
++	{
++		if (ptr->sip == sip)
++			break;
++		preptr = ptr;
++		ptr = ptr->next;
++	}
++	if (preptr)
++		preptr->next = ptr->next;
++	else if (ptr->next)
++		mg->member = ptr->next;
++	else
++		mg->member = NULL;
++
++	kfree(ptr);
++	return;
++}
++
++static inline struct __mgroup_list *
++mgroup_find(unsigned long gip)
++{
++	struct __mgroup_list *ptr = mhead;
++	while (ptr)
++	{
++		if (ptr->gip == gip)
++			break;
++		ptr = ptr->next;
++	}
++
++	return ptr;
++}
++
++static inline struct __mgroup_list *
++mgroup_add(unsigned long sip, unsigned long gip)
++{
++	struct __mgroup_list *ptr = mhead, *tmp;
++	struct __mac_cache *cache = NULL;
++	struct __mgroup_mbr_list *msource = NULL;
++
++	while (ptr)
++		ptr = ptr->next;
++	cache = find_mac_cache(sip, gip);
++	if (cache)
++		ptr = kmalloc( sizeof(struct __mgroup_list), GFP_ATOMIC);
++
++	if (likely(ptr))
++	{
++		ptr->gip = gip;
++		msource = mbr_add(cache);
++		if (unlikely(!msource))
++		{
++			kfree(ptr);
++			return NULL;
++		}
++		ptr->member = msource;
++		ptr->next = NULL;
++
++		if (mhead)
++			INSERT_TO_TAIL(mhead, ptr, tmp);
++		else
++			mhead = ptr;
++		cache->valid = 0;
++	}
++	else
++		ptr = NULL;
++	return ptr;
++}
++
++static inline void
++mgroup_del(unsigned long gip)
++{
++	struct __mgroup_list *ptr = mhead, *preptr = NULL;
++
++	while (ptr)
++	{
++		if (ptr->gip == gip)
++			break;
++		preptr = ptr;
++		ptr = ptr->next;
++	}
++	if (preptr)
++		preptr->next = ptr->next;
++	else if (ptr->next)
++		mhead = ptr->next;
++	else
++		mhead = NULL;
++
++	kfree(ptr);
++	return ;
++}
++
++void
++proc_mcast_entry(char cmd, unsigned long sip , unsigned long gip)
++{
++	struct __mgroup_list *ptr = NULL;
++	struct __mgroup_mbr_list *mptr = NULL, *tmp;
++	struct __mac_cache * cache = NULL;
++	if (cmd == 'a')
++	{
++		ptr = mgroup_find(gip);
++		if (ptr)
++		{
++			mptr = mbr_find(ptr, sip);
++			if (!mptr)
++			{
++				cache = find_mac_cache(sip, gip);
++				if (cache)
++				{
++					mptr = mbr_add(cache);
++					if (mptr)
++						INSERT_TO_TAIL(ptr->member, mptr, tmp);
++				}
++			}
++		}
++		else
++			ptr = mgroup_add(sip, gip);
++	}
++	else
++	{
++		ptr = mgroup_find(gip);
++		if (ptr)
++		{
++			mptr = mbr_find(ptr, sip);
++			if (mptr)
++			{
++				mbr_del(ptr, sip);
++				if (!ptr->member)
++					mgroup_del(gip);
++			}
++		}
++	}
++	return;
++}
++#define LOCAL_CONTROL_START 0xE0000000
++#define LOCAL_CONTROL_END   0XE00000FF
++#define SSDP    0XEFFFFFFA
++
++static inline int
++not_ctrl_group(unsigned long ip)
++{
++	if ( (ip >= LOCAL_CONTROL_START) &&( ip <= LOCAL_CONTROL_END))
++		return 0;
++	else if (ip == SSDP)
++		return 0;
++	return 1;
++}
++
++static inline struct sk_buff *
++modifyMcast2Ucast(struct sk_buff *skb,unsigned char *mac)
++{
++	struct sk_buff *mSkb;
++	struct ethhdr *ethernet;
++
++	mSkb=skb_copy(skb,GFP_ATOMIC);
++	/* Modify mac of the packet */
++	ethernet = eth_hdr(mSkb);
++	memcpy(ethernet->h_dest, mac, 6);
++	return mSkb;
++}
++
++int mcast_set_read( char *page, char **start, off_t off,
++		int count, int *eof, void *data )
++{
++	struct __mgroup_list *ptr = mhead;
++	struct __mgroup_mbr_list *mptr;
++	int i;
++	while (ptr)
++	{
++		mptr = ptr->member;
++		while (mptr)
++		{
++			printk("client : [%8x] join group [%8x]\n", mptr->sip, ptr->gip);
++			printk("mode : %s\n", (mptr->set.mode)?"Include":"Exclude");
++			for (i = 0; i < mptr->set.num; i++)
++				printk("source%d : %8x\n", i, mptr->set.sip[i]);
++			mptr = mptr->next;
++		}
++		ptr = ptr->next;
++	}
++
++	return 0;
++}
++
++ssize_t mcast_set_write( struct file *filp, const char __user *buff,
++		unsigned long len, void *data )
++{
++	char line[256], *p, *e, i;
++	struct __mgroup_list *ptr = NULL;
++	struct __mgroup_mbr_list *mptr = NULL;
++	unsigned long sip, gip;
++	struct source_set set;
++	if (copy_from_user( line, buff, len ))
++		return -EFAULT;
++	line[len] = 0;
++	// ip gip mode num source1 source2
++	p = line;
++	e = strsep(&p, " ");
++	if (!e)
++		return len;
++	sip = a2n(e);
++
++	e = strsep(&p, " ");
++	if (!e)
++		return len;
++	gip = a2n(e);
++
++	memset(&set, 0, sizeof(set));
++	e = strsep(&p, " ");
++	if (!e)
++		return len;
++	set.mode = *e - '0';
++
++	e = strsep(&p, " ");
++	if (!e)
++		return len;
++	set.num = *e - '0';
++
++	for (i = 0; i < set.num; i++)
++	{
++		e = strsep(&p, " ");
++		if (!e)
++			return len;
++		set.sip[i] = a2n(e);
++	}
++
++	ptr = mgroup_find(gip);
++	if (ptr)
++	{
++		mptr = mbr_find(ptr, sip);
++		if (mptr)
++			memcpy(&mptr->set, &set, sizeof(set));
++
++	}
++	return len;
++}
++
++static inline int
++include_check(unsigned long sip, struct source_set *set)
++{
++	int i;
++	for (i = 0; i < set->num; i++)
++		if (sip == set->sip[i])
++			return 1;
++	return 0;
++}
++
++static inline int
++exclude_check(unsigned long sip, struct source_set *set)
++{
++	int i;
++	for (i = 0; i < set->num; i++)
++		if (sip == set->sip[i])
++			return 0;
++	return 1;
++}
++
++static inline int
++pass_check(unsigned long sip, struct __mgroup_mbr_list *mbr)
++{
++       if (mbr->set.mode)
++               return include_check(sip, &mbr->set);
++       else
++               return exclude_check(sip, &mbr->set);
++}
++#endif
++
+ /* Don't forward packets to originating port or forwarding diasabled */
+ static inline int should_deliver(const struct net_bridge_port *p,
+ 				 const struct sk_buff *skb)
+ {
+-	return (skb->dev != p->dev && p->state == BR_STATE_FORWARDING);
++	if(skb->dev == p->dev || p->state != BR_STATE_FORWARDING)
++		return 0;
++
++#ifdef CONFIG_DNI_MULTI_LAN_SUPPORT
++
++	/*if(printk_ratelimit())
++		printk("skb.dev.name: %s  p.dev.name:%s\n",skb->dev->name,p->dev->name);
++
++	//if the packet is from lan 
++	if(strncmp(skb->dev->name,"vlan1",4) == 0)
++		return 1;
++	*/
++
++
++
++#endif
++	return 1;
+ }
+ 
+ static inline unsigned packet_length(const struct sk_buff *skb)
+@@ -122,6 +457,56 @@
+ 
+ 	list_for_each_entry_rcu(p, &br->port_list, list) {
+ 		if (should_deliver(p, skb)) {
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++			if (prev)
++			{
++				struct sk_buff *skb2;
++				/* Cast M to U if flood to wireless */
++				if (igmp_snoop_enable && strncmp(prev->dev->name,"eth1",4) == 0)
++				{
++					unsigned char *dest = ((struct ethhdr *)skb_mac_header(skb))->h_dest;
++					struct iphdr *iph = ip_hdr(skb);
++					if ( MULTICAST_MAC(dest) && not_ctrl_group(ntohl(iph->daddr)))
++					{
++						struct __mgroup_list *mg = NULL;
++						struct __mgroup_mbr_list *mbr;
++						mg = mgroup_find(ntohl(iph->daddr));
++						if (mg)
++						{
++							mbr = mg->member;
++							while (mbr)
++							{
++								if ((mbr->dev == prev->dev) &&
++										pass_check(iph->saddr, mbr))
++								{
++									if((skb2=modifyMcast2Ucast(skb, mbr->mac)) == NULL)
++									{
++										br->statistics.tx_dropped++;
++										kfree_skb(skb);
++										return;
++									}
++									__packet_hook(prev, skb2);
++								}
++								mbr = mbr->next;
++							}
++						}
++
++						prev = p;
++						continue;
++					}
++				}
++
++				if ((skb2 = skb_clone(skb, GFP_ATOMIC)) == NULL) {
++					br->statistics.tx_dropped++;
++					kfree_skb(skb);
++					return;
++				}
++
++				__packet_hook(prev, skb2);
++
++			}
++			prev = p;
++#else
+ 			if (prev != NULL) {
+ 				struct sk_buff *skb2;
+ 
+@@ -135,10 +520,47 @@
+ 			}
+ 
+ 			prev = p;
++#endif
+ 		}
+ 	}
+ 
+ 	if (prev != NULL) {
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++		struct sk_buff *skb2;
++
++		if (strncmp(prev->dev->name,"eth1",4) == 0)
++		{
++			unsigned char *dest = ((struct ethhdr *)skb_mac_header(skb))->h_dest;
++			struct iphdr *iph = ip_hdr(skb);
++			if ( MULTICAST_MAC(dest) && not_ctrl_group(ntohl(iph->daddr)))
++			{
++				struct __mgroup_list *mg = NULL;
++				struct __mgroup_mbr_list *mbr;
++				mg = mgroup_find(ntohl(iph->daddr));
++				if (mg)
++				{
++					mbr = mg->member;
++					while (mbr)
++					{
++						if ((mbr->dev == prev->dev)&&
++								pass_check(iph->saddr, mbr))
++						{
++							if((skb2=modifyMcast2Ucast(skb, mbr->mac)) == NULL)
++							{
++								br->statistics.tx_dropped++;
++								kfree_skb(skb);
++								return;
++							}
++							__packet_hook(prev, skb2);
++						}
++						mbr = mbr->next;
++					}
++					kfree_skb(skb);
++					return;
++				}
++			}
++		}
++#endif
+ 		__packet_hook(prev, skb);
+ 		return;
+ 	}
+diff -Nur linux-2.6.22.old//net/bridge/br_input.c linux-2.6.22/net/bridge/br_input.c
+--- linux-2.6.22.old//net/bridge/br_input.c	2012-07-13 10:20:44.169556722 -0400
++++ linux-2.6.22/net/bridge/br_input.c	2012-07-13 10:20:54.239556126 -0400
+@@ -18,6 +18,54 @@
+ #include <linux/etherdevice.h>
+ #include <linux/netfilter_bridge.h>
+ #include "br_private.h"
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++#include <linux/ip.h>
++#include <linux/igmp.h>
++
++static inline void
++add_mac_cache(struct sk_buff *skb)
++{
++	unsigned char i, num = 0xff;
++	unsigned char *src, check = 1;
++	struct iphdr *iph;
++
++	iph = ip_hdr(skb);
++	src = ((struct ethhdr *)skb_mac_header(skb))->h_source;
++
++	for (i = 0; i < MCAST_ENTRY_SIZE; i++)
++	{
++		if (mac_cache[i].valid)
++			if ((++mac_cache[i].count) == MAX_CLEAN_COUNT)
++				mac_cache[i].valid = 0;
++	}
++
++	for (i = 0; i < MCAST_ENTRY_SIZE; i++)
++	{
++		if (mac_cache[i].valid)
++		{
++			if (mac_cache[i].sip==ntohl(iph->saddr))
++			{
++				num = i;
++				break;
++			}
++		}
++		else if (check)
++		{
++			num=i;
++			check = 0;
++		}
++	}
++
++	if (num < MCAST_ENTRY_SIZE)
++	{
++		mac_cache[num].valid = mac_cache[num].count = 1;
++		memcpy(mac_cache[num].mac, src, 6);/* net byte sort */
++		mac_cache[num].sip = ntohl(iph->saddr); /* host byte sort */
++		mac_cache[num].dev = skb->dev;
++	}
++}
++
++#endif
+ 
+ /* Bridge group multicast address 802.1d (pg 51). */
+ const u8 br_group_address[ETH_ALEN] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x00 };
+@@ -26,6 +74,25 @@
+ {
+ 	struct net_device *indev;
+ 
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++	unsigned char *dest;
++	struct iphdr *iph;
++	unsigned char proto=0;
++	// if skb come from wireless interface, ex. ath0, ath1, ath2...
++	if (strncmp(skb->dev->name,"eth1",4)==0)
++	{
++		iph = ip_hdr(skb);
++		proto =  iph->protocol;
++		dest = ((struct ethhdr *)skb_mac_header(skb))->h_dest;
++		if ( igmp_snoop_enable && MULTICAST_MAC(dest)
++				&& (ntohs(((struct ethhdr *)skb_mac_header(skb))->h_proto) == ETH_P_IP))
++		{
++			if (proto == IPPROTO_IGMP)
++				add_mac_cache(skb);
++		}
++	}
++#endif
++
+ 	br->statistics.rx_packets++;
+ 	br->statistics.rx_bytes += skb->len;
+ 
+diff -Nur linux-2.6.22.old//net/bridge/br_private.h linux-2.6.22/net/bridge/br_private.h
+--- linux-2.6.22.old//net/bridge/br_private.h	2012-07-13 10:20:44.169556722 -0400
++++ linux-2.6.22/net/bridge/br_private.h	2012-07-13 10:20:54.239556126 -0400
+@@ -267,3 +267,63 @@
+ #endif /* CONFIG_SYSFS */
+ 
+ #endif
++
++#ifdef CONFIG_DNI_MCAST_TO_UNICAST
++#define MCAST_ENTRY_SIZE 10
++#define MAX_CLEAN_COUNT 4
++#define MAX_SOURCE_SIZE 8
++#define BR_PROC_MCAST_NAME "mcast"
++#define BR_IGMP_SNOOP_NAME "igmpsnoop"
++#define BR_MCAST_SET_NAME "mcast_set"
++#define MULTICAST_MAC(mac)        ((mac[0]==0x01)&&(mac[1]==0x00)&&(mac[2]==0x5e)) /* Brcm is little endian */
++#define INSERT_TO_TAIL(X, Y, Z)  do{ \
++	Z=X; \
++	while (Z->next)  \
++	Z = Z->next; \
++	Z->next = Y; \
++} while(0)
++
++struct __mac_cache
++{
++	unsigned char valid;
++	unsigned char count;
++	unsigned char mac[6];
++	unsigned long sip;
++	struct net_device *dev;
++};
++
++struct source_set
++{
++	unsigned short num;
++	unsigned short mode;
++	unsigned long sip[MAX_SOURCE_SIZE];
++};
++struct __mgroup_mbr_list
++{
++	unsigned char mac[6];
++	char noused[2]; // just for aligned
++	unsigned long sip;
++	struct source_set set;
++	struct net_device *dev;
++	struct __mgroup_mbr_list *next;
++};
++
++struct __mgroup_list
++{
++	unsigned long gip;
++	struct __mgroup_mbr_list *member;
++	struct __mgroup_list *next;
++};
++
++extern struct __mac_cache mac_cache[MCAST_ENTRY_SIZE];
++extern int igmp_snoop_enable;
++extern struct __mgroup_list *mhead;
++
++void proc_mcast_entry(char cmd, unsigned long ip ,unsigned long gip);
++int mcast_set_read( char *page, char **start, off_t off,
++		int count, int *eof, void *data );
++ssize_t mcast_set_write( struct file *filp, const char __user *buff,
++		unsigned long len, void *data );
++unsigned long a2n(char *addr);
++#endif
++
+diff -Nur linux-2.6.22.old//net/bridge/Kconfig linux-2.6.22/net/bridge/Kconfig
+--- linux-2.6.22.old//net/bridge/Kconfig	2012-07-13 10:20:44.169556722 -0400
++++ linux-2.6.22/net/bridge/Kconfig	2012-07-13 10:20:54.239556126 -0400
+@@ -30,3 +30,13 @@
+ 	  will be called bridge.
+ 
+ 	  If unsure, say N.
++config DNI_MCAST_TO_UNICAST
++       tristate "DNI_MCAST_TO_UNICAST"
++       ---help---
++           DNI_MCAST_TO_UNICAST
++
++config DNI_MULTI_LAN_SUPPORT
++       tristate "DNI_MULTI_LAN_SUPPORT"
++       ---help---
++           DNI_MULTI_LAN_SUPPORT
++
+diff -Nur linux-2.6.22.old//net/bridge/netfilter/ebt_ip.c linux-2.6.22/net/bridge/netfilter/ebt_ip.c
+--- linux-2.6.22.old//net/bridge/netfilter/ebt_ip.c	2012-07-13 10:20:44.169556722 -0400
++++ linux-2.6.22/net/bridge/netfilter/ebt_ip.c	2012-07-13 10:22:16.629556357 -0400
+@@ -24,6 +24,21 @@
+ 	__be16 dst;
+ };
+ 
++static inline int
++check_source(u32 src, struct ebt_ip_info *info)
++{
++	int i;
++	int flag = 1;
++
++	for (i = 0; i < SOURCE_SIZE; i++)
++	{
++		if (src == info->msip[i])
++			flag = 0;
++	}
++
++	return flag;
++}
++
+ static int ebt_filter_ip(const struct sk_buff *skb, const struct net_device *in,
+    const struct net_device *out, const void *data,
+    unsigned int datalen)
+@@ -43,7 +58,7 @@
+ 	   info->saddr, EBT_IP_SOURCE))
+ 		return EBT_NOMATCH;
+ 	if ((info->bitmask & EBT_IP_DEST) &&
+-	   FWINV((ih->daddr & info->dmsk) !=
++	   FWINV((ntohl(ih->daddr) & ntohl(info->dmsk)) !=
+ 	   info->daddr, EBT_IP_DEST))
+ 		return EBT_NOMATCH;
+ 	if (info->bitmask & EBT_IP_PROTO) {
+@@ -73,6 +88,20 @@
+ 			return EBT_NOMATCH;
+ 		}
+ 	}
++	if (info->bitmask & EBT_IP_MSIP)
++	{
++		u32 src = ntohl(ih->saddr);
++		if (FWINV( check_source(src, info), EBT_IP_MSIP))
++			return EBT_NOMATCH;
++	}
++	if (info->bitmask & EBT_IP_DRANGE)
++	{
++		u32 dst = ntohl(ih->daddr);
++		if (FWINV((dst < info->dip_range[0] ||
++						dst > info->dip_range[1]),
++					EBT_IP_DRANGE))
++			return EBT_NOMATCH;
++	}
+ 	return EBT_MATCH;
+ }
+ 
+@@ -102,6 +131,8 @@
+ 		return -EINVAL;
+ 	if (info->bitmask & EBT_IP_SPORT && info->sport[0] > info->sport[1])
+ 		return -EINVAL;
++	if (info->bitmask & EBT_IP_DRANGE && info->dip_range[0] > info->dip_range[1])
++		return -EINVAL;
+ 	return 0;
+ }
+ 

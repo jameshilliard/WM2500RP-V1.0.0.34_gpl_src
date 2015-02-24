@@ -1,0 +1,68 @@
+#! /bin/sh
+
+start_green_download()
+{
+	ps > /tmp/ps_ret_tmp
+	[ `grep -c 'download -w' /tmp/ps_ret_tmp` -eq 0 ] && /bin/config set green_download_enable=0
+	rm -rf /tmp/ps_ret_tmp
+	download_enable="$(/bin/config get green_download_enable)"
+	if [ $download_enable -eq  "0" ]; then
+		/usr/sbin/green_download.sh restart &
+	fi
+}
+
+try_ntfs()
+{
+	echo ">>>>Try to mount as ntfs>>>>>>"
+	param=""
+	ntfs-3g.probe --readwrite /dev/$1
+	case "$?" in
+	0)
+		param="locale=en_US.UTF-8"
+		;;
+	14)
+		param="remove_hiberfile,locale=en_US.UTF-8"
+                ;;
+
+	15)
+		param="force,locale=en_US.UTF-8"
+		;;
+	*)
+		param=""
+	esac
+
+	if [ "x$param" = "x" ];then
+		rmdir /mnt/$1
+		echo ">>>>>Failed to mount $1>>>>>>>"
+	else
+		ntfs-3g /dev/$1 /mnt/$1 -o $param
+		if [ $? -ne 0 ];then
+			rmdir /mnt/$1
+			echo ">>>>>Failed to mount $1>>>>>"
+		else
+			echo ">>>>>Mount $1 success>>>>>"
+			start_green_download
+		fi
+	fi
+}
+
+
+if [ $# -eq 0 ];then
+	echo "Must run with devicename."
+	exit 1
+fi
+mkdir /mnt/$1
+mount -o utf8=yes,fmask=0000,dmask=0000 /dev/$1 /mnt/$1
+if [ $? -ne 0 ];then
+# UTF8 can't be added to mounting ext2/3
+	mount /dev/$1 /mnt/$1
+	if [ $? -ne 0 ];then
+	        try_ntfs $1
+	else
+		echo ">>>>>Mount $1 success>>>>>"
+		start_green_download
+	fi
+else
+	echo ">>>>>Mount $1 success>>>>>"
+	start_green_download
+fi

@@ -1,0 +1,20 @@
+config NET_SNMP_GIT_TREEISH
+	string
+	prompt "treeish of net-snmp git repository"
+	default "net-snmp-5.0.9-dni7"
+	help
+           Input the treeish of net-snmp git repository which you want to build
+
+config NET_SNMP_GIT_REPOSITORY
+	string
+	prompt "name of net-snmp git repository"
+	default "net-snmp.git"
+	help
+	   Input the name of net-snmp git repository which you want to build
+
+config NET_SNMP_GIT_URL
+	string
+	prompt "url of net-snmp git repository"
+	default "ssh://dniserver/scm/dnigit/apps/net-snmp/anderson.deng/net-snmp.git"
+	help
+	   Input the url of net-snmp git repository which you want to build

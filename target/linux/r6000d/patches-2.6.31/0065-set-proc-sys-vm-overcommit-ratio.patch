@@ -1,0 +1,12 @@
+diff -Nurp linux-2.6.31.orig//mm/mmap.c linux-2.6.31/mm/mmap.c
+--- linux-2.6.31.orig//mm/mmap.c	2013-07-12 17:31:39.392575858 +0800
++++ linux-2.6.31/mm/mmap.c	2013-07-12 17:32:05.592575925 +0800
+@@ -84,7 +84,7 @@ pgprot_t vm_get_page_prot(unsigned long
+ EXPORT_SYMBOL(vm_get_page_prot);
+ 
+ int sysctl_overcommit_memory = OVERCOMMIT_GUESS;  /* heuristic overcommit */
+-int sysctl_overcommit_ratio = 50;	/* default is 50% */
++int sysctl_overcommit_ratio = 80;	/* default is 50% */
+ int sysctl_max_map_count __read_mostly = DEFAULT_MAX_MAP_COUNT;
+ struct percpu_counter vm_committed_as;
+ 

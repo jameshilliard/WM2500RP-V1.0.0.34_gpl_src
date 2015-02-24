@@ -1,0 +1,55 @@
+From f5bd255f83b87edcfdd9ff266522887d73f77d65 Mon Sep 17 00:00:00 2001
+From: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Date: Fri, 1 Jul 2011 09:55:32 +0800
+Subject: [PATCH 043/137] IPv6: add a declaration of integer sysctl_ipv6_ping6_interface
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/ipv6.h |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/ipv6.h b/include/net/ipv6.h
+index e6e7ab2..cc79cf0 100644
+--- a/include/net/ipv6.h
++++ b/include/net/ipv6.h
+@@ -565,6 +565,7 @@ extern int inet6_hash_connect(struct inet_timewait_death_row *death_row,
+  * reassembly.c
+  */
+ 
++extern int sysctl_ipv6_ping6_interface;
+ extern int sysctl_ipv6_6to4_force_ip4fragoff_zero;
+ 
+ extern const struct proto_ops inet6_stream_ops;
+-- 
+1.7.4.1
+

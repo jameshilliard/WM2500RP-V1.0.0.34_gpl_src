@@ -1,0 +1,77 @@
+--- linux-2.6.30/drivers/usb/serial/usb-serial.c.old	2012-04-01 05:10:39.187425047 -0400
++++ linux-2.6.30/drivers/usb/serial/usb-serial.c	2012-04-01 05:13:58.667425095 -0400
+@@ -685,17 +685,17 @@
+ 	int num_ports = 0;
+ 	int max_endpoints;
+ 
+-	lock_kernel(); /* guard against unloading a serial driver module */
++	//lock_kernel(); /* guard against unloading a serial driver module */
+ 	type = search_serial_device(interface);
+ 	if (!type) {
+-		unlock_kernel();
++		//unlock_kernel();
+ 		dbg("none matched");
+ 		return -ENODEV;
+ 	}
+ 
+ 	serial = create_serial(dev, interface, type);
+ 	if (!serial) {
+-		unlock_kernel();
++		//unlock_kernel();
+ 		dev_err(&interface->dev, "%s - out of memory\n", __func__);
+ 		return -ENOMEM;
+ 	}
+@@ -705,7 +705,7 @@
+ 		const struct usb_device_id *id;
+ 
+ 		if (!try_module_get(type->driver.owner)) {
+-			unlock_kernel();
++			//unlock_kernel();
+ 			dev_err(&interface->dev,
+ 				"module get failed, exiting\n");
+ 			kfree(serial);
+@@ -717,7 +717,7 @@
+ 		module_put(type->driver.owner);
+ 
+ 		if (retval) {
+-			unlock_kernel();
++			//unlock_kernel();
+ 			dbg("sub driver rejected device");
+ 			kfree(serial);
+ 			return retval;
+@@ -789,7 +789,7 @@
+ 		 * properly during a later invocation of usb_serial_probe
+ 		 */
+ 		if (num_bulk_in == 0 || num_bulk_out == 0) {
+-			unlock_kernel();
++			//unlock_kernel();
+ 			dev_info(&interface->dev, "PL-2303 hack: descriptors matched but endpoints did not\n");
+ 			kfree(serial);
+ 			return -ENODEV;
+@@ -802,7 +802,7 @@
+ 	if (type == &usb_serial_generic_device) {
+ 		num_ports = num_bulk_out;
+ 		if (num_ports == 0) {
+-			unlock_kernel();
++			//unlock_kernel();
+ 			dev_err(&interface->dev,
+ 			    "Generic device with no bulk out, not allowed.\n");
+ 			kfree(serial);
+@@ -814,7 +814,7 @@
+ 		/* if this device type has a calc_num_ports function, call it */
+ 		if (type->calc_num_ports) {
+ 			if (!try_module_get(type->driver.owner)) {
+-				unlock_kernel();
++				//unlock_kernel();
+ 				dev_err(&interface->dev,
+ 					"module get failed, exiting\n");
+ 				kfree(serial);
+@@ -845,7 +845,7 @@
+ 	max_endpoints = max(max_endpoints, num_interrupt_out);
+ 	max_endpoints = max(max_endpoints, (int)serial->num_ports);
+ 	serial->num_port_pointers = max_endpoints;
+-	unlock_kernel();
++	//unlock_kernel();
+ 
+ 	dbg("%s - setting up %d port structures for this device",
+ 						__func__, max_endpoints);

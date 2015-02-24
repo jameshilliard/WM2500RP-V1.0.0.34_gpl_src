@@ -1,0 +1,16 @@
+diff -Nur linux-2.6.31.org//drivers/scsi/scsi_scan.c linux-2.6.31/drivers/scsi/scsi_scan.c
+--- linux-2.6.31.org//drivers/scsi/scsi_scan.c	2012-05-25 05:49:37.539005427 -0400
++++ linux-2.6.31/drivers/scsi/scsi_scan.c	2012-05-25 05:55:15.079005181 -0400
+@@ -620,9 +620,9 @@
+ 	}
+ 
+ 	if (result == 0) {
+-		sanitize_inquiry_string(&inq_result[8], 8);
+-		sanitize_inquiry_string(&inq_result[16], 16);
+-		sanitize_inquiry_string(&inq_result[32], 4);
++		//sanitize_inquiry_string(&inq_result[8], 8);
++		//sanitize_inquiry_string(&inq_result[16], 16);
++		//sanitize_inquiry_string(&inq_result[32], 4);
+ 
+ 		response_len = inq_result[4] + 5;
+ 		if (response_len > 255)

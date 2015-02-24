@@ -1,0 +1,257 @@
+/*
+Format:
+[package name]
+        Complete package name
+        From Where
+        License
+        Binary or Source code
+*/
+
+User application
+[acl]
+        acl
+        DNI
+        DNI
+        Binary
+[artmtd]
+        artmtd
+        DNI
+        DNI
+        Binary
+[atheros-aquila-madwifi-11n-scripts]
+        madwifi
+        Atheros
+        Atheros
+        Source Code
+[atheros-aquila-wpa2]
+        hostap
+        Atheros
+        BSD/GPL
+        Binary
+[base-files]
+        base-files
+        DNI
+        GPL
+        Source Code
+[boxlogin]
+        boxlogin
+        DNI
+        DNI
+        Binary
+[bridge-utils]
+        bridge-utils-1.0.6
+        http://bridge.sourceforge.net/
+        GPL
+        Source Code
+[cyassl]
+        libcyassl
+        http://www.yassl.com/
+        GPL
+        Source Code
+[datalib]
+        datalib
+        DNI
+        DNI
+        Binary
+[debug_driver]
+        debug_driver
+        DNI
+        DNI
+        Binary
+[detcable]
+        detcable
+        DNI
+        DNI
+        Binary
+[dni-autoip]
+        dni-autoip
+        DNI
+        DNI
+        Binary
+[dnibusybox]
+        busybox-1.4.2
+        http://busybox.net/downloads/
+        GPL
+        Source Code
+[dni-cwmp]
+        dni-cwmp
+        DNI
+        DNI
+        Binary
+[dni-mtd]
+        mtd
+        DNI
+        GPL
+        Source Code
+[dni-ntpclient]
+        ntpclient_2003_194
+        http://doolittle.faludi.com/ntpclient
+        GPL
+        Source Code
+[ebtables]
+        ebtables-v2.0.9-1
+        http://ebtables.sourceforge.net
+        GPL
+        Source Code
+[factory-tools]
+        factory-tools
+        DNI
+        DNI
+        Binary
+[fetchpin]
+        fetchpin
+        DNI
+        DNI
+        Binary
+[fuse]
+        fuse-2.8.5
+        http://fuse.sourceforge.net
+        GPL
+        Source Code
+[hotplug2]
+        hotplug2-119
+        http://isteve.bofh.cz/~isteve/hotplug2
+        GPL
+        Source Code
+[led-control]
+        led-control
+        DNI
+        DNI
+        Binary
+[libiconv]
+        libiconv-1.11
+        http://www.gnu.org/software/libiconv/
+        GPL
+        Source Code
+[libtool]
+        libtool
+        http://www.gnu.org/software/libtool/
+        GPL
+        Source Code
+[lltd]
+        lltd
+        http://www.microsoft.com/whdc/connect/rally/rallykit.mspx
+        MICROSOFT WINDOWS RALLY PROGRAM LICENSE
+        Binary
+[lua]
+        lua
+        http://www.lua.org/ftp/
+        GPL
+        Source Code
+[miniupnpd]
+        miniupnpd-20070127
+        http://miniupnp.free.fr
+        BSD
+        Binary
+[moca-util]
+        moca-util
+        Entropic
+        Entropic
+        Binary
+[net6conf]
+        net6conf
+        DNI
+        GPL
+        Source Code
+[net-cgi]
+        net-cgi
+        DNI
+        BSD
+        Binary
+[net-scan]
+        net-scan
+        DNI
+        GPL
+        Source Code
+[net-snmp]
+        net-snmp
+        DNI
+        BSD
+        Binary
+[openssl]
+        openssl-0.9.8p
+        http://www.openssl.org/source/
+        GPL
+        Source Code
+[pot]
+        pot
+        DNI
+        GPL
+        Source Code
+[px5g]
+        px5g
+        openwrt
+        GPL
+        Source Code
+[telnetenable]
+        telnetenable
+        http://www.opentom.org/Mkttimage; http://www.seattlewireless.net/telnetenable.c
+        GPL
+        Source Code
+[uci]
+        uci
+        http://downloads.openwrt.org/sources
+        GPL
+        Source Code
+[udev]
+        udev-106
+        ftp://ftp.kernel.org/pub/linux/utils/kernel/hotplug
+        GPL
+        Source Code
+[udhcp]
+        udhcp-0.9.8
+        http://udhcp.busybox.net/source
+        GPL
+        Source Code
+[uhttpd]
+        uhttpd
+        openwrt
+        Apache
+        Source Code
+[utelnetd]
+        utelnetd-0.1.9
+        http://gentoo.osuosl.org/distfiles
+        GPL
+        Source Code
+[wide-dhcpv6]
+        wide-dhcpv6-20080615
+        https://sourceforge.net/projects/wide-dhcpv6
+        GPL
+        Source Code
+[wireless-tools]
+        wireless-tools-29.pre1
+        http://hplabs.hp.com/personal/Jean_Tourrilhes/Linux/Tools.html
+        GPL
+        Source Code
+[wlan-common]
+        wlan-common
+        DNI
+        GPL
+        Source Code
+[zlib]
+        zlib-1.2.3
+        http://www.zlib.net
+        GPL
+        Source Code
+
+Kernel Modules
+[Linux]
+        Linux-2.6.31
+        http://www.kernel.org
+        GPL
+        Source Code
+[atheros-aquila-madwifi]
+        atheros-aquila-madwifi
+        Atheros
+        Atheros
+        Binary
+[atheros-enet]
+        atheros-enet
+        Atheros
+        Atheros
+        Binary
+[atheros-gpio]
+        atheros-gpio
+        Atheros
+        Atheros
+        Binary

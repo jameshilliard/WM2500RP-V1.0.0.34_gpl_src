@@ -1,0 +1,956 @@
+#!/bin/sh
+
+. /etc/common.conf
+
+case "$1" in
+    start)
+        rtl_wlan init
+        sleep 1
+        rtl_wlan wlanapp start $WLAN_A_NAME $WLAN_NG_NAME $BRIDGE_NAME
+        ;;
+    stop)
+        rtl_wlan init
+        ;;
+    restart)
+        rtl_wlan init
+        sleep 1
+        rtl_wlan wlanapp start $WLAN_A_NAME $WLAN_NG_NAME $BRIDGE_NAME
+        ;;
+    wsc)
+        config set wps_status=5
+        config commit
+        echo 1 > /tmp/reinitwscd
+        sleep 1
+        config set action=99
+        ;;
+esac
+
+exit 0
+
+# I think we don't need below code when we using realtek tools to bring up/down
+# wireless interfaces.
+
+[ -f /etc/wlan/board.conf ] && . /etc/wlan/board.conf
+
+. /etc/dni-wifi-config
+
+#
+# script file to start WLAN
+#
+#set -o xtrace
+#DUAL_BAND=1
+
+if [ "$DUAL_BAND" = "1" ]; then
+wlg_wlan_if="$WLAN_NG_NAME"
+wla_wlan_if="$WLAN_A_NAME"
+else
+wlg_wlan_if="$WLAN_A_NAME"
+wla_wlan_if="$WLAN_A_NAME"
+fi
+
+#WLAN_VA_IF="wlan0-va"
+#WAN_IF="eth1"
+#BR="br0"
+#sys_uptime=$([ -f /proc/uptime ] && cat /proc/uptime | awk '{print $1}' | awk -F. '{print $1}')
+MSSID_num=4
+MSSID_ACT=0
+MSSID_disable=1
+model=`cat /module_name`
+if [ "$model" = "JWNB2100-1ZGNLS" ]; then
+    if [ "$(config get wds_repeater_basic)" = "1" ]; then
+    #rootap
+         CLI_ASSO=`config get wds_endis_mac_client` 
+    else
+    #repeater
+         CLI_ASSO=`config get wds_endis_ip_client`
+    fi
+else
+    CLI_ASSO=`config get wds_endis_ip_client`
+fi
+
+get_intf_onoff()
+{
+    parent_radio=`echo $2 | awk -F _ '{print $1}'`
+    eval wl_onoff=\$`echo $2`_if_onoff
+    eval wl_parent_onoff=\$`echo $parent_radio`_if_onoff
+    eval wl_parent_exist=\$`echo $parent_radio`_exist
+    if [ "$wl_parent_exist" = "on" ] && [ "$wl_onoff" = "on" -o "$parent_radio" = "$2" ] &&
+        [ "$wl_parent_onoff" = "on" -o "x$FORCE_CREATE_VAP" = "xon" ]; then
+        eval export -- "${1}=on"
+    else
+        eval export -- "${1}=off"
+    fi
+}
+# This function is to get the prefix of environment variables.
+# If environment variables are all named according to same rule, then
+# this function will provide help on getting environment variables.
+get_wl_prefix()
+{
+    case "$1" in
+        wlg)
+            wl_prefix=wl
+            ;;
+        wla)
+            wl_prefix=wla
+            ;;
+        wlg_guest)
+            wl_prefix=wlg1
+            ;;
+        wla_guest)
+            wl_prefix=wla1
+            ;;
+    esac
+}
+
+
+Kill_proc()
+{
+    if [ -f $1 ] ; then
+       	  PID=`cat $1`
+	  if [ $PID != 0 ]; then
+	       kill -9 $PID
+	  fi
+          rm -f $1
+    fi
+}
+
+Applications()
+{
+   if [ "$1" = "start" ]; then
+          echo "starting app"
+          IF_LIST=$WLAN_IF
+          #### MBSSID #### (2,3,4,5)
+          num=0
+          while [ $num -lt $MSSID_num ]
+          do
+                  if [ "$(config get wl_multi_ssid_endis_$(($num+2)))" = "1" ]; then
+                       IF_LIST="$IF_LIST $WLAN_VA_IF$num"
+                  fi
+    
+          num=$(($num+1))
+          done
+          
+          iwcontrol $WLAN_IF
+          #added by dvd.chen, to restart mini_upnpd. Cause setting wireless might enable<->disable WPS
+          if [ "$(config get wsc_stat_change)" = "1" ]; then
+                /etc/rc.d/mini_upnp.sh restart
+                config set wsc_stat_change=0
+          fi
+          
+   else
+          echo "stopping app"
+          Kill_proc "/var/run/iwcontrol.pid"
+          Kill_proc "/var/run/auth-$WLAN_IF.pid"
+   
+   fi
+}
+
+Basic_settings()
+{  
+    
+    echo "Basic...."
+    eval WLAN_IF=\$`echo $1`_wlan_if
+    eval SSID=\$`echo $1`_ssid
+    eval CH=\$`echo $1`_channel
+    eval MODE=\$`echo $1`_chmode
+    eval COUN=$country
+    eval WDS=\$`echo $1`_wds_onoff
+
+    ifconfig $WLAN_IF down
+    iwpriv $WLAN_IF set_mib ssid="$SSID"
+    iwpriv $WLAN_IF set_mib channel=$CH
+
+    #iwpriv $WLAN_IF set_mib disable_protection=0
+    #iwpriv $WLAN_IF set_mib oprates=4095
+    #iwpriv $WLAN_IF set_mib basicrates=15
+    #iwpriv $WLAN_IF set_mib shortGI20M=1
+    #iwpriv $WLAN_IF set_mib shortGI40M=1
+    #iwpriv $WLAN_IF set_mib ampdu=1
+    #iwpriv $WLAN_IF set_mib amsdu=1
+    #iwpriv $WLAN_IF set_mib disable_brsc=0
+    #iwpriv $WLAN_IF set_mib wifi_specific=2
+    #iwpriv $WLAN_IF set_mib MIMO_TR_mode=3
+    #iwpriv $WLAN_IF set_mib ledBlinkingFreq=7
+    #iwpriv $WLAN_IF set_mib lgyEncRstrct=0
+    
+    
+    if [ "$CLI_ASSO" = "1" -a "$WDS" = "1" ]; then ## WDS only
+         iwpriv $WLAN_IF set_mib wds_pure=1
+    else
+	       iwpriv $WLAN_IF set_mib wds_pure=0
+    fi
+        
+    if [ "$1" = "wlg" ]; then
+        iwpriv $WLAN_IF set_mib macPhyMode=2
+        iwpriv $WLAN_IF set_mib phyBandSelect=1
+        iwpriv $WLAN_IF set_mib band=11
+        case "$MODE" in
+    
+           1)
+           iwpriv $WLAN_IF set_mib use40M=0
+           iwpriv $WLAN_IF set_mib 2ndchoffset=0
+           ;;
+           2)
+           iwpriv $WLAN_IF set_mib use40M=0
+           iwpriv $WLAN_IF set_mib 2ndchoffset=0
+           iwpriv $WLAN_IF set_mib qos_enable=1
+           ;;
+           3)
+
+           iwpriv $WLAN_IF set_mib use40M=1
+           iwpriv $WLAN_IF set_mib qos_enable=1
+           if [ $CH -gt 4 ]; then
+                iwpriv $WLAN_IF set_mib 2ndchoffset=1
+           else
+                iwpriv $WLAN_IF set_mib 2ndchoffset=2
+           fi           
+           ;;
+        esac
+    else
+        iwpriv $WLAN_IF set_mib macPhyMode=2
+        iwpriv $WLAN_IF set_mib phyBandSelect=2
+        iwpriv $WLAN_IF set_mib band=12
+        case "$MODE" in
+
+           1)
+
+           iwpriv $WLAN_IF set_mib use40M=0
+           iwpriv $WLAN_IF set_mib 2ndchoffset=0
+           ;;
+           2 | 3)
+           iwpriv $WLAN_IF set_mib use40M=0
+           iwpriv $WLAN_IF set_mib 2ndchoffset=0
+           iwpriv $WLAN_IF set_mib qos_enable=1
+           ;;
+           4)
+           iwpriv $WLAN_IF set_mib use40M=1
+           iwpriv $WLAN_IF set_mib qos_enable=1
+           case "$CH" in
+               36|44|52|60|100|108|116|124|132|149|157)
+                    iwpriv $WLAN_IF set_mib 2ndchoffset=2
+                    ;;
+                40|48|56|64|104|112|120|128|136|153|161)
+                    iwpriv $WLAN_IF set_mib 2ndchoffset=1
+                    ;;
+                149|165)
+                    iwpriv $WLAN_IF set_mib use40M=0
+		    iwpriv $WLAN_IF set_mib 2ndchoffset=0
+                    ;;
+                *)
+                    ;;
+	    esac
+            ;;
+        esac
+    fi
+    
+    case "$COUN" in
+         1)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         2)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         3)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         4)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         5)   
+         iwpriv $WLAN_IF set_mib regdomain=1
+         ;;
+         6)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         7)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         8)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         9)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         10)   
+         iwpriv $WLAN_IF set_mib regdomain=6
+         ;;
+         11)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         12)   
+         iwpriv $WLAN_IF set_mib regdomain=1
+         ;;
+         13)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         14)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         15)   
+         iwpriv $WLAN_IF set_mib regdomain=3
+         ;;
+         16)   
+         iwpriv $WLAN_IF set_mib regdomain=1
+         ;;
+    esac
+    
+    
+     num=0
+     while [ "$num" -lt "$MSSID_num" ]
+     do
+     if [ "$(config get wl_multi_ssid_endis_$(($num+2)))" = "1" ]; then
+           MSSID_disable=0
+           MSSID_ACT=$(($MSSID_ACT+1))
+     fi
+     num=$(($num+1))
+     done
+
+    ############## set vap_enable=1  if any guest is enabled ################
+    if [ "$MSSID_disable" = "0" ]; then
+          iwpriv $WLAN_IF set_mib vap_enable=1
+    else  
+          iwpriv $WLAN_IF set_mib vap_enable=0
+    fi
+     
+     ########### set wlan0 beacon #####################  
+        case "$MSSID_ACT" in
+           0)
+           iwpriv $WLAN_IF set_mib bcnint=100
+           iwpriv $WLAN_IF set_mib dtimperiod=3
+           ;;
+           1)
+           iwpriv $WLAN_IF set_mib bcnint=200
+           iwpriv $WLAN_IF set_mib dtimperiod=2
+           ;;
+           2)
+           iwpriv $WLAN_IF set_mib bcnint=300
+           iwpriv $WLAN_IF set_mib dtimperiod=2
+           ;;
+           3)
+           iwpriv $WLAN_IF set_mib bcnint=400
+           iwpriv $WLAN_IF set_mib dtimperiod=2
+           ;;
+           4)
+           iwpriv $WLAN_IF set_mib bcnint=500
+           iwpriv $WLAN_IF set_mib dtimperiod=2
+           ;;
+        esac
+    
+}
+
+MSSID_settings()
+{
+    #echo "MSSID ..."
+   
+    
+    #### MBSSID #### (2,3,4,5)
+    num=0
+    ac_num=0
+    while [ $num -lt $MSSID_num ]
+    do      
+
+       if [ "$(config get wl_multi_ssid_endis_$(($num+2)))" = "1" ]; then
+            SSID=$(config get wl_ssid_$(($num+2)))
+            BROADCAST=$(config get endis_ssid_broadcast_$(($num+2)))
+            GUEST_ACCESS=$(config get wl_guest_access_local_endis_$(($num+2)))
+            
+            ifconfig $WLAN_VA_IF$ac_num down
+            iwpriv $WLAN_VA_IF$ac_num copy_mib 
+            ifconfig $WLAN_VA_IF$ac_num hw ether $(config get hwaddr_$(($num+2)))
+            iwpriv $WLAN_VA_IF$ac_num set_mib ssid="$SSID"
+            iwpriv $WLAN_VA_IF$ac_num set_mib hiddenAP=$((1-$BROADCAST))
+            iwpriv $WLAN_VA_IF$ac_num set_mib guest_access=$((1-$GUEST_ACCESS))
+            iwpriv $WLAN_VA_IF$ac_num set_mib vap_enable=1
+            iwpriv $WLAN_VA_IF$ac_num set_mib basicrates=0
+            iwpriv $WLAN_VA_IF$ac_num set_mib oprates=0
+            iwpriv $WLAN_VA_IF$ac_num set_mib wds_enable=0
+            ac_num=$(($ac_num+1))
+
+       fi
+    
+    num=$(($num+1))
+    done
+    
+     
+
+}
+
+Adv_settings()
+{
+    #echo "ADV..."
+    
+    eval WLAN_IF=\$`echo $1`_wlan_if
+
+    eval HIDE_SSID=\$`echo $1`_hide_ssid_onoff
+    eval WMM=\$`echo $1`_wmm_onoff
+    eval FRAG=\$`echo $1`_frag
+    eval RTS=\$`echo $1`_rts
+    eval PREAMBLE=\$`echo $1`_preamble
+    hide_ssid="0"
+    [ $HIDE_SSID = "on" ] && hide_ssid="1"
+
+    iwpriv $WLAN_IF set_mib hiddenAP=$hide_ssid
+    
+    eval MODE=\$`echo $1`_mode
+    if [ "$MODE" = "1" ]; then  
+          iwpriv $WLAN_IF set_mib qos_enable=$WMM
+    fi
+    iwpriv $WLAN_IF set_mib fragthres=$FRAG
+    iwpriv $WLAN_IF set_mib rtsthres=$RTS
+    iwpriv $WLAN_IF set_mib preamble=$PREAMBLE
+}
+
+
+Wpa_conf()
+{
+    SEC=`config get wl_sectype`
+    case "$SEC" in
+        1)
+        ENC=0 
+        ;;
+        2)
+        ENC=1
+        ;;
+        3)
+        ENC=2
+        ;;
+        4)
+        ENC=4
+        ;;
+        5)
+        ENC=6
+        ;;
+        6)
+        WPA_1X=`config get wl_radius_mode`
+        case "$WPA_1X" in
+              0)
+              ENC=2
+              UNI_CIPH=1
+              WPA2_UNI_CIPH=1
+              ;;
+              1)
+              ENC=4
+              UNI_CIPH=1
+              WPA2_UNI_CIPH=2  
+              ;;
+              2)
+              ENC=6
+              UNI_CIPH=3
+              WPA2_UNI_CIPH=3
+              ;;
+        esac     
+        ;;
+    esac
+
+    SSID=`config get wl_ssid`
+    if [ "$SEC" = "0" -o "$SEC" = "1" ]; then
+          ENABLE_1X=0
+    else
+          ENABLE_1X=1
+    fi
+    MAC_AUTH=0
+    NON_WPA_CLIENT=0
+    WEP_LEN=`config get key_length`
+    if [ "$WEP_LEN" = "5" ]; then
+          WEP_KEY=1
+    else 
+          WEP_KEY=2
+    fi
+    WEP_GROUP_KEY=""
+    AUTH=1         
+    PRE_AUTH=0
+    USE_PASS=1
+    PSK="12345678"
+    G_REKEY=86400
+    RS_PORT=`config get wl_radius_port`
+    RS_IP=`config get wl_radius_ipaddr`
+    RS_PW=`config get wl_radius_key`
+    RS_MAX_REQ=3
+    RS_AWHILE=5
+    
+
+cat <<EOF
+encryption = $ENC
+ssid = "$SSID"
+enable1x = $ENABLE_1X
+enableMacAuth = 0
+supportNonWpaClient = 0
+wepKey = $WEP_KEY
+wepGroupKey = ""
+authentication = $AUTH
+unicastCipher = $UNI_CIPH
+wpa2UnicastCipher = $WPA2_UNI_CIPH
+enablePreAuth = 0
+usePassphrase = 1
+psk = "24b6ccbc76b3b9c667a498"
+groupRekeyTime = 3600
+rsPort = $RS_PORT
+rsIP = $RS_IP
+rsPassword = $RS_PW
+rsMaxReq = 3
+rsAWhile = 5
+accountRsEnabled = 0
+accountRsPort = 0
+accountRsIP = 0.0.0.0
+accountRsPassword = ""
+accountRsUpdateEnabled = 0
+accountRsUpdateTime = 0
+accountRsMaxReq = 0
+accountRsAWhile = 0
+
+EOF
+
+}
+
+Security()
+{
+    echo "Sec..."
+    eval WLAN_IF=\$`echo $1`_wlan_if
+    eval SEC=\$`echo $1`_sectype
+    eval WEP_LEN=\$`echo $1`_key_length
+    eval WEP_KEY=\$`echo $1`_key
+    eval AUTH=\$`echo $1`_wep_auth
+    eval WEP_KEY1=\$`echo $1`_key1
+    eval WEP_KEY2=\$`echo $1`_key2
+    eval WEP_KEY3=\$`echo $1`_key3
+    eval WEP_KEY4=\$`echo $1`_key4
+
+    iwpriv $WLAN_IF set_mib 802_1x=0
+    get_wl_prefix "$1"   
+    dni_config_get_psk_phrase wl_psk_phrase "$wl_prefix" "$SEC"
+    echo "$wl_psk_phrase" > /tmp/tmppskkey.$$
+    sed -i -e 's/\$/\\\$/g' /tmp/tmppskkey.$$
+    wl_psk_phrase=`cat /tmp/tmppskkey.$$`
+    rm -f /tmp/tmppskkey.$$
+    echo $WLAN_IF
+    echo $SEC
+    echo $wl_psk_phrase
+    case "$SEC" in 
+          off)  ##none
+          iwpriv $WLAN_IF set_mib psk_enable=0
+          iwpriv $WLAN_IF set_mib encmode=0
+          iwpriv $WLAN_IF set_mib authtype=2
+          ;;
+          wep)  ##wep
+          iwpriv $WLAN_IF set_mib psk_enable=0 
+          
+          if [ "$WEP_LEN" = "5" ]; then
+                iwpriv $WLAN_IF set_mib encmode=1	                
+          else
+                iwpriv $WLAN_IF set_mib encmode=5
+          fi
+          
+          iwpriv $WLAN_IF set_mib authtype=$AUTH
+          iwpriv $WLAN_IF set_mib wepkey1=$WEP_KEY1
+	  iwpriv $WLAN_IF set_mib wepkey2=$WEP_KEY2
+	  iwpriv $WLAN_IF set_mib wepkey3=$WEP_KEY3
+	  iwpriv $WLAN_IF set_mib wepkey4=$WEP_KEY4
+	  iwpriv $WLAN_IF set_mib wepdkeyid=$(($WEP_KEY-1))       
+          ;;
+          psk)  ##wpa-tkip
+          iwpriv $WLAN_IF set_mib authtype=2
+          iwpriv $WLAN_IF set_mib encmode=2
+          iwpriv $WLAN_IF set_mib psk_enable=1
+          iwpriv $WLAN_IF set_mib wpa_cipher=2
+          iwpriv $WLAN_IF set_mib passphrase="$wl_psk_phrase"
+          iwpriv $WLAN_IF set_mib gk_rekey=3600
+          ;;
+          psk2)  ##wpa2-aes
+          iwpriv $WLAN_IF set_mib psk_enable=2
+          iwpriv $WLAN_IF set_mib encmode=2
+          iwpriv $WLAN_IF set_mib authtype=2
+          iwpriv $WLAN_IF set_mib wpa2_cipher=8
+          iwpriv $WLAN_IF set_mib passphrase="$wl_psk_phrase"
+          iwpriv $WLAN_IF set_mib gk_rekey=3600
+          ;;
+          psk_mixed)  ##wpa1 wpa2
+          iwpriv $WLAN_IF set_mib psk_enable=3
+          iwpriv $WLAN_IF set_mib encmode=2
+          iwpriv $WLAN_IF set_mib authtype=2
+          iwpriv $WLAN_IF set_mib wpa_cipher=10
+          iwpriv $WLAN_IF set_mib wpa2_cipher=10
+          iwpriv $WLAN_IF set_mib passphrase="$wl_psk_phrase"
+          iwpriv $WLAN_IF set_mib gk_rekey=3600
+          ;;
+          wpa)  ##wpa 802_1x
+          Wpa_conf "$1" > /var/wpa-$WLAN_IF.conf
+          auth $WLAN_IF $BR auth /var/wpa-$WLAN_IF.conf
+          iwpriv $WLAN_IF set_mib psk_enable=0
+          iwpriv $WLAN_IF set_mib 802_1x=1
+          iwpriv $WLAN_IF set_mib encmode=2
+          iwpriv $WLAN_IF set_mib authtype=2        
+          ;;
+    esac
+    
+}
+
+
+Security_MSSID()
+{
+    #### MBSSID #### (2,3,4,5)
+    num=0
+    ac_num=0
+    while [ $num -lt $MSSID_num ]
+    do
+       if [ "$(config get wl_multi_ssid_endis_$(($num+2)))" = "1" ]; then
+            Security "-va" "_$(($num+2))" "$ac_num"
+            ac_num=$(($ac_num+1))
+       fi
+    
+    num=$(($num+1))
+    done
+
+
+
+}
+
+Wds()
+{
+    #echo "WDS......."
+    #WDS=`config get wds_endis_fun`
+    
+    eval WDS=\$`echo $2`_wds_onoff
+    eval WLAN_IF=\$`echo $2`_wlan_if
+    if [ "$1" = "start" ]; then    
+    
+         eval WDS_ROLE=\$`echo $2`_wds_role
+         eval WDS_SEC=\$`echo $2`_sectype
+         eval WEP_LEN=\$`echo $2`_key_length
+         eval WDS_KEY=\$`echo $2`_key
+         eval WDS_WEPKEY=\$`echo $1`_key${WDS_KEY}
+         
+
+          iwpriv $WLAN_IF set_mib wds_num=0       #reinitialize  
+          
+          if [ "$WDS_SEC" = "off" ]; then 
+          #none
+                iwpriv $WLAN_IF set_mib wds_encrypt=0
+                iwpriv $WLAN_IF set_mib authtype=2
+          elif [ "$WDS_SEC" = "wep" -a "$WDS" = "1" ]; then 
+          #wep
+                if [ "$WEP_LEN" = "5" ]; then
+                      iwpriv $WLAN_IF set_mib wds_encrypt=1
+                      iwpriv $WLAN_IF set_mib wds_wepkey=$WDS_WEPKEY	                
+                else
+                      iwpriv $WLAN_IF set_mib wds_encrypt=5
+                      iwpriv $WLAN_IF set_mib wds_wepkey=$WDS_WEPKEY
+                fi
+          fi      
+          
+          ####  repeater mode  ####
+          eval REP_IP=$wl_repeater_ip
+	  eval BASIC_STA_MAC=\$`echo $2`_wds_basicsta_mac
+          eval TAR_ROOTAP=$(echo $BASIC_STA_MAC| sed -n 's/://gp')   
+          
+          if [ "$WDS" = "1" ]; then                                    
+                if [ "$WDS_ROLE" = "repeater" ]; then
+                      ifconfig $BR $REP_IP
+                      brctl addif $BR $WAN_IF
+                      iwpriv $WLAN_IF set_mib wds_add=$TAR_ROOTAP,0
+	                                     
+                else                      
+                      num=1
+                      while [ $num -lt 5 ]
+                      do 
+                          tmprep=$(config get repeater_mac$num | sed -n 's/://gp')
+                          
+                          if [ "$tmprep" != "" ]; then
+                              iwpriv $WLAN_IF set_mib wds_add=$tmprep,0                                                 
+                          fi
+                          num=$(($num+1))
+                      done
+                                           
+                fi                
+                iwpriv $WLAN_IF set_mib wds_enable=1
+                brctl stp $BR on
+                brctl setfd $BR 4
+                    
+          else  ##wds disabled
+                iwpriv $WLAN_IF set_mib wds_enable=0
+                iwpriv $WLAN_IF set_mib wds_encrypt=0
+                brctl stp $BR off
+                brctl setfd $BR 0
+          fi    
+                   
+    else  # stop
+          iwpriv $WLAN_IF set_mib wds_enable=0
+	      
+    fi
+}
+
+Acl()
+{
+	#echo "ACL...."
+	eval WLAN_IF=\$`echo $1`_wlan_if
+	iwpriv $WLAN_IF set_mib aclnum=0
+	MACAC_ENABLED=`config get wl_access_ctrl_on`
+	iwpriv $WLAN_IF set_mib aclmode=$MACAC_ENABLED
+	if [ "$MACAC_ENABLED" != "0" ]; then
+		MACAC_NUM=`config get wl_acl_num`
+		if [ "$MACAC_NUM" != "0" ]; then
+			num=1
+			while [ $num -le $MACAC_NUM ]
+			do
+				AC_TBL=`config get wlacl$num`
+				addr_tmp=`echo $AC_TBL | awk '{print $2}'`
+				addr=`echo $addr_tmp | sed -n 's/://gp'`
+				iwpriv $WLAN_IF set_mib acladdr=$addr
+				num=$(($num+1))
+			done
+		fi
+	fi
+}
+
+Update_conf()
+{
+     DISABLE_PIN=`config get endis_pin`
+     MODE=`config get wps_status`
+     UPNP=1
+     CONF=134  
+     CONN=1
+     MAN=0
+     SSID=`config get wl_ssid`
+     PIN=`config get wps_pin`
+     #PIN="49424324"
+     RF=1
+     DEVICE="$(config get netbiosname)"
+     
+     
+     
+     echo "disable_configured_by_exReg = $DISABLE_PIN" > /var/wsc.conf
+     echo "mode = $MODE" >> /var/wsc.conf
+     echo "upnp = $UPNP" >> /var/wsc.conf
+     echo "config_method = $CONF" >> /var/wsc.conf
+     echo "connection_type = $CONN" >> /var/wsc.conf
+     echo "manual_config = $MAN" >> /var/wsc.conf     
+          
+     SEC=`config get wl_sectype`
+     case "$SEC" in
+     1)#none
+       ENC=1
+       AUTH=1
+       KEY=""
+     ;;
+     2)#wep
+       ENC=2
+       WEP_KEY=`config get wl_key`
+       if [ "$(config get wl_auth)" = "1" ]; then
+             AUTH=4
+       else
+             AUTH=1
+       fi
+       KEY=`config get wl_key$WEP_KEY`
+       WEP_KEY1=`config get wl_key1`
+       WEP_KEY2=`config get wl_key2`
+       WEP_KEY3=`config get wl_key3`
+       WEP_KEY4=`config get wl_key4`
+
+     ;;
+     3)#wpa
+       ENC=4
+       AUTH=2
+       KEY=`config get wl_wpa1_psk`
+     ;;
+     4)#wpa2
+       ENC=8
+       AUTH=32
+       KEY=`config get wl_wpa2_psk`
+     ;;
+     5)#wpa+wpa2
+       #ENC=12 %%% for netgear requirement  %%% ---> tell the client it's wpa2
+       #AUTH=34
+       ENC=8
+       AUTH=32
+       KEY=`config get wl_wpas_psk`
+     ;;
+     esac
+
+     if [ "$ENC" = "2" ]; then
+           echo "wep_transmit_key = $WEP_KEY" >> /var/wsc.conf
+           echo "network_key = $KEY" >> /var/wsc.conf
+           echo "wep_key2 = $WEP_KEY2" >> /var/wsc.conf
+           echo "wep_key3 = $WEP_KEY3" >> /var/wsc.conf
+           echo "wep_key4 = $WEP_KEY4" >> /var/wsc.conf
+     else
+           echo "network_key = $KEY" >> /var/wsc.conf
+     fi
+     
+     echo "auth_type = $AUTH" >> /var/wsc.conf
+     echo "encrypt_type = $ENC" >> /var/wsc.conf   
+     echo "ssid = $SSID" >> /var/wsc.conf
+     echo "pin_code = $PIN" >> /var/wsc.conf
+     echo "rf_band = $RF" >> /var/wsc.conf
+     echo "device_name = $DEVICE(Wireless AP)" >> /var/wsc.conf   
+     echo "modelDescription = $DEVICE Gateway" >> /var/wsc.conf   
+     echo "model_name = $DEVICE(Wireless AP)" >> /var/wsc.conf   
+     echo "model_num = $DEVICE" >> /var/wsc.conf    
+     cat /var/wps/wscd.conf >> /var/wsc.conf
+     
+
+}
+
+Wps()
+{
+     SEC=`config get wl_sectype`
+     WPSOFF=`config get wsc_disable`
+     if [ "$1" = "start" -a "$WPSOFF" = "0" ]; then
+           echo "wps start"
+           Update_conf
+	   wscd -start -c /var/wsc.conf -w $WLAN_IF -fi /var/wscd-$WLAN_IF.fifo -daemon
+	   WAIT=1
+	   while [ $WAIT != 0 ]		
+	   do	
+	        if [ -e /var/wscd-$WLAN_IF.fifo ]; then
+		        WAIT=0
+		else
+			sleep 1
+		fi
+	   done
+     
+     elif [ "$1" = "stop" ]; then
+           echo "wps stop"
+           #rm -rf /var/wps
+           Kill_proc "/var/run/wscd-$WLAN_IF.pid"
+     fi
+
+}
+
+IF_Handle()
+{
+    eval WLAN_IF=\$`echo $2`_wlan_if
+    echo $WLAN_IF
+    if [ "$1" = "start" ]; then
+          echo "IF_handle start...."
+          
+          brctl addif $BR $WLAN_IF 2> /dev/null
+          ifconfig $WLAN_IF up  
+                             
+          #echo "wds interface...."          
+          WDS_num=`iwpriv $WLAN_IF get_mib wds_num | cut -b 28`
+          num=0
+          while [ $num -lt $WDS_num ]
+          do
+                  brctl addif $BR $WLAN_IF-wds$num 2> /dev/null
+                  ifconfig $WLAN_IF-wds$num 0.0.0.0
+                  num=$(($num+1))
+          done 
+                   
+          #### MBSSID #### (2,3,4,5)
+          #echo "guest interface...."
+          
+          WDS=`config get wds_endis_fun`
+          if [ "$CLI_ASSO" = "1" -a "$WDS" = "1" ]; then ## WDS only
+               echo "Pure wds. No guest."
+          
+          else
+               num=0
+               ac_num=0
+               while [ $num -lt $MSSID_num ]
+               do                 
+                   if [ "$(config get wl_multi_ssid_endis_$(($num+2)))" = "1" ]; then
+                       echo "initializing $WLAN_VA_IF$ac_num" 
+                       sleep 1
+                       brctl addif $BR $WLAN_VA_IF$ac_num 2> /dev/null
+                       ifconfig $WLAN_VA_IF$ac_num 0.0.0.0
+                       ac_num=$(($ac_num+1))                     
+                   fi
+               num=$(($num+1))
+               done    
+              
+          fi  
+         
+          
+    else    
+          echo "IF_handle stop...." 
+          ifconfig $WLAN_IF down
+                           
+          num=0
+          while [ $num -lt 4 ]
+          do
+                  ifconfig $WLAN_IF-wds$num down
+                  brctl delif $BR $WLAN_IF-wds$num 2> /dev/null
+                  num=$(($num+1))                  
+          done
+          
+          #### MBSSID #### (2,3,4,5)
+          num=0
+          while [ $num -lt $MSSID_num ]
+          do
+                  ifconfig $WLAN_VA_IF$num down
+                  brctl delif $BR $WLAN_VA_IF$num 2> /dev/null                   
+    
+          num=$(($num+1))
+          done   
+          
+          brctl delif $BR $WAN_IF 2> /dev/null
+          brctl delif $BR $WLAN_IF 2> /dev/null
+    fi
+}
+
+main()
+{
+   if [ "$1" = "start" ]; then
+        get_intf_onoff _tmp_wla_onoff "wla"
+        get_intf_onoff _tmp_wlg_onoff "wlg"
+
+        if [ "x$_tmp_wla_onoff" = "xon" ]; then
+	         ACL wla
+                 Basic_settings wla
+                 Adv_settings wla
+                 Security wla
+                 Wds start wla
+                 #MSSID_settings wla
+                 #Security_MSSID wla
+		 IF_Handle start wla
+        else
+		IF_Handle stop wlg
+        fi
+
+        if [ "x$_tmp_wlg_onoff" = "xon" ]; then
+	         ACL wlg
+                 Basic_settings wlg
+                 Adv_settings wlg
+                 Security wlg
+                 Wds start wlg
+                 #MSSID_settings wlg
+                 #Security_MSSID wlg
+		 #ifconfig wlan1 hw ether 00e04c818687
+                 IF_Handle start wlg
+        else
+                IF_Handle stop wlg
+        fi
+
+   else
+       if [ "$wla_exist" = "on" ]; then
+          IF_Handle stop wla
+       fi
+       if [ "$wlg_exist" = "on" ]; then
+	  IF_Handle stop wlg
+       fi
+          Applications stop
+          Wds stop
+          Wps stop                  
+   fi
+
+}
+
+case "$1" in 
+
+       start)
+            main start
+            ;;  
+       stop)
+            main stop       
+            ;;
+       restart)
+            main stop
+            main start    
+            ;;
+       wsc)
+            config set wps_status=5
+            config commit
+            echo 1 > /tmp/reinitwscd
+            sleep 1
+            config set action=99
+            ;;
+esac

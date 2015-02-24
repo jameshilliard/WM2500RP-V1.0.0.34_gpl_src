@@ -1,0 +1,20 @@
+config DNI_CWMP_GIT_TREEISH
+	string
+	prompt "treeish of cwmp git repository"
+	default "c60d2c483024d77f3b900721fd9d0c63968be417"
+	help
+           Input the treeish of cwmp git repository which you want to build
+
+config DNI_CWMP_GIT_REPOSITORY
+	string
+	prompt "name of cwmp git repository"
+	default "cwmp.git"
+	help
+	   Input the name of cwmp git repository which you want to build
+
+config DNI_CWMP_GIT_URL
+	string
+	prompt "url of cwmp git repository"
+	default "ssh://dniserver/scm/dnigit/openwrt-buildroot.git/hardy.zhang/cwmp.git"
+	help
+	   Input the url of cwmp git repository which you want to build

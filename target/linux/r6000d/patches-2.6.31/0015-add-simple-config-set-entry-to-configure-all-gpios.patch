@@ -1,0 +1,178 @@
+diff -Nurp linux-2.6.31.orig//arch/mips/atheros/gpio.c linux-2.6.31/arch/mips/atheros/gpio.c
+--- linux-2.6.31.orig//arch/mips/atheros/gpio.c	2013-01-09 10:41:02.515352615 -0500
++++ linux-2.6.31/arch/mips/atheros/gpio.c	2013-01-09 10:45:01.795352590 -0500
+@@ -162,6 +162,11 @@ static int diswps_blink_count = 0; /* ma
+ 
+ static int wps_led_blinking = 0;
+ 
++#define DNI_SIMPLE_CONFIG_SET 1
++#if DNI_SIMPLE_CONFIG_SET
++static struct proc_dir_entry *scset_entry; /* simple config set entry, configure all GPIOs */
++#endif
++
+ /* AR9380 functions */
+ void ar9380GpioCfgOutput(unsigned int gpio);
+ void ar9380GpioCfgInput(unsigned int gpio);
+@@ -753,6 +758,147 @@ static int disable_wps_write (struct fil
+         return count;
+ }
+ 
++#if DNI_SIMPLE_CONFIG_SET
++static int simple_config_set_read(char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++	printk("Read from scset is not support :(\n");
++	return 0;
++}
++
++static int get_word(char *p, char *ret, int len)
++{
++	static char word[256];
++	int count = 0, index = 0;
++
++	if (!p || *p == '\0')
++		return 0;
++
++	/* skip all space in head of the string */
++	while (*p == ' ')
++		count++, p++;
++
++	while (*p != ' ' && *p != '\0' && *p != '\n' && *p != '\r')
++		count++, word[index++] = *p++;
++	word[index] = '\0';
++
++	memcpy(ret, word, len);
++	/* avoid overflow */
++	ret[len - 1] = '\0';
++
++	return count;
++}
++
++static int word2int(char *word)
++{
++	int val = 0;
++
++	if (!word || *word == '\0')
++		return -1;
++
++	while (*word != '\0') {
++		if (*word > '9' || *word < '0')
++			return -1;
++
++		val = val * 10 + (int)(*word++ - '0');
++	}
++
++	return val;
++}
++
++static int simple_config_set_write (struct file *file, const char *buf,
++                               unsigned long count, void *data)
++{
++	/* buf format:
++	 * 	"set 9344|9380 <pin> in|out <value>"
++	 * 	"get 9344|9380 <pin>"
++	 *  <pin> is the GPIO pin number on chip
++	 *  <value> must be 0 or 1, set the GPIO's value
++	 **/
++	int val = -1, pin = -1, chip, offset = 0;
++	char method[8], mode[8], field[8];
++	char *p = buf;
++
++	offset = get_word(p, method, sizeof(method));
++	p += offset;
++	offset = get_word(p, field, sizeof(field));
++	chip = word2int(field);
++	p += offset;
++	offset = get_word(p, field, sizeof(field));
++	pin = word2int(field);
++	p += offset;
++	offset = get_word(p, mode, sizeof(mode));
++	p += offset;
++	offset = get_word(p, field, sizeof(field));
++	val = word2int(field);
++
++	printk("\n*Info* input is: %s\n", buf);
++	printk("*Info*\tmethod: %s\n"
++		"\tchip: %d\n"
++		"\tpin: %d\n"
++		"\tmode: %s\n"
++		"\tvalue: %d\n",
++		method, chip, pin, mode, val);
++
++	switch (chip) {
++	case 9344:
++		if (pin > 22 || pin < 0)
++			goto SCSET_ERR;
++
++		if (!strcmp(method, "get")) {
++			printk("value is: %u\n", (ath_gpio_in_val(pin) != 0));
++		} else if (!strcmp(method, "set")) {
++			if (!strcmp(mode, "in")) {
++				ath_gpio_config_input(pin);
++			} else if (!strcmp(mode, "out")) {
++				if ((val >> 1) != 0)
++					goto SCSET_ERR;
++
++				ath_gpio_config_output(pin);
++				ath_gpio_out_val(pin, val);
++			} else
++				goto SCSET_ERR;
++		} else
++			goto SCSET_ERR;
++		break;
++	case 9380:
++		if (pin > 16 || pin < 0)
++			goto SCSET_ERR;
++
++		if (!strcmp(method, "get")) {
++			printk("value is: %u\n", (ar9380GpioGet(pin) != 0));
++		} else if (!strcmp(method, "set")) {
++			if (!strcmp(mode, "in")) {
++				ar9380GpioCfgInput(pin);
++			} else if (!strcmp(mode, "out")) {
++				if ((val >> 1) != 0)
++					goto SCSET_ERR;
++
++				ar9380GpioCfgOutput(pin);
++				ar9380GpioSet(pin, val);
++			} else
++				goto SCSET_ERR;
++		} else
++			goto SCSET_ERR;
++		break;
++	default:
++		goto SCSET_ERR;
++	}
++
++	return count;
++
++SCSET_ERR:
++	printk("Usage:\n"
++		"  echo \"set 9344|9380 <pin> in|out <value>\" > scset\n"
++		"  echo \"get 9344|9380 <pin>\" > scset\n"
++		"    9344|9380 specify the chip you want configure.\n"
++		"    <pin> is the GPIO pin number on chip, [0~22] for 9344 and [0~16] for 9380.\n"
++		"    in|out configure GPIO as input or output mode, invalid for get method..\n"
++		"    <value> must be 0 or 1, set the GPIO's value, it's invalid for input mode or get method.\n");
++	return count;
++}
++#endif
++
+ static OS_TIMER_FUNC(diswps_led_blink)
+ {
+         static int onoff = 0;
+@@ -1052,6 +1198,14 @@ static int create_simple_config_led_proc
+ 	disable_wps->write_proc = disable_wps_write;
+ 	disable_wps->read_proc = disable_wps_read;
+ 
++#if DNI_SIMPLE_CONFIG_SET
++	scset_entry = create_proc_entry ("scset", 0644, simple_config_entry);
++	if (!scset_entry)
++		return -ENOENT;
++	scset_entry->write_proc = simple_config_set_write;
++	scset_entry->read_proc = simple_config_set_read;
++#endif
++
+ 	/* disable ar9380 JTAG to use GPIO0~GPIO4 */
+ 	ar9380DisableJtag(0);
+ 

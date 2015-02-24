@@ -1,0 +1,55 @@
+From 0b51c50922b50c2ea738a875a7f671fa2fb2ce29 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Tue, 7 Dec 2010 13:20:42 +0800
+Subject: [PATCH 012/137] udp: Add extern sysctl_udp_ssdp_deliver_all to udp.h
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/udp.h |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/udp.h b/include/net/udp.h
+index 90e6ce5..c5e8a67 100644
+--- a/include/net/udp.h
++++ b/include/net/udp.h
+@@ -78,6 +78,7 @@ extern atomic_t udp_memory_allocated;
+ extern int sysctl_udp_mem[3];
+ extern int sysctl_udp_rmem_min;
+ extern int sysctl_udp_wmem_min;
++extern int sysctl_udp_ssdp_deliver_all;
+ 
+ struct sk_buff;
+ 
+-- 
+1.7.4.1
+

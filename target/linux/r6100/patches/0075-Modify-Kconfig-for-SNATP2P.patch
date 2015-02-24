@@ -1,0 +1,32 @@
+From 36578aa9923583c9c147213d0817bfabb6ab2788 Mon Sep 17 00:00:00 2001
+From: michell.dong <michell.dong@dniserver.dnish.net>
+Date: Wed, 28 Nov 2012 12:05:56 -0500
+Subject: [PATCH] Modify Kconfig for SNATP2P
+
+Signed-off-by: michell.dong <michell.dong@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/Kconfig |    8 ++++++++
+ 1 files changed, 8 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/Kconfig b/net/ipv4/netfilter/Kconfig
+index b444bdf..22ca574 100644
+--- a/net/ipv4/netfilter/Kconfig
++++ b/net/ipv4/netfilter/Kconfig
+@@ -221,6 +221,14 @@ config IP_NF_TARGET_REDIRECT
+ 
+ 	  To compile it as a module, choose M here.  If unsure, say N.
+ 
++config IP_NF_TARGET_SNATP2P
++	tristate "SNATP2P target support"
++	depends on NF_NAT
++	depends on NETFILTER_ADVANCED
++	help
++         SNATP2P is an implementation for P2P need.
++
++         To compile it as a module, choose M here.  If unsure, say N.
+ 
+ config NF_NAT_SNMP_BASIC
+ 	tristate "Basic SNMP-ALG support"
+-- 
+1.7.4.1
+

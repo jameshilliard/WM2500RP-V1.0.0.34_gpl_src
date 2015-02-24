@@ -1,0 +1,103 @@
+#!/bin/sh
+###############################################################################
+#
+#
+#
+###############################################################################
+CHAIN="DHCP"
+# usage of ip_control
+usage()
+{
+  echo ""
+  echo "Usage : ip_control [options] <new|del|flush|update|enableall>"
+  echo ""
+  echo "  options:"
+  echo "    -c conf-file    configuration file, default as /tmp/ip_forward_list"
+  echo ""
+}
+
+# parse parameters
+if [ "${1}" = "-c" ]; then
+  if [ -e "${2}" ]; then
+    iplist=${2}
+  else
+    usage
+    exit 1
+  fi
+  if [ -n "${3}" ]; then
+    method=${3}
+  else
+    usage
+    exit 2
+  fi
+else
+#  if [ ! -e "/tmp/ip_forward_list" ]; then
+#  	exit 3
+#  fi
+  iplist="/tmp/ip_forward_list"
+  method=${1}
+fi
+
+# update chain rules
+do_update()
+{
+  echo "update chain rules"
+
+  cat ${iplist} | grep -e "^[^#]" | cut -f 1 -d '#' | while read line; do `iptables -A ${CHAIN} -p all -s $line -j ACCEPT`; done
+}
+
+# flush chain
+do_flush()
+{
+  echo "flush chain"
+  iptables -F ${CHAIN}
+}
+
+# creat chain
+do_new()
+{
+  echo "creat chain"
+  iptables -N ${CHAIN}
+}
+
+# delete chain
+do_del()
+{
+  echo "delete chain"
+  iptables -X ${CHAIN}
+}
+
+# enable chain
+do_enableall()
+{
+  echo "enable chain"
+  iptables -F ${CHAIN}
+  iptables -A ${CHAIN} -s 0/0 -j ACCEPT
+}
+
+
+# handle rc.network by method
+case ${method} in
+  new)
+    do_new
+    ;;
+  del)
+    do_del
+    ;;
+  flush)
+    do_flush
+    ;;
+  update)
+    do_update
+    ;;
+  enableall)
+    do_enableall
+    ;;
+  *)
+    usage
+    exit 255
+    ;;
+esac
+
+# exit successfully
+exit 0

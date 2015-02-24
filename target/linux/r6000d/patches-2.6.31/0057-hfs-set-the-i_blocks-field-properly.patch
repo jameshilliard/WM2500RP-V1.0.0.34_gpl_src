@@ -1,0 +1,161 @@
+diff -Nur linux-2.6.31/fs/hfs/btree.c linux-2.6.31/fs.new/hfs/btree.c
+--- linux-2.6.31/fs/hfs/btree.c	2012-11-27 10:33:26.000000000 +0800
++++ linux-2.6.31/fs.new/hfs/btree.c	2012-11-27 10:30:37.000000000 +0800
+@@ -228,6 +228,12 @@
+ 		HFS_I(inode)->fs_blocks = inode->i_size >>
+ 					  tree->sb->s_blocksize_bits;
+ 		inode_set_bytes(inode, inode->i_size);
++		
++		/* Set the i_blocks field properly */
++        	inode->i_blocks = inode->i_size/512;
++        	if (inode->i_size % 512)
++            		inode->i_blocks++;
++
+ 		count = inode->i_size >> tree->node_size_shift;
+ 		tree->free_nodes = count - tree->node_count;
+ 		tree->node_count = count;
+diff -Nur linux-2.6.31/fs/hfs/extent.c linux-2.6.31/fs.new/hfs/extent.c
+--- linux-2.6.31/fs/hfs/extent.c	2012-11-27 10:33:26.000000000 +0800
++++ linux-2.6.31/fs.new/hfs/extent.c	2012-11-27 10:30:37.000000000 +0800
+@@ -521,5 +521,11 @@
+ 	HFS_I(inode)->phys_size = inode->i_size;
+ 	HFS_I(inode)->fs_blocks = (inode->i_size + sb->s_blocksize - 1) >> sb->s_blocksize_bits;
+ 	inode_set_bytes(inode, HFS_I(inode)->fs_blocks << sb->s_blocksize_bits);
++	
++	/* Set the i_blocks field properly */
++	inode->i_blocks = inode->i_size/512;
++	if (inode->i_size % 512)
++		inode->i_blocks++;
++
+ 	mark_inode_dirty(inode);
+ }
+diff -Nur linux-2.6.31/fs/hfs/inode.c linux-2.6.31/fs.new/hfs/inode.c
+--- linux-2.6.31/fs/hfs/inode.c	2012-11-27 10:33:26.000000000 +0800
++++ linux-2.6.31/fs.new/hfs/inode.c	2012-11-27 10:30:37.000000000 +0800
+@@ -245,6 +245,10 @@
+ 	inode->i_size = HFS_I(inode)->phys_size = log_size;
+ 	HFS_I(inode)->fs_blocks = (log_size + sb->s_blocksize - 1) >> sb->s_blocksize_bits;
+ 	inode_set_bytes(inode, HFS_I(inode)->fs_blocks << sb->s_blocksize_bits);
++	/* Set the i_blocks field properly */
++    	inode->i_blocks = inode->i_size/512;
++    	if (inode->i_size % 512)
++        	inode->i_blocks++;
+ 	HFS_I(inode)->alloc_blocks = be32_to_cpu(phys_size) /
+ 				     HFS_SB(sb)->alloc_blksz;
+ 	HFS_I(inode)->clump_blocks = clump_size / HFS_SB(sb)->alloc_blksz;
+diff -Nur linux-2.6.31/fs/hfs/super.c linux-2.6.31/fs.new/hfs/super.c
+--- linux-2.6.31/fs/hfs/super.c	2012-11-27 10:33:26.000000000 +0800
++++ linux-2.6.31/fs.new/hfs/super.c	2012-11-27 10:30:37.000000000 +0800
+@@ -126,8 +126,10 @@
+ 		if (!(HFS_SB(sb)->mdb->drAtrb & cpu_to_be16(HFS_SB_ATTRIB_UNMNT))) {
+ 			printk(KERN_WARNING "hfs: filesystem was not cleanly unmounted, "
+ 			       "running fsck.hfs is recommended.  leaving read-only.\n");
++#if 0
+ 			sb->s_flags |= MS_RDONLY;
+ 			*flags |= MS_RDONLY;
++#endif
+ 		} else if (HFS_SB(sb)->mdb->drAtrb & cpu_to_be16(HFS_SB_ATTRIB_SLOCK)) {
+ 			printk(KERN_WARNING "hfs: filesystem is marked locked, leaving read-only.\n");
+ 			sb->s_flags |= MS_RDONLY;
+diff -Nur linux-2.6.31/fs/hfsplus/btree.c linux-2.6.31/fs.new/hfsplus/btree.c
+--- linux-2.6.31/fs/hfsplus/btree.c	2012-11-27 10:33:45.000000000 +0800
++++ linux-2.6.31/fs.new/hfsplus/btree.c	2012-11-27 10:30:38.000000000 +0800
+@@ -204,6 +204,12 @@
+ 		HFSPLUS_I(inode).fs_blocks = HFSPLUS_I(inode).alloc_blocks <<
+ 					     HFSPLUS_SB(tree->sb).fs_shift;
+ 		inode_set_bytes(inode, inode->i_size);
++		
++		/* Set the i_blocks field properly */
++        	inode->i_blocks = inode->i_size/512;
++        	if (inode->i_size % 512)
++            		inode->i_blocks++;
++		
+ 		count = inode->i_size >> tree->node_size_shift;
+ 		tree->free_nodes = count - tree->node_count;
+ 		tree->node_count = count;
+diff -Nur linux-2.6.31/fs/hfsplus/extents.c linux-2.6.31/fs.new/hfsplus/extents.c
+--- linux-2.6.31/fs/hfsplus/extents.c	2012-11-27 10:33:45.000000000 +0800
++++ linux-2.6.31/fs.new/hfsplus/extents.c	2012-11-27 10:30:38.000000000 +0800
+@@ -502,5 +502,9 @@
+ 	HFSPLUS_I(inode).phys_size = inode->i_size;
+ 	HFSPLUS_I(inode).fs_blocks = (inode->i_size + sb->s_blocksize - 1) >> sb->s_blocksize_bits;
+ 	inode_set_bytes(inode, HFSPLUS_I(inode).fs_blocks << sb->s_blocksize_bits);
++	/* Set the i_blocks field properly */
++    	inode->i_blocks = inode->i_size/512;
++    	if (inode->i_size % 512)
++        	inode->i_blocks++;
+ 	mark_inode_dirty(inode);
+ }
+diff -Nur linux-2.6.31/fs/hfsplus/inode.c linux-2.6.31/fs.new/hfsplus/inode.c
+--- linux-2.6.31/fs/hfsplus/inode.c	2012-11-27 10:33:45.000000000 +0800
++++ linux-2.6.31/fs.new/hfsplus/inode.c	2012-11-27 10:30:38.000000000 +0800
+@@ -379,6 +379,11 @@
+ 	inode->i_size = HFSPLUS_I(inode).phys_size = be64_to_cpu(fork->total_size);
+ 	HFSPLUS_I(inode).fs_blocks = (inode->i_size + sb->s_blocksize - 1) >> sb->s_blocksize_bits;
+ 	inode_set_bytes(inode, HFSPLUS_I(inode).fs_blocks << sb->s_blocksize_bits);
++	 /* Set the i_blocks field properly */
++	inode->i_blocks = inode->i_size/512;
++    	if (inode->i_size % 512)
++        	inode->i_blocks++;
++	
+ 	HFSPLUS_I(inode).clump_blocks = be32_to_cpu(fork->clump_size) >> HFSPLUS_SB(sb).alloc_blksz_shift;
+ 	if (!HFSPLUS_I(inode).clump_blocks)
+ 		HFSPLUS_I(inode).clump_blocks = HFSPLUS_IS_RSRC(inode) ? HFSPLUS_SB(sb).rsrc_clump_blocks :
+diff -Nur linux-2.6.31/fs/hfsplus/super.c linux-2.6.31/fs.new/hfsplus/super.c
+--- linux-2.6.31/fs/hfsplus/super.c	2012-11-27 10:33:45.000000000 +0800
++++ linux-2.6.31/fs.new/hfsplus/super.c	2012-11-27 10:30:38.000000000 +0800
+@@ -371,7 +371,9 @@
+ 	if (!(vhdr->attributes & cpu_to_be32(HFSPLUS_VOL_UNMNT))) {
+ 		printk(KERN_WARNING "hfs: Filesystem was not cleanly unmounted, "
+ 		       "running fsck.hfsplus is recommended.  mounting read-only.\n");
++#if 0
+ 		sb->s_flags |= MS_RDONLY;
++#endif
+ 	} else if (sbi->flags & HFSPLUS_SB_FORCE) {
+ 		/* nothing */
+ 	} else if (vhdr->attributes & cpu_to_be32(HFSPLUS_VOL_SOFTLOCK)) {
+diff -Nur linux-2.6.31/fs/hfsplus_journal/btree.c linux-2.6.31/fs.new/hfsplus_journal/btree.c
+--- linux-2.6.31/fs/hfsplus_journal/btree.c	2012-11-27 10:33:57.000000000 +0800
++++ linux-2.6.31/fs.new/hfsplus_journal/btree.c	2012-11-27 10:30:36.000000000 +0800
+@@ -212,6 +212,12 @@
+ 		HFSPLUS_I(inode).fs_blocks = HFSPLUS_I(inode).alloc_blocks <<
+ 					     HFSPLUS_SB(tree->sb).fs_shift;
+ 		inode_set_bytes(inode, inode->i_size);
++
++		/* Set the i_blocks field properly */
++		inode->i_blocks = inode->i_size/512;
++		if (inode->i_size % 512)
++			inode->i_blocks++;
++
+ 		count = inode->i_size >> tree->node_size_shift;
+ 		tree->free_nodes = count - tree->node_count;
+ 		tree->node_count = count;
+diff -Nur linux-2.6.31/fs/hfsplus_journal/extents.c linux-2.6.31/fs.new/hfsplus_journal/extents.c
+--- linux-2.6.31/fs/hfsplus_journal/extents.c	2012-11-27 10:33:57.000000000 +0800
++++ linux-2.6.31/fs.new/hfsplus_journal/extents.c	2012-11-27 10:30:36.000000000 +0800
+@@ -536,6 +536,10 @@
+ 	HFSPLUS_I(inode).phys_size = inode->i_size;
+ 	HFSPLUS_I(inode).fs_blocks = (inode->i_size + sb->s_blocksize - 1) >> sb->s_blocksize_bits;
+ 	inode_set_bytes(inode, HFSPLUS_I(inode).fs_blocks << sb->s_blocksize_bits);
++	/* Set the i_blocks field properly */
++    	inode->i_blocks = inode->i_size/512;
++    	if (inode->i_size % 512)
++        	inode->i_blocks++;	
+ 	hfsplus_journalled_mark_inode_dirty(__FUNCTION__, &hfsplus_handle, inode);
+ 	hfsplus_journal_stop(&hfsplus_handle);
+ }
+diff -Nur linux-2.6.31/fs/hfsplus_journal/inode.c linux-2.6.31/fs.new/hfsplus_journal/inode.c
+--- linux-2.6.31/fs/hfsplus_journal/inode.c	2012-11-27 10:33:57.000000000 +0800
++++ linux-2.6.31/fs.new/hfsplus_journal/inode.c	2012-11-27 10:30:36.000000000 +0800
+@@ -705,6 +705,11 @@
+ 	inode->i_size = HFSPLUS_I(inode).phys_size = be64_to_cpu(fork->total_size);
+ 	HFSPLUS_I(inode).fs_blocks = (inode->i_size + sb->s_blocksize - 1) >> sb->s_blocksize_bits;
+ 	inode_set_bytes(inode, HFSPLUS_I(inode).fs_blocks << sb->s_blocksize_bits);
++	 /* Set the i_blocks field properly */
++    	inode->i_blocks = inode->i_size/512;
++    	if (inode->i_size % 512)
++        	inode->i_blocks++;	
++
+ 	HFSPLUS_I(inode).clump_blocks = be32_to_cpu(fork->clump_size) >> HFSPLUS_SB(sb).alloc_blksz_shift;
+ 	if (!HFSPLUS_I(inode).clump_blocks)
+ 		HFSPLUS_I(inode).clump_blocks = HFSPLUS_IS_RSRC(inode) ? HFSPLUS_SB(sb).rsrc_clump_blocks :

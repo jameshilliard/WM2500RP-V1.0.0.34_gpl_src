@@ -1,0 +1,14 @@
+--- linux-2.6.31.bak/fs/dcache.c	2012-05-18 08:27:52.000000000 +0800
++++ linux-2.6.31/fs/dcache.c	2012-05-18 08:29:14.000000000 +0800
+@@ -1511,6 +1511,11 @@
+ 	 */
+ 	spin_lock(&dcache_lock);
+ 	spin_lock(&dentry->d_lock);
++	if (dentry == NULL)
++		return;
++	else if(dentry->d_inode == NULL)
++		return;
++
+ 	isdir = S_ISDIR(dentry->d_inode->i_mode);
+ 	if (atomic_read(&dentry->d_count) == 1) {
+ 		dentry_iput(dentry);

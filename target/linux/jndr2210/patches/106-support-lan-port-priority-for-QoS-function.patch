@@ -1,0 +1,147 @@
+diff -Nur linux-2.6.30.orig/drivers/net/rtl819x/Kconfig linux-2.6.30/drivers/net/rtl819x/Kconfig
+--- linux-2.6.30.orig/drivers/net/rtl819x/Kconfig	2011-12-12 03:30:04.000000000 -0500
++++ linux-2.6.30/drivers/net/rtl819x/Kconfig	2012-02-17 13:14:37.666524133 -0500
+@@ -410,6 +410,11 @@
+ 	default n
+ 	depends on RTL_819X
+ 
++config DNI_QOS_LPORT
++	bool "Enable DNI QoS LAN Ports feature"
++	default n
++	depends on RTL_819X
++
+ config RTL_REINIT_SWITCH_CORE
+ 	bool
+ 	default y
+diff -Nur linux-2.6.30.orig/drivers/net/rtl819x/rtl_nic.c linux-2.6.30/drivers/net/rtl819x/rtl_nic.c
+--- linux-2.6.30.orig/drivers/net/rtl819x/rtl_nic.c	2012-02-17 12:08:35.046523185 -0500
++++ linux-2.6.30/drivers/net/rtl819x/rtl_nic.c	2012-02-17 13:14:37.666524133 -0500
+@@ -229,6 +229,35 @@
+ static int32 get_all_port_info(struct ifreq *rq);
+ #endif
+ 
++#if defined (CONFIG_DNI_QOS_LPORT)
++/* LAN port */
++enum {
++	LP_MIN = 0,
++	LP_1,
++	LP_2,
++	LP_3,
++	LP_4,
++	LP_MAX
++};
++
++/* priority */
++enum {
++	P_MIN = 0,
++	P_HIGHEST = 0x1 << 0,
++	P_HIGH = 0x1 << 1,
++	P_NORMAL = 0x1 << 2,
++	P_LOW = 0x1 << 3,
++	P_MAX = P_LOW + 1
++};
++
++/* lp_prio[0] : unused; lp_prio[i] (i=1~4): priority of the i'th LAN port. */
++static u32 lp_prio[5] = {P_MIN, P_MIN, P_MIN, P_MIN, P_MIN};
++
++void dni_qos_mark_port_prio(struct sk_buff *skb, int port);
++static int32 lan_prio_read(char *page, char **start, off_t off, int count, int *eof, void *data);
++static int32 lan_prio_write( struct file *filp, const char *buff,unsigned long len, void *data);
++#endif //#if defined (CONFIG_DNI_QOS_LPORT)
++
+ #ifdef CONFIG_RTL8196C_GREEN_ETHERNET
+ static void power_save_timer(unsigned long task_priv);
+ #endif
+@@ -2532,6 +2561,9 @@
+ 	skb->protocol = eth_type_trans(skb, skb->dev);
+ 	skb->ip_summed = CHECKSUM_NONE;
+ 	//printk("[%s][%d]-skb->dev[%s],proto(0x%x)\n", __FUNCTION__, __LINE__, skb->dev->name,skb->protocol);
++#if defined(CONFIG_DNI_QOS_LPORT)
++	dni_qos_mark_port_prio(skb, skb->srcPhyPort + 1);
++#endif
+ 
+ #if defined(RX_TASKLET)
+ 	#if defined(CONFIG_RTL_LOCAL_PUBLIC)
+@@ -2598,7 +2630,7 @@
+ 	skb->dev=info->isPdev?_rtl86xx_dev.pdev:info->priv->dev;
+ 	//skb->dev=cp_this->dev;
+ 
+-#if defined(CONFIG_NETFILTER_XT_MATCH_PHYPORT) || defined(CONFIG_RTL_FAST_FILTER) || defined(CONFIG_RTL_QOS_PATCH)
++#if defined(CONFIG_DNI_QOS_LPORT) || defined(CONFIG_NETFILTER_XT_MATCH_PHYPORT) || defined(CONFIG_RTL_FAST_FILTER) || defined(CONFIG_RTL_QOS_PATCH)
+ 	skb->srcPhyPort=(uint8)pid;
+ #endif
+ 	//printk("=======%s(%d),cp_this(%s)\n",__FUNCTION__,__LINE__,cp_this->dev->name);
+@@ -5815,6 +5847,10 @@
+ 	struct rtl865x_interface_info ifInfo;
+ #endif
+ 
++#if defined (CONFIG_DNI_QOS_LPORT)
++	struct proc_dir_entry *lport_pri;
++#endif //#if defined (CONFIG_DNI_QOS_LPORT)
++
+ 	int port;
+ 	struct proc_dir_entry *p;
+ 	//WRITE_MEM32(PIN_MUX_SEL_2, 0x7<<21);
+@@ -6285,6 +6321,15 @@
+ 	}
+ #endif	//#if defined(CONFIG_819X_PHY_RW)
+ 
++#if defined (CONFIG_DNI_QOS_LPORT)
++	lport_pri = create_proc_entry("lan_prio", 0, NULL);
++	if (lport_pri)
++	{
++		lport_pri->read_proc = lan_prio_read;
++		lport_pri->write_proc = lan_prio_write;
++	}
++#endif //#if defined (CONFIG_DNI_QOS_LPORT)
++
+ #ifdef RTL8366S_PHY_RESET
+     switch_phy_init();
+ #endif
+@@ -8140,6 +8185,46 @@
+ 
+ #endif	//#if defined(CONFIG_819X_PHY_RW)
+ 
++#if defined (CONFIG_DNI_QOS_LPORT)
++void dni_qos_mark_port_prio(struct sk_buff *skb, int port)
++{
++	if (port > LP_MIN && port < LP_MAX)
++		skb->mark = lp_prio[port];
++}
++
++static int32 lan_prio_read(char *page, char **start, off_t off, int count, int *eof, void *data)
++{
++	int len;
++	len = sprintf(page, "%d%d%d%d%d", lp_prio[0], lp_prio[1],
++				lp_prio[2], lp_prio[3], lp_prio[4]);
++	if (len <= off+count)
++		*eof = 1;
++	*start = page + off;
++	len -= off;
++	if (len>count)
++		len = count;
++	if (len<0)
++		len = 0;
++	return len;
++}
++
++static int32 lan_prio_write( struct file *filp, const char *buff,unsigned long len, void *data )
++{
++	char tmpbuf[4];
++	int port, prio;
++
++	if (buff && !copy_from_user(tmpbuf, buff, len))
++	{
++		port = (int)(tmpbuf[0] - '0');
++		prio = (int)(tmpbuf[1] - '0');
++
++		if ((port > LP_MIN && port < LP_MAX) &&
++			(prio >= P_MIN && prio < P_MAX))
++			lp_prio[port] = prio;
++	}
++	return len;
++}
++#endif //#if defined (CONFIG_DNI_QOS_LPORT)
+ 
+ static int read_proc_vlan(char *page, char **start, off_t off,
+         int count, int *eof, void *data)

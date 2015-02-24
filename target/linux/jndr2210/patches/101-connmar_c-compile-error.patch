@@ -1,0 +1,11 @@
+--- linux-2.6.30/net/netfilter/xt_CONNMARK.c.old	2011-12-02 11:03:56.793500597 -0500
++++ linux-2.6.30/net/netfilter/xt_CONNMARK.c	2011-12-02 11:04:21.543500565 -0500
+@@ -32,7 +32,7 @@
+ MODULE_ALIAS("ip6t_CONNMARK");
+ 
+ #include <linux/netfilter/x_tables.h>
+-#include <linux/netfilter/xt_CONNMARK.h>
++#include <linux/netfilter/xt_connmark.h>
+ #include <net/netfilter/nf_conntrack_ecache.h>
+ 
+ static unsigned int

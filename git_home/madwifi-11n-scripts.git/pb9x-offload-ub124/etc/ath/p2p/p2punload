@@ -1,0 +1,9 @@
+#!/bin/sh
+
+
+wlanconfig wlan0 destroy
+wlanconfig wlan1 destroy
+wlanconfig wlan2 destroy
+
+/etc/rc.d/rc.wlan down
+

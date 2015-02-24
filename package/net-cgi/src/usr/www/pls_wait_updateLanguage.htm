@@ -1,0 +1,69 @@
+<html>
+<head>
+  <title></title>
+  <link rel="stylesheet" href="style/form.css">
+<STYLE type=text/css>  
+.prgbar1 { font-family:Arial; padding:0px; height: 20px; width: 250px; font-weight: bolder; font-size: 10pt; border: 1px solid; border-color: #09c; color: #0000FF}  
+</STYLE>
+<script type="text/javascript">
+var pchar = "|"; // progress char
+var maxchars = 45; 
+var delay_time = 100; // msecs
+var charcount = 0; 
+
+function makeStr(strSize, fillChar)
+{
+	var temp = "";
+	for (i=0; i < strSize ; i ++)
+		temp = temp + fillChar;
+	return temp;
+}
+function updateProgress()
+{
+	var cf = document.forms[0];
+	if (charcount < maxchars)
+	{
+		charcount ++;
+		cf.progress.value = makeStr(charcount,pchar);
+		setTimeout("updateProgress()",delay_time);
+	}
+	else
+	{
+		top.location.href="index.htm";
+	}
+}
+
+var language_change_status="<% lang_change_status() %>";
+function loadvalue()
+{
+	updateProgress();
+
+		if(language_change_status == "1") // 1:No Internet Connection
+		{
+			alert("$auto_upg_nowan_head");
+			top.location.href="index.htm";
+		}
+		else if(language_change_status == "2") // 2:download failed
+		{
+			alert("$ml_failDownload");
+			top.location.href="index.htm";
+		}
+}
+</script>
+</head>
+<body bgcolor="#ffffff" onLoad="updateProgress()">
+<form>
+<br><br>
+<table border="0" cellpadding="0" cellspacing="3" width="100%">
+<tr>
+	<td align="left"> <h1>$multi_wait</h1></td>
+</tr>
+<tr>	
+	<td nowrap><input type="text" name="progress" class="prgbar1" value=""></td>
+</tr>
+</table>
+<br>
+<tr><td colspan="2"><img src="/liteblue.gif" width=100% height="12"></td>
+</tr>
+</body>
+</html>

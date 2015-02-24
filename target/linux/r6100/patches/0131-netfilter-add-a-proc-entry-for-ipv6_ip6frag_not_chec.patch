@@ -1,0 +1,67 @@
+From 4180f486e14d27f1118b7b0a98a84374bde68cd1 Mon Sep 17 00:00:00 2001
+From: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Date: Tue, 5 Jul 2011 11:50:11 +0800
+Subject: [PATCH 131/137] netfilter: add a proc entry for ipv6_ip6frag_not_check_icmp
+
+Add a proc entry for ipv6_ip6frag_not_check_icmp if IPV6 and
+NF_CONNTRACK_IPV6 is defined.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/netfilter/dni_netfilter_sysctl.c |   10 ++++++++++
+ 1 files changed, 10 insertions(+), 0 deletions(-)
+
+diff --git a/net/netfilter/dni_netfilter_sysctl.c b/net/netfilter/dni_netfilter_sysctl.c
+index be4a50e..23d6223 100644
+--- a/net/netfilter/dni_netfilter_sysctl.c
++++ b/net/netfilter/dni_netfilter_sysctl.c
+@@ -57,6 +57,16 @@ ctl_table dni_table[] = {
+ 		.proc_handler	= proc_flush_conntrack,
+ 		.strategy	= sysctl_intvec,
+ 	},
++#if defined(CONFIG_NF_CONNTRACK_IPV6) || defined(CONFIG_NF_CONNTRACK_IPV6_MODULE)
++	{
++		.ctl_name	= CTL_UNNUMBERED,
++		.procname	= "ipv6_ip6frag_not_check_icmp",
++		.data		= &ipv6_ip6frag_not_check_icmp,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= &proc_dointvec,
++        },
++#endif
+ 	{0}
+ };
+ 
+-- 
+1.7.4.1
+

@@ -1,0 +1,251 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% noload_header("_info", "welcomeok.htm", "client_connect") %>
+
+<script>
+var coax_connect="<% cfg_get("coax_conn_status") %>";
+var coax_channel="<% cfg_get("coax_channel") %>";
+var coax_enable="<% cfg_get("coax_encry_abled") %>";
+
+var an_router_flag = parent.an_router_flag;
+var old_endis_wl_radio='<% enable_ap_orNot("bgn") %>';
+var old_endis_wla_radio='<% enable_ap_orNot("an") %>';
+var ts='<% cfg_get("client_connect") %>';
+<% bas_ether_info() %>;
+
+var wl_key1 = xss_replace("<% cfg_sed("wl_key1") %>");
+var get_wpa1= xss_replace("<% cfg_sed_passphrase("wl_wpa1_psk") %>");
+var get_wpa2= xss_replace("<% cfg_sed_passphrase("wl_wpa2_psk") %>");
+var get_wpas= xss_replace("<% cfg_sed_passphrase("wl_wpas_psk") %>");
+	
+lan_dhcp="<% cfg_get("lan_dhcp") %>";
+
+var gui_region="<% cfg_get("GUI_Region") %>";
+var ap_client="<% cfg_get("ap_client") %>";
+var ap_mode="<% cfg_get("ap_mode") %>";
+var info_get_security="<% cfg_get("wl_sectype") %>";
+var passphrase;
+var w10_rate="<% cat_file("/tmp/wl0_rate") %>";
+if(w10_rate == "")
+	w10_rate = "0";
+var link_rate=parseInt(w10_rate) / 1000;
+link_rate=Math.round(link_rate*10)/10;
+if(info_get_security==2)
+	passphrase=wl_key1;
+else if(info_get_security==3)
+	passphrase=get_wpa1;
+else if(info_get_security==4)
+	passphrase=get_wpa2;
+else if(info_get_security==5)
+	passphrase=get_wpas;	
+
+function getObj(name)
+{
+    if (document.getElementById)
+    {
+        return document.getElementById(name);
+    }
+    else if (document.all)
+    {
+        return document.all[name];
+    }
+    else if (document.layers)
+    {
+        return document.layers[name];
+    }
+}
+
+function re_con()
+{
+	var cf = document.forms[0];
+	cf.submit_flag.value = "client_connect";
+	cf.action="/apply.cgi?/welcomeok.htm timestamp="+ts;
+    cf.submit();
+}
+
+</script>
+<input type="hidden" name="refresh_url">
+<input type="hidden" name="refresh_page" value="info">
+<div class="page_title">$info_mark_head</div>
+<div id="main" class="main">
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<TR><TD colSpan=3></TD></TR><TR><td colspan=3><img src=/liteblue.gif width=100% height=12></td></TR>
+<!--   <tr>
+   <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','acname')"><b><script>document.write(info_mark_name)</script></b></a></td>        
+    <td nowrap>${info_get_acname}</td> 
+  </tr>          -->
+    <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','hard_ver')"><b>$router_status_hwversion</b></td>
+    <td nowrap><% cat_file("/hardware_version") %></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','firv')"><b>$info_mark_ver</b></a></td>
+    <td nowrap><% cat_file("/firmware_version") %><% cat_file("/firmware_region") %></td>
+  </tr>  
+    <tr>
+      <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','lang_ver')"><b>$info_language_ver</b></td>
+      <td nowrap><% get_language_version() %></td>
+    </tr>
+$bluebar
+  <tr>
+    <td nowrap colspan=2><a tabindex=-1 href="javascript:loadhelp('_info','device_status')"><span class="subhead">$router_status_ip</span></a></td>
+  </tr>
+   <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','lanmac')"><b>$info_mark_mac</b></a></td>
+    <td nowrap><% lan_mac() %></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','lanip')"><b>$info_mark_ip</b></a></td>
+    <td nowrap><script>document.write(ether_get_ip)</script></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','landhcp')"><b>$info_mark_dhcp</b></a></td>
+    <td nowrap><% on_status("lan_dhcp") %></td>
+  </tr>
+  <tr>
+      <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','lansub')"><b>$router_status_ip_sub</b></a></td>
+	  <td nowrap><script>document.write(ether_get_subnet)</script></td>
+ </tr>
+ <tr>
+      <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','langateway')"><b>$lan_mark_gateway</b></a></td>
+	  <td nowrap><script>document.write(ether_get_gateway)</script></td>
+ </tr>
+  <tr>
+      <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','landns')"><b>$router_status_domain_ser</b></a></td>
+	  <td nowrap><script>document.write(ether_get_dns1)</script></td>
+ </tr>
+ 
+$bluebar
+<tr>
+    <td nowrap colspan=2><a tabindex=-1 href="javascript:loadhelp('_info','device_status')"><span class="subhead">$coax_info</span></a></td>
+  </tr>
+ <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','landhcp')"><b>$coax_link</b></a></td>
+    <td nowrap><span>
+	<script>
+	if( coax_connect == 1) 
+		document.write("$client_con_mark");
+	else
+		document.write("$client_discon_mark");
+	</script></span></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','landhcp')"><b>$info_mark_chan</b></a></td>
+    <td nowrap><span>
+	<script>
+	if( coax_channel == 0) 
+		document.write("SCAN");
+	else if( coax_channel == 15) 
+		document.write("1150Mhz");
+	else if( coax_channel == 17) 
+		document.write("1200Mhz");
+	else if( coax_channel == 19) 
+		document.write("1250Mhz");
+	else if( coax_channel == 21) 
+		document.write("1300Mhz");
+	else if( coax_channel == 23) 
+		document.write("1350Mhz");
+	else if( coax_channel == 25) 
+		document.write("1400Mhz");
+	else if( coax_channel == 27) 
+		document.write("1450Mhz");
+	else if( coax_channel == 29) 
+		document.write("1500Mhz");
+	else if( coax_channel == 31) 
+		document.write("1550Mhz");
+	else
+		document.write("1600Mhz");
+	</script></span></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','landhcp')"><b>$coax_encry_key</b></a></td>
+    <td nowrap><span>
+	<script>
+	if( coax_enable == 1) 
+		document.write("$coax_enable");
+	else
+		document.write("$coax_disenable");
+	</script></span></td>
+  </tr>
+$bluebar
+  <tr><td nowrap colspan=2><a tabindex=-1 href="javascript:loadhelp('_info','wireless_port')"><span class="subhead">$info_mark_wireless_port<script> if( an_router_flag == 1) document.write("(2.4GHz)")</script></span></a></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlssid')"><b><span>$info_mark_ssid</b></a></td>
+    <td nowrap><span><% cfg_get_ssid_html("wl_ssid") %>  
+	</span>
+    </td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlregion')"><b><span>$info_mark_reg</span></b></a></td>
+    <td nowrap><span><% show_wl_country() %></span></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlchannel')"><b><span>$info_mark_chan</span></b></a></td>
+    <td nowrap><span><% wl_channel() %></span></td>
+  </tr>
+    <tr>
+  <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlmode')"><b><span>$adva_wlan_mode</span></b></a></td>
+<td nowrap><span><% wl_mode("wl_") %></span></td>
+  </tr>
+   <tr>
+	<td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlmode')"><b><span>$wlan_ap</span></b></a></td>
+	<td nowrap><span><script>if (old_endis_wl_radio==0) document.write("$off_mark");else document.write("$on_mark");</script></span></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlbroad')"><b><span>$router_status_broadcast</span></b></a></td>
+    <td nowrap><span><% on_status("endis_ssid_broadcast") %></span></td>
+  </tr>
+  <tr>
+    <td nowrap><a tabindex=-1 href="javascript:loadhelp('_info','wlwps')"><b><span>$info_wps_status</span></b></a></td>
+    <td nowrap><span><% wl_wps() %></span></td>
+  </tr> 
+$bluebar
+<script>
+if(an_router_flag == 1)
+{
+	document.write("<tr><td nowrap colspan=2><a tabindex=-1 href=\"javascript:loadhelp('_info','wireless_port')\"><span class=\"subhead\">$info_mark_wireless_port(5GHz)</span></a></td></tr>")
+	document.write("<tr><td nowrap><a tabindex=-1 href=\"javascript:loadhelp('_info','wlssid')\"><b><span>$info_mark_ssid</b></a></td>")
+    document.write("<td nowrap><span><% cfg_get_ssid_html("wla_ssid") %>")
+    
+	document.write("</span></td></tr>")
+  
+    document.write("<tr><td nowrap><a tabindex=-1 href=\"javascript:loadhelp('_info','wlregion')\"><b><span>$info_mark_reg</span></b></a></td>")
+    document.write("<td nowrap><span><% show_wla_country() %></span></td></tr>")
+
+    document.write("<tr><td nowrap><a tabindex=-1 href=\"javascript:loadhelp('_info','wlchannel')\"><b><span>$info_mark_chan</span></b></a></td>")
+    document.write("<td nowrap><span><% wla_channel() %></span></td></tr>")
+     
+    document.write("<tr><td nowrap><a tabindex=-1 href=\"javascript:loadhelp('_info','wlmode')\"><b><span>$adva_wlan_mode</span></b></a></td>")
+	document.write("<td nowrap><span><% wl_mode("wla_") %></span></td></tr>")
+  
+	document.write("<td nowrap><a tabindex=-1 href=\"javascript:loadhelp('_info','wlmode')\"><b><span>$wlan_ap</span></b></a></td>")
+	document.write("<td nowrap><span>")
+	if (old_endis_wla_radio==0) 
+		document.write("$off_mark");
+	else 
+		document.write("$on_mark");
+	document.write("</span></td></tr>")
+   
+    document.write("<tr><td nowrap><a tabindex=-1 href=\"javascript:loadhelp('_info','wlbroad')\"><b><span>$router_status_broadcast</span></b></a></td>")
+    document.write('<td nowrap><span><% on_status("wla_endis_ssid_broadcast") %></span></td></tr>')
+   
+    document.write("<tr><td nowrap><a tabindex=-1 href=\"javascript:loadhelp('_info','wlwps')\"><b><span>$info_wps_status</span></b></a></td>")
+    document.write("<td nowrap><span><% wla_wps() %></span></td></tr>") 
+}
+</script>
+$bluebar 
+<tr><td nowrap colspan=2 align=center>
+<script>
+if(gui_region == "French" || gui_region == "Russian")
+	document.write('<input class="wladv_long_common_bt" type="button" name="statistics" value="$show_sta_mark" onClick="window.open(\'show_statistic.htm\',\'show_statistic\',\'width=900,height=400,top=200,left=200,status=yes\');">')
+else
+	document.write('<input class="wizard_middle_common_bt" type="button" name="statistics" value="$show_sta_mark" onClick="window.open(\'show_statistic.htm\',\'show_statistic\',\'width=900,height=400,top=200,left=200,status=yes\');">')
+</script>
+    </td>
+</tr>
+</table>
+</div>
+<% help_box("1","_info") %>
+</body>
+</html>
+

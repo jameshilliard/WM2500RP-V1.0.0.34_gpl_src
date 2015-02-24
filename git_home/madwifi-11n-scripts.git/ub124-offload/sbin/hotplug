@@ -1,0 +1,64 @@
+#!/bin/sh
+
+#
+# The script only support monitoring wifi0
+#
+
+MONITOR_PATH=/devices/virtual/net/wifi0
+DEBUG_FILE=/tmp/hotplug_event
+
+echo $1: $ACTION: $DEVPATH >> $DEBUG_FILE
+
+if [ "$1" != "net" ]; then
+    exit 1
+fi
+
+if [ "$DEVPATH" != "$MONITOR_PATH" ]; then
+    exit 1
+fi
+
+echo handling $ACTION...
+
+if [ "$ACTION" = "add" ]; then
+    # support apup configuration only
+    if [ ! -e /tmp/.apup -o ! -e /tmp/.apcfg ]; then
+        echo ignore event due to no apup running
+        exit 1
+    fi
+
+    # if the event is due to apup, ignore this one
+    APUP=`ps aux | grep apup`
+    if [ "$APUP" != "" ]; then
+    	echo ignore event due to apup is configuring
+    	exit
+    fi
+
+    # create VAP
+    wlanconfig ath0 create wlandev wifi0 wlanmode sta
+
+    # common configurations
+    SECMODE=`cat /tmp/.apcfg | grep AP_SECMODE= | cut -d= -f2`
+    SSID=`cat /tmp/.apcfg | grep AP_SSID= | cut -d= -f2`
+    iwconfig ath0 $SSID
+
+    # configurations for each security mode
+    echo configure ath0: mode: $SECMODE ssid: $SSID
+    case "$SECMODE" in
+        NONE|"")
+            ifconfig ath0 up
+            ;;
+        WPA)
+            sleep 1
+            atd_wsupp_bridge -i ath0 -c /tmp/supath0 -s &
+            ifconfig ath0 up
+            ;;
+        *)
+            echo unsupported mode: $SECMODE
+            ;;
+    esac
+fi
+
+if [ "$ACTION" = "remove" ]; then
+    /usr/bin/killall -9 atd_wsupp_bridge
+    rm -rf /tmp/wpa_supplicant*
+fi

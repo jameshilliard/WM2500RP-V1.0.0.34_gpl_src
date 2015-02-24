@@ -1,0 +1,14 @@
+<% http_header("style/form.css", "/funcs.js") %>
+
+<body onload="loadvalue();"  bgcolor="#ffffff">
+<script>
+function loadvalue()
+{
+	top.wps_status="<% wps_process_status() %>";;
+	top.client_name="<% cfg_get("client_name") %>";
+	top.pin_error="<% cfg_get("pin_error") %>";
+	setTimeout("location.href='wps_get_status.htm'",3000);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+--- linux-2.6.31.orig/arch/mips/atheros/gpio.c	2011-12-15 17:36:35.548254665 +0800
++++ linux-2.6.31/arch/mips/atheros/gpio.c	2011-12-15 17:41:12.438254350 +0800
+@@ -1231,11 +1231,16 @@
+ 	rddata = rddata & 0xffffff00;
+ 	rddata = rddata | ATH_GPIO_OUT_FUNCTION1_ENABLE_GPIO_4(0x0);
+ 	ath_reg_wr(ATH_GPIO_OUT_FUNCTION1, rddata);*/
++	rddata = ath_reg_rd(ATH_GPIO_OUT_FUNCTION2);
++	rddata = rddata & 0x00ffffff;
++	rddata = rddata | ATH_GPIO_OUT_FUNCTION2_ENABLE_GPIO_11(0x0);
++	ath_reg_wr(ATH_GPIO_OUT_FUNCTION2, rddata);
++
+ 
+ 	init_waitqueue_head(&ath_fr_wq);
+ 
+ 	/* Disable JTAG port functionality to enable GPIO functionality */
+-	ath_reg_rmw_set(ATH_GPIO_FUNCTIONS, (1 << 0));
++	ath_reg_rmw_set(ATH_GPIO_FUNCTIONS, (1 << 1));
+ 
+ 	create_simple_config_led_proc_entry();
+ 	return 0;

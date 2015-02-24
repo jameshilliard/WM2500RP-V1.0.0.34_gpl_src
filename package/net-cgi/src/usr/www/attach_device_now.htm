@@ -1,0 +1,252 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% noload_header("_attach_device") %>
+
+<script>
+<% wire_dev_num() %>
+</script>
+<div class="page_title">$menu_attach_device</div>
+<div id="main" class="main">
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<TR><TD colSpan=3></TD></TR><TR><td colspan=3><img src=/liteblue.gif width=100% height=12></td></TR>
+<tr>
+	<td nowrap colspan=2>
+	<table class=tables align=center border=0 cellpadding=2 cellspacing=0 width="100%">
+		<tr class=table_header>
+		<td nowrap align=center><span class="subhead"># </span></td>
+		<td nowrap align=center><span class="subhead">$wds_ipaddr</span> </td>
+		<td nowrap align=center><span class="subhead">$qos_mac</span></td>
+		<td nowrap align=center><span class="subhead">$virtual_macaddr</span></td>
+		<td nowrap align=center><span class="subhead">$lan_mark_name</span></td>
+	</tr>
+<script>
+var cf = document.forms[0];
+var attach_device_list="<% echo_file("/tmp/netscan/attach_device") %>";
+var attach_array=attach_device_list.split(' @#$$&*! ');
+var attach_ip_array = new Array();  
+var attach_mac_array = new Array();  
+var attach_name_array = new Array(); 
+var s=0;
+var l=0;
+var p=0;
+var num=1;
+var unknown_mark="$unknow_mark";
+
+if(attach_device_list != "")
+{		
+		if(wire_device_totalnum>0)
+		{
+			var wireless_mac;
+			var all_mac;
+			
+					for(m=0;m<attach_array.length;m++)
+					{
+						
+						var each_wireless=attach_array[m].split(' ');
+			            var each_info=attach_array[m].split(' ');
+							if(each_info.length>2)
+							{
+								attach_ip_array[s]=each_info[0];
+								attach_mac_array[s]=each_info[1];
+								if (each_info[2].length>0)
+									attach_name_array[s]=each_info[2];
+								else
+									attach_name_array[s]="----";
+								all_mac=each_info[1];
+							}
+							else
+							{
+								attach_ip_array[s]=each_info[0];
+								attach_mac_array[s]=each_info[1];
+								attach_name_array[s]="----";
+								all_mac=each_info[1];
+							}
+						
+							if(attach_ip_array[s] == "<unknown>")
+								attach_ip_array[s]=unknown_mark
+							if(attach_mac_array[s] == "<unknown>")
+								attach_mac_array[s]=unknown_mark
+							if(attach_name_array[s] == "<unknown>")
+								attach_name_array[s]=unknown_mark
+							var eq=0;
+							for(l=2;l<=wire_device_totalnum;l++)
+							{
+								var count_num=0;
+								var str = eval ( 'wire_Array' + l );
+								var wire_list=str.split(' ');
+								var wireless_mac=wire_list[0];	
+								if(wireless_mac.toLowerCase()==all_mac.toLowerCase())
+									eq=eq+1;
+							}
+							if(eq==0)
+							{
+								if( m%2!= 0 )
+									document.write("<TR class=\"even_line\">");
+								else
+									document.write("<TR class=\"odd_line\">");
+								if(each_info[2] == "&lt;unknown&gt;")	
+								document.write('<td nowrap align=center><span class="subhead">'+eval(num)+'</span></td><td nowrap align=center>'+attach_ip_array[s]+'</td><td nowrap align=center>'+attach_mac_array[s]+'</td><td nowrap align=center>--</td><td nowrap align=center>$unknow_mark</td></tr>');
+								else
+								document.write('<td nowrap align=center><span class="subhead">'+eval(num)+'</span></td><td nowrap align=center>'+attach_ip_array[s]+'</td><td nowrap align=center>'+attach_mac_array[s]+'</td><td nowrap align=center>--</td><td nowrap align=center>'+attach_name_array[s]+'</td></tr>');
+								num++;
+								
+							}
+							s++;							
+					}									
+		}
+		else
+		{
+			for(m=0;m<attach_array.length;m++)
+					{
+						
+						var each_wireless=attach_array[m].split(' ');
+			            var each_info=attach_array[m].split(' ');
+							if(each_info.length>2)
+							{
+								attach_ip_array[s]=each_info[0];
+								attach_mac_array[s]=each_info[1];
+								if (each_info[2].length>0)
+									attach_name_array[s]=each_info[2];
+								else
+									attach_name_array[s]="----";
+								all_mac=each_info[1];
+							}
+							else
+							{
+								attach_ip_array[s]=each_info[0];
+								attach_mac_array[s]=each_info[1];
+								attach_name_array[s]="----";
+								all_mac=each_info[1];
+							}
+						
+							if(attach_ip_array[s] == "<unknown>")
+								attach_ip_array[s]=unknown_mark
+							if(attach_mac_array[s] == "<unknown>")
+								attach_mac_array[s]=unknown_mark
+							if(attach_name_array[s] == "<unknown>")
+								attach_name_array[s]=unknown_mark
+							if( m%2!= 0 )
+								document.write("<TR class=\"even_line\">");
+							else
+								document.write("<TR class=\"odd_line\">");
+							if(each_info[2] == "&lt;unknown&gt;")
+								document.write('<td nowrap align=center><span class="subhead">'+eval(num)+'</span></td><td nowrap align=center>'+attach_ip_array[s]+'</td><td nowrap align=center>'+attach_mac_array[s]+'</td><td nowrap align=center>$unknow_mark</td></tr>');
+							else
+								document.write('<td nowrap align=center><span class="subhead">'+eval(num)+'</span></td><td nowrap align=center>'+attach_ip_array[s]+'</td><td nowrap align=center>'+attach_mac_array[s]+'</td><td nowrap align=center>'+attach_name_array[s]+'</td></tr>');
+							num++;
+							s++;
+					}	
+		}
+}
+
+//wireless device
+var wire_ip_array = new Array();  
+var wire_mac_array = new Array();  
+var wire_name_array = new Array(); 
+var wire_virtualmac_array = new Array();
+var q=0;
+var current_ip;
+var current_name;
+	
+		if(wire_device_totalnum>0)
+		{
+			for(k=2;k<=wire_device_totalnum;k++)
+			{
+				var count_num=0;
+				var str = eval ( 'wire_Array' + k );
+				var wire_list=str.split(' ');
+				var wire_mac=wire_list[0].toUpperCase();
+				var virtual_mac=wire_list[1];
+				for(i=0;i<attach_array.length;i++)
+				{				
+					var r=0;
+					var each_info=attach_array[i].split(' ');
+					if(each_info.length>2)
+					{
+						attach_ip_array[p]=each_info[0];
+						attach_mac_array[p]=each_info[1];
+						if (each_info[2].length>0)
+							attach_name_array[p]=each_info[2];
+						else
+							attach_name_array[p]="----";
+						attach_ip_array[p]=each_info[0];
+						attach_mac_array[p]=each_info[1];
+						
+						if(wire_mac.toLowerCase()==each_info[1].toLowerCase())
+						{
+						    count_num++;
+							current_ip=attach_ip_array[r];
+							current_name=attach_name_array[r];
+						}
+					}
+					else
+					{
+						attach_ip_array[p]=each_info[0];
+	                    attach_mac_array[p]=each_info[1];
+	                    attach_name_array[p]="----";
+						if(wire_mac.toLowerCase()==each_info[1].toLowerCase())
+						{
+							wire_ip_array[q]=attach_ip_array[r];
+							wire_mac_array[q]=wire_mac;
+							wire_name_array[q]=attach_name_array[r];
+						}
+						else
+						{
+							wire_ip_array[q]="<unknown>";
+							wire_mac_array[q]=wire_mac;
+							wire_name_array[q]="<unknown>";
+						}
+						if(wire_mac.toLowerCase()==each_info[1].toLowerCase())
+						{
+						    count_num++;
+							current_ip=attach_ip_array[r];
+							current_name=attach_name_array[r];
+						}
+					}
+					if(wire_ip_array[q] == "<unknown>")
+						wire_ip_array[q]=unknown_mark
+					if(wire_mac_array[q] == "<unknown>")
+						wire_mac_array[q]=unknown_mark
+					if(wire_name_array[q] == "<unknown>")
+						wire_name_array[q]=unknown_mark
+					r++;
+						
+				}
+				
+				        if(count_num>0)
+						{
+							wire_ip_array[q]=current_ip;
+							wire_mac_array[q]=wire_mac;
+							wire_name_array[q]=current_name;
+						}
+						else
+						{
+							wire_ip_array[q]=unknown_mark;
+							wire_mac_array[q]=wire_mac;
+							wire_name_array[q]=unknown_mark;
+						}
+							wire_virtualmac_array[q]=virtual_mac.toUpperCase();
+				if( k%2== 0 )
+					document.write("<TR class=\"even_line\">");
+				else
+					document.write("<TR class=\"odd_line\">");
+				if(wire_name_array[q] == "&lt;unknown&gt;")
+				document.write('<td nowrap align=center><span class="subhead">'+eval(num)+'</span></td><td nowrap align=center>'+wire_ip_array[q]+'</td><td nowrap align=center>'+wire_mac_array[q]+'</td><td nowrap align=center>'+wire_virtualmac_array[q]+'</td><td nowrap align=center>$unknow_mark</td></tr>');
+				else
+				document.write('<td nowrap align=center><span class="subhead">'+eval(num)+'</span></td><td nowrap align=center>'+wire_ip_array[q]+'</td><td nowrap align=center>'+wire_mac_array[q]+'</td><td nowrap align=center>'+wire_virtualmac_array[q]+'</td><td nowrap align=center>'+wire_name_array[q]+'</td></tr>');
+				q++;
+				num++;
+			}
+
+		}
+</script>	
+	</table>
+	</td>
+</tr>	
+$bluebar
+<tr><td nowrap align=center><input class="common_bt" type="button" value="$refresh_mark" onClick="location.href='attach_device_wait.htm';"></td></tr>
+</table>
+</div>
+<% help_box("1","_attach_device") %>
+</FORM>
+</BODY>
+</HTML>

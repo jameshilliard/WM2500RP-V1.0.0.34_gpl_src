@@ -1,0 +1,3 @@
+config LED_CONTROL_PLATFORM_SRC
+	bool "Compile the Platorm LED Control Src Code"
+	default n

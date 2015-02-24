@@ -1,0 +1,123 @@
+diff -Nur linux-2.6.22.old//net/ipv6/netfilter/nf_conntrack_reasm.c linux-2.6.22/net/ipv6/netfilter/nf_conntrack_reasm.c
+--- linux-2.6.22.old//net/ipv6/netfilter/nf_conntrack_reasm.c	2012-06-12 04:19:32.888911307 -0400
++++ linux-2.6.22/net/ipv6/netfilter/nf_conntrack_reasm.c	2012-06-12 04:22:22.698911349 -0400
+@@ -57,6 +57,7 @@
+ unsigned int nf_ct_frag6_high_thresh __read_mostly = 256*1024;
+ unsigned int nf_ct_frag6_low_thresh __read_mostly = 192*1024;
+ unsigned long nf_ct_frag6_timeout __read_mostly = IPV6_FRAG_TIMEOUT;
++unsigned int ipv6_ip6frag_not_check_icmp = 0;
+ 
+ struct nf_ct_frag6_skb_cb
+ {
+@@ -788,6 +789,11 @@
+ 	hdr = ipv6_hdr(clone);
+ 	fhdr = (struct frag_hdr *)skb_transport_header(clone);
+ 
++	if ((ipv6_ip6frag_not_check_icmp == 1) && fhdr->nexthdr == NEXTHDR_ICMP) {
++                DEBUGP("Do not check ICMP packets");
++                goto ret_orig;
++        }
++	
+ 	if (!(fhdr->frag_off & htons(0xFFF9))) {
+ 		DEBUGP("Invalid fragment offset\n");
+ 		/* It is not a fragmented frame */
+diff -Nur linux-2.6.22.old//net/netfilter/dni_netfilter_sysctl.c linux-2.6.22/net/netfilter/dni_netfilter_sysctl.c
+--- linux-2.6.22.old//net/netfilter/dni_netfilter_sysctl.c	1969-12-31 19:00:00.000000000 -0500
++++ linux-2.6.22/net/netfilter/dni_netfilter_sysctl.c	2012-06-12 04:22:44.438911353 -0400
+@@ -0,0 +1,56 @@
++/*
++ * dni_netfilter_sysctl.c: DNI netfilter sysctl interface to net subsystem.
++ *
++ * Copyright (C) 2010 Delta Networks Inc.
++ *
++ */
++
++#include <linux/module.h>
++#include "dni_netfilter_sysctl.h"
++
++extern int ipv6_ip6frag_not_check_icmp;
++static struct ctl_table_header *dni_netfilter_sysctl_header;
++
++#ifdef CONFIG_SYSCTL
++
++static ctl_table dni_table[] = {
++#ifdef CONFIG_IPV6
++	{
++		.ctl_name	= IPV6_IP6FRAG_NOT_CHECK_ICMP,
++		.procname	= "ipv6_ip6frag_not_check_icmp",
++		.data		= &ipv6_ip6frag_not_check_icmp,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= &proc_dointvec,
++	},
++#endif /* CONFIG_IPV6 */
++	{ .ctl_name = 0 }
++};
++
++static ctl_table dni_netfilter_sysctl_table[] = {
++	{
++		.ctl_name	= CTL_DNI_NETFILTER,
++		.procname	= "dni_netfilter",
++		.mode		= 0555,
++		.child		= dni_table
++	},
++	{ .ctl_name = 0 }
++};
++
++#endif /* CONFIG_SYSCTL */
++
++static void __init init(void)
++{
++	dni_netfilter_sysctl_header = register_sysctl_table(dni_netfilter_sysctl_table);
++	if (dni_netfilter_sysctl_header == NULL) {
++		printk("dni_netfilter: can't register to sysctl.\n");
++	}
++}
++
++static void __exit fini(void)
++{
++	unregister_sysctl_table(dni_netfilter_sysctl_table);
++}
++
++module_init(init);
++module_exit(fini);
+diff -Nur linux-2.6.22.old//net/netfilter/dni_netfilter_sysctl.h linux-2.6.22/net/netfilter/dni_netfilter_sysctl.h
+--- linux-2.6.22.old//net/netfilter/dni_netfilter_sysctl.h	1969-12-31 19:00:00.000000000 -0500
++++ linux-2.6.22/net/netfilter/dni_netfilter_sysctl.h	2012-06-12 04:25:17.868911389 -0400
+@@ -0,0 +1,23 @@
++/*
++ * Copyright 2010  Delta Networks, Inc.
++ *
++ */
++
++#ifndef _DNI_NETFILTER_SYSCTL_H
++#define _DNI_NETFILTER_SYSCTL_H
++
++#include <linux/sysctl.h>
++
++/* /proc/sys/  */
++enum
++{
++	CTL_DNI_NETFILTER=1024,	/* for create /proc/sys/dni_netfilter */
++};
++
++/* /proc/sys/dni_netfilter/ */
++enum
++{
++	IPV6_IP6FRAG_NOT_CHECK_ICMP=1,   /* Do not check ICMP packet when IPv6 reasm */
++};
++
++#endif
+diff -Nur linux-2.6.22.old//net/netfilter/Makefile linux-2.6.22/net/netfilter/Makefile
+--- linux-2.6.22.old//net/netfilter/Makefile	2012-06-12 04:19:32.888911307 -0400
++++ linux-2.6.22/net/netfilter/Makefile	2012-06-12 04:24:35.078911379 -0400
+@@ -20,6 +20,9 @@
+ # netlink interface for nf_conntrack
+ obj-$(CONFIG_NF_CT_NETLINK) += nf_conntrack_netlink.o
+ 
++# DNI Netfilter sysctl
++obj-y += dni_netfilter_sysctl.o
++
+ # connection tracking helpers
+ nf_conntrack_h323-objs := nf_conntrack_h323_main.o nf_conntrack_h323_asn1.o
+ 

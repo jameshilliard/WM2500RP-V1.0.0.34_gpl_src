@@ -1,0 +1,8 @@
+# kmod-pptp configuration
+config PPP_GENERIC
+	bool "if kernel support ppp_generic as module"
+	default y
+
+config PPP_SLHC
+	bool "if kernel support slhc as module"
+	default y

@@ -1,0 +1,190 @@
+# MadWifi configuration
+
+config ATHEROS_MADWIFI_GIT_TREEISH
+	string
+	prompt "treeish of atheros madwifi git repository"
+	default "madwifi-11n-aquila-dni39"
+	help
+           Input the treeish of atheros-aquila-madwifi git repository which you want to build
+
+config ATHEROS_MADWIFI_GIT_REPOSITORY
+	string
+	prompt "name of atheros madwifi git repository"
+	default "madwifi-11n.git"
+	help
+	   Input the name of atheros-aquila-madwifi git repository which you want to build
+
+config ATHEROS_MADWIFI_GIT_URL
+	string
+	prompt "url of atheros madwifi git repository"
+	default "ssh://dniserver/scm/dnigit/vendor/atheros/madwifi-11n/spencer/madwifi-11n.git"
+	help
+	   Input the url of atheros-aquila-madwifi git repository which you want to build
+
+config ATHEROS_MADWIFI_SUPPORT_SPECTRAL
+	bool "Enable Spectral and related tools"
+	default n
+
+config ATHEROS_MADWIFI_SUPPORT_DFS
+	bool "Enable DFS"
+	default n
+
+config ATHEROS_MADWIFI_SUPPORT_MCAST_ENHANCEMENT
+	bool "Enable IEEE80211 Multicast Enhancement"
+	default y
+
+config ATHEROS_MADWIFI_SUPPORT_SW_CRYPTO
+	bool "Enable Software crypto"
+	default y
+
+config ATHEROS_MADWIFI_SUPPORT_BUILD_OPTIMIZED
+	bool "Enable Building optimization"
+	default y
+
+config ATHEROS_MADWIFI_SUPPORT_HORNET
+	bool "Support Atheros HORNET chip"
+	default n
+
+config ATHEROS_MADWIFI_SUPPORT_AR9300
+	bool "Support Atheros AR9300 chip"
+	default n
+
+config ATHEROS_MADWIFI_SUPPORT_IQUE
+	bool "Support Atheros iQueue feature"
+	default y
+
+config ATHEROS_MADWIFI_SUPPORT_IQUE_EXT
+	bool "Support Atheros iQueue EXT feature"
+	default y
+
+config ATHEROS_MADWIFI_SUPPORT_PAPRD
+	bool "Support Atheros PAPRD feature"
+	default n
+
+config ATHEROS_MADWIFI_NO_5G_SUPPORT
+	bool "Disable 5G support"
+	default y
+
+config ATHEROS_MADWIFI_SUPPORT_PKTLOG
+	bool "Enable Atheros packet log"
+	default y
+
+config ATHEROS_MADWIFI_SUPPORT_RPTPLACEMENT
+	bool "Support repeater placement"
+	default y
+
+config ATHEROS_MADWIFI_RADIOS
+       int "Number of RADIO"
+       default 1
+
+config ATHEROS_MADWIFI_CAL_LOCATIONS
+       string "Calibration Address"
+       default 0xbfff1000
+
+config ATHEROS_MADWIFI_CAL_LOCATIONS_PCI
+       string "Calibration Address for PCI"
+       default 0xbfff1000
+
+config ATHEROS_MADWIFI_CAL_LOCATIONS_AHB
+       string "Calibration Address for AHB"
+       default 0xbfff0000
+
+config ATHEROS_MADWIFI_READ_2G_MAC_ADDR
+       bool "Read 2.4G MAC address from specified location in flash"
+       default n
+
+config ATHEROS_MADWIFI_2G_MAC_ADDR_LOC
+       string "Read 2.4G MAC address from ..."
+       depends ATHEROS_MADWIFI_READ_2G_MAC_ADDR
+       default 0xbfff1000
+
+config ATHEROS_MADWIFI_READ_5G_MAC_ADDR
+       bool "Read 5G MAC address from specified location in flash"
+       default n
+
+config ATHEROS_MADWIFI_5G_MAC_ADDR_LOC
+       string "Read 5G MAC address from ..."
+       depends ATHEROS_MADWIFI_READ_5G_MAC_ADDR
+       default 0xbfff5000
+
+config ATHEROS_NETGEAR_ACL
+       bool "Support NetGear ACL"
+       default n
+
+config ATHEROS_MADWIFI_SUPPORT_VOWEXT
+       bool "enable ATH_SUPPORT_VOWEXT"
+       default n
+
+config ATHEROS_MADWIFI_SUPPORT_VOW_EXT_STATS
+       bool "enable ATH_VOW_EXT_STATS"
+       default n
+
+config ATHEROS_MADWIFI_SUPPORT_VOW_TIDSCHED
+       bool "enable VOW_TIDSCHED"
+       default n
+
+config ATHEROS_MADWIFI_SUPPORT_VOW_LOGLATENCY
+       bool "enable VOW_LOGLATENCY"
+       default n
+
+config ATHEROS_MADWIFI_SUPPORT_CFEND
+       bool "enable ATH_SUPPORT_CFEND"
+       default n
+
+config ATHEROS_MADWIFI_SUPPORT_DESCFAST
+       bool "enable ATH_SUPPORT_DESCFAST"
+       default n
+
+config ATHEROS_MADWIFI_SUPPORT_TDLS
+       bool "enable ATH_SUPPORT_TDLS"
+       default n
+
+config ATHEROS_MADWIFI_SUPPORT_GREEN_AP
+       bool "enable Green AP (ATH_SUPPORT_GREEN_AP)"
+       default n
+
+config ATHEROS_MADWIFI_SUPPORT_AR5416_INT_MITIGATION
+       bool "enable ATH_SUPPORT_AR5416_INT_MITIGATION"
+       default n
+
+config ATHEROS_MADWIFI_SUPPORT_CAP_AMSDU
+       bool "enable AMSDU capability (ATH_CAP_AMSDU)"
+       default n
+
+config ATHEROS_MADWIFI_SUPPORT_HOWL
+       bool "enable HOWL support"
+       default n
+
+config ATHEROS_MADWIFI_PLATFORM_PATCH
+       bool "Apply platform specific patch"
+       default n
+
+config ATHEROS_MADWIFI_RXBUF
+       int "Number of receive buffer"
+       default 512
+
+config ATHEROS_MADWIFI_TXBUF
+       int "Number of transmission buffer"
+       default 512
+
+config ATHEROS_MADWIFI_BUS_AS_DUAL
+	bool "Set bus as dual"
+	default y
+
+config ATHEROS_MADWIFI_BUS_AS_AHB
+	bool "Set bus as ahb"
+	default n
+
+config ATHEROS_MADWIFI_SYNC_WITH_DB120
+	bool "sync with db120(LSDK: 9.2.0.1020)"
+	default y
+
+config ATHEROS_MADWIFI_USE_CLIENT_BRIDGE
+	bool "Use client bridge feature"
+	depends on PACKAGE_kmod-atheros-aquila-madwifi
+	default n
+
+config ATHEROS_MADWIFI_DISPLAY_SCAN_IN_PROC
+	bool "Display scan result in proc system"
+	depends on PACKAGE_kmod-atheros-aquila-madwifi
+	default n

@@ -1,0 +1,126 @@
+From 9738b5f24d1587df8fa8cdb5d43e650055710760 Mon Sep 17 00:00:00 2001
+From: Spencer Chang <spencer@dniserver.dnish.net>
+Date: Fri, 2 Dec 2011 13:19:30 +0800
+Subject: [PATCH 1/1] rtl8192cd: invoke WLANLOG_MSG to log wireless events.
+
+Invoking WLANLOG_MSG to output wireless event to hotplug and then hotplug log it.
+
+Signed-off-by: Spencer Chang <spencer@dniserver.dnish.net>
+---
+ .../drivers/net/wireless/rtl8192cd/8192cd.h        |    2 ++
+ .../drivers/net/wireless/rtl8192cd/8192cd_psk.c    |    6 ++++++
+ .../drivers/net/wireless/rtl8192cd/8192cd_sme.c    |   12 ++++++++++++
+ 3 files changed, 20 insertions(+), 0 deletions(-)
+
+diff --git a//drivers/net/wireless/rtl8192cd/8192cd.h b//drivers/net/wireless/rtl8192cd/8192cd.h
+index 1cc2b79..33f00ed 100644
+--- a//drivers/net/wireless/rtl8192cd/8192cd.h
++++ b//drivers/net/wireless/rtl8192cd/8192cd.h
+@@ -106,6 +106,8 @@ typedef signed long long	INT64;
+ #define UPGRADE_PROBATION_TIME		3
+ #define TRY_RATE_FREQ				6
+ 
++#include <net/wlanlog.h>
++
+ #ifdef CONFIG_RTL8190_PRIV_SKB
+ 	#define MAX_PRE_ALLOC_SKB_NUM	160
+ #else
+diff --git a//drivers/net/wireless/rtl8192cd/8192cd_psk.c b//drivers/net/wireless/rtl8192cd/8192cd_psk.c
+index 749d27c..d93a52a 100644
+--- a//drivers/net/wireless/rtl8192cd/8192cd_psk.c
++++ b//drivers/net/wireless/rtl8192cd/8192cd_psk.c
+@@ -2681,6 +2681,7 @@ check_msg2:
+ 							pstat->hwaddr[4],
+ 							pstat->hwaddr[5]);
+ #endif
++					WLANLOG_MSG(WLANLOG_MSG_AUTH, pstat->hwaddr, 0);
+ 
+ 					ToDrv_DisconnectSTA(priv, pstat, RSN_MIC_failure);
+ 					pStaInfo->state = PSK_STATE_IDLE;
+@@ -2766,6 +2767,7 @@ cont_msg:
+ 							pstat->hwaddr[4],
+ 							pstat->hwaddr[5]);
+ #endif
++					WLANLOG_MSG(WLANLOG_MSG_AUTH, pstat->hwaddr, 0);
+ 
+ 					ToDrv_DisconnectSTA(priv, pstat, RSN_MIC_failure);
+ 					pStaInfo->state = PSK_STATE_IDLE;
+@@ -2793,6 +2795,9 @@ cont_msg:
+ 							pstat->hwaddr[5]);
+ 				}
+ #endif
++				if (!list_empty(&priv->wlan_acl_list)) {
++					WLANLOG_MSG(WLANLOG_MSG_ACL, pstat->hwaddr, WLANLOG_ACL_ALLOWED);
++				}
+ 
+ 				//#ifdef RTL_WPA2_PREAUTH
+ #if 0
+@@ -2956,6 +2961,7 @@ cont_msg:
+ 							pstat->hwaddr[4],
+ 							pstat->hwaddr[5]);
+ #endif
++					WLANLOG_MSG(WLANLOG_MSG_AUTH, pstat->hwaddr, 0);
+ 
+ 					ToDrv_DisconnectSTA(priv, pstat, RSN_MIC_failure);
+ 					pStaInfo->state = PSK_STATE_IDLE;
+diff --git a//drivers/net/wireless/rtl8192cd/8192cd_sme.c b//drivers/net/wireless/rtl8192cd/8192cd_sme.c
+index 14f60bf..b1acef9 100644
+--- a//drivers/net/wireless/rtl8192cd/8192cd_sme.c
++++ b//drivers/net/wireless/rtl8192cd/8192cd_sme.c
+@@ -2268,6 +2268,7 @@ static int aclog_check(struct rtl8192cd_priv *priv)
+ 					priv->acLog[i].addr[3], priv->acLog[i].addr[4], priv->acLog[i].addr[5],
+ 					priv->acLog[i].cur_cnt - priv->acLog[i].last_cnt);
+ #endif
++				WLANLOG_MSG(WLANLOG_MSG_ACL, priv->acLog[i].addr, WLANLOG_ACL_DENIED);
+ 				priv->acLog[i].last_cnt = priv->acLog[i].cur_cnt;
+ 			}
+ 			else { // no update, check expired entry
+@@ -10027,6 +10028,13 @@ if(priv->pmib->wscEntry.wsc_enable) {
+ 			*GetAddr2Ptr(pframe), *(GetAddr2Ptr(pframe)+1), *(GetAddr2Ptr(pframe)+2),
+ 			*(GetAddr2Ptr(pframe+3)), *(GetAddr2Ptr(pframe)+4), *(GetAddr2Ptr(pframe)+5));
+ #endif
++	if (!IEEE8021X_FUN &&
++			!(priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _TKIP_PRIVACY_ ||
++			 priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _CCMP_PRIVACY_)) {
++			if (!list_empty(&priv->wlan_acl_list)) {
++				WLANLOG_MSG(WLANLOG_MSG_ACL, GetAddr2Ptr(pframe), WLANLOG_ACL_ALLOWED);
++			}
++	}
+ //#endif
+ 
+ 	if (IEEE8021X_FUN || IAPP_ENABLE || priv->pmib->wscEntry.wsc_enable) {
+@@ -10969,6 +10977,7 @@ static unsigned int OnAuth(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinf
+ 			LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 				sa[0], sa[1], sa[2], sa[3], sa[4], sa[5]);
+ #endif
++			WLANLOG_MSG(WLANLOG_MSG_AUTH, sa, 0);
+ 
+ 			DEBUG_ERR("wep-decrypt a Auth frame error!\n");
+ 			status = _STATS_CHALLENGE_FAIL_;
+@@ -11004,6 +11013,7 @@ static unsigned int OnAuth(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinf
+ 		LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 			sa[0], sa[1], sa[2], sa[3], sa[4], sa[5]);
+ #endif
++		WLANLOG_MSG(WLANLOG_MSG_AUTH, sa, 0);
+ 		status = _STATS_NO_SUPP_ALG_;
+ 		goto auth_fail;
+ 	}
+@@ -11069,6 +11079,7 @@ static unsigned int OnAuth(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinf
+ 				LOG_MSG("A wireless client was rejected due to access control - %02X:%02X:%02X:%02X:%02X:%02X\n",
+ 					*sa, *(sa+1), *(sa+2), *(sa+3), *(sa+4), *(sa+5));
+ #endif
++				WLANLOG_MSG(WLANLOG_MSG_ACL, sa, WLANLOG_ACL_DENIED);
+ 				log_info->last_cnt = log_info->cur_cnt;
+ 
+ 				if (priv->acLogCountdown == 0)
+@@ -11296,6 +11307,7 @@ static unsigned int OnAuth(struct rtl8192cd_priv *priv, struct rx_frinfo *pfrinf
+ 				LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 					sa[0], sa[1], sa[2], sa[3], sa[4], sa[5]);
+ #endif
++				WLANLOG_MSG(WLANLOG_MSG_AUTH, sa, 0);
+ 				goto auth_fail;
+ 			}
+ 		}
+-- 
+1.7.7.2
+

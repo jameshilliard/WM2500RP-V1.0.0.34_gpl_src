@@ -1,0 +1,120 @@
+diff -Nur linux-2.6.22.old//net/ipv6/addrconf.c linux-2.6.22/net/ipv6/addrconf.c
+--- linux-2.6.22.old//net/ipv6/addrconf.c	2012-07-02 07:31:08.729327109 -0400
++++ linux-2.6.22/net/ipv6/addrconf.c	2012-07-02 07:35:43.759327175 -0400
+@@ -622,7 +622,7 @@
+ 
+ /* This function wants to get referenced ifp and releases it before return */
+ 
+-static void ipv6_del_addr(struct inet6_ifaddr *ifp)
++void ipv6_del_addr(struct inet6_ifaddr *ifp)
+ {
+ 	struct inet6_ifaddr *ifa, **ifap;
+ 	struct inet6_dev *idev = ifp->idev;
+diff -Nur linux-2.6.22.old//net/ipv6/ndisc.c linux-2.6.22/net/ipv6/ndisc.c
+--- linux-2.6.22.old//net/ipv6/ndisc.c	2012-07-02 07:31:08.729327109 -0400
++++ linux-2.6.22/net/ipv6/ndisc.c	2012-07-02 07:35:31.629327156 -0400
+@@ -1033,6 +1033,104 @@
+ 		return;
+ 	}
+ 
++	/* Check the RA priority by valid flag */
++	/* As NETGEAR Router Spec Rev.11, Chapter 18.4.6
++	 * a valid Router Advertisement with a non-zero Router Lifetime, a prefix with a non-zero valid
++	 * Lifetime, the O-bit set, and the M-bit not set (note that this is different from the RFC that the
++	 * RFC doesn't require to check the prefix, the O-bit, or the M-bit); here we call such an
++	 * advertisement as a most preferred Advertisement
++	 * ...*/
++	/* Priority             O-bit   M-bit   Prefix valid-lifetime   Router lifetime
++	 * 1                    1               0               !=0                                             !=0
++	 * 2                    1               X               !=0                                             !=0
++	 * 3                    1               X               !=0                                             X
++	 * 4                    X               X               !=0                                             !=0
++	 * 5                    X               X               !=0                                             X
++	 * */
++	static int ra_prio_save = 6;
++	int ra_prio = 6;
++	__u32 prefix_lft = 0;
++	/* Get the prefix life time */
++	if (ndopts.nd_opts_pi) {
++		struct nd_opt_hdr *pi;
++		struct prefix_info *pinfo;
++		for (pi = ndopts.nd_opts_pi;
++				pi;
++				pi = ndisc_next_option(pi, ndopts.nd_opts_pi_end)) {
++			pinfo = (struct prefix_info *) pi;
++			prefix_lft = ntohl(pinfo->valid);
++			if (prefix_lft != 0)
++				break;
++		}
++	}
++	/* Calculate the RA priority as NETGEAR Spec defined */
++	if (ra_msg->icmph.icmp6_addrconf_other
++			&& !ra_msg->icmph.icmp6_addrconf_managed
++			&& ntohl(ra_msg->icmph.icmp6_rt_lifetime)
++			&& prefix_lft ) {
++		ra_prio = 1;
++	} else if (ra_msg->icmph.icmp6_addrconf_other
++			&& ntohl(ra_msg->icmph.icmp6_rt_lifetime)
++			&& prefix_lft ) {
++		ra_prio = 2;
++	} else if (ra_msg->icmph.icmp6_addrconf_other
++			&& prefix_lft ) {
++		ra_prio = 3;
++	} else if (ntohl(ra_msg->icmph.icmp6_rt_lifetime)
++			&& prefix_lft ) {
++		ra_prio = 4;
++	} else if (prefix_lft) {
++		ra_prio = 5;
++	} else {
++		ra_prio = 6;
++	}
++
++	/* If there is no global IPv6 address in the interface, reset the priority saved */
++#ifndef IPV6_ADDR_SCOPE_TYPE
++#define IPV6_ADDR_SCOPE_TYPE(scope) ((scope) << 16)
++#endif
++	int global_addr_find = 0;
++	struct inet6_ifaddr *ifa, *ifa_next;
++	read_lock_bh(&in6_dev->lock);
++	for (ifa = in6_dev->addr_list; ifa; ifa = ifa->if_next) {
++		if (__ipv6_addr_type(&ifa->addr) ==
++				(IPV6_ADDR_UNICAST | IPV6_ADDR_SCOPE_TYPE(IPV6_ADDR_SCOPE_GLOBAL)))
++		{
++			global_addr_find++;
++		}
++	}
++	read_unlock_bh(&in6_dev->lock);
++	if (! global_addr_find) {
++		ra_prio_save = 6;
++	}
++
++	if (prefix_lft != 0) {
++		if (ra_prio < ra_prio_save) {
++			/* Delete the exist IPv6 global addr and save the priority */
++			read_lock_bh(&in6_dev->lock);
++			for (ifa = in6_dev->addr_list; ifa; ) {
++				ifa_next = ifa->if_next;
++				if (__ipv6_addr_type(&ifa->addr) ==
++						(IPV6_ADDR_UNICAST | IPV6_ADDR_SCOPE_TYPE(IPV6_ADDR_SCOPE_GLOBAL)))
++				{
++					in6_ifa_hold(ifa);
++					read_unlock_bh(&in6_dev->lock);
++					ipv6_del_addr(ifa);
++					read_lock_bh(&in6_dev->lock);
++				}
++				ifa = ifa_next;
++			}
++			read_unlock_bh(&in6_dev->lock);
++			ra_prio_save = ra_prio;
++		} else {
++			in6_dev_put(in6_dev);
++			ND_PRINTK0(KERN_ERR
++					"ICMP6 RA: Ignore the RA. ra_prio = %d, ra_prio_save = %d\n",
++					ra_prio, ra_prio_save);
++			return;
++		}
++	}
++
+ 	if (in6_dev->if_flags & IF_RS_SENT) {
+ 		/*
+ 		 *	flag that an RA was received after an RS was sent

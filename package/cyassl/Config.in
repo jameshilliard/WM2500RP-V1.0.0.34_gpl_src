@@ -1,0 +1,16 @@
+config CYASSL_VERSION
+	string
+	default "1.4.0"			if CYASSL_VERSION_1_4_0
+	default "1.6.5"			if CYASSL_VERSION_1_6_5
+
+choice
+	depends on PACKAGE_libcyassl
+	prompt "Cyassl version"
+	default CYASSL_VERSION_1_4_0
+
+	config CYASSL_VERSION_1_4_0
+		bool "CyaSSL 1.4.0"
+
+	config CYASSL_VERSION_1_6_5
+		bool "CyaSSL 1.6.5"
+endchoice

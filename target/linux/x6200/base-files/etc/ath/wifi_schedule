@@ -1,0 +1,99 @@
+#!/bin/sh
+
+#usage:
+#wifi_schedule 11g[11a] on [off]
+
+NUM_RADIO=1
+MAX_VAP=0
+
+if [ "$1" = "11g" ];then
+    # for 802.11g
+    sched_status=wlg_onoff_sched
+    hw_wifi=eth1
+    search_mode="IEEE 802.11ng|IEEE 802.11g|IEEE 802.11b"
+    wifi_uptime_file=/tmp/WLAN_uptime
+    log_message="2.4G"
+fi
+
+WIFI_SCHED_LOCK_FILE=/tmp/.wifi_sched_lock_$1
+if [ -f $WIFI_SCHED_LOCK_FILE ]; then
+    # Just exit 
+    exit
+fi
+touch $WIFI_SCHED_LOCK_FILE
+
+#when NTP is off, wireless schedule run its default setting
+#(No schedule to turn off the wireless signal)
+if [ -f /tmp/ntp_updated ];then
+    ntp_success=1
+else
+    ntp_success=0
+fi
+
+if [ $NUM_RADIO -eq 1 ]; then
+    WPS_LED_OFF='echo 1 > /proc/simple_config/simple_config_led'
+    WPS_LED_ON='/sbin/ledcontrol -n wps -c green -s on; echo 2 > /proc/simple_config/simple_config_led'
+fi
+
+[ "$wlg_exist" = "on" ] && G_SECURITY_TYPE=`/bin/config get wl_sectype`
+
+radio_status=`ifconfig | grep $hw_wifi`
+
+if [ "$2" = "on" ]; then
+    if [ "x$radio_status"  != "x" ];then
+        rm $WIFI_SCHED_LOCK_FILE
+        exit
+    fi
+    # if NTP fail, just turn on do not check the overlop time
+    if [ $ntp_success -eq 1 ];then
+        # It will check whether the now time should turn on wireless.
+        # if no, it will set wlg_onoff_sched to 1, or it will set to 0.
+        # Then we will check wlg_onoff_sched value, to decide whether to
+        # turn on wireles or just exit
+        /sbin/cmdsched_wlan_status $1
+        wl_off=`/bin/config get ${sched_status}`
+        if [ $wl_off = 1 ];then
+            rm $WIFI_SCHED_LOCK_FILE
+	    exit
+        fi
+    fi
+    ifconfig $hw_wifi up 2>&1 > /dev/null
+    num=0
+    while [ $num -lt $MAX_VAP ]; do
+        vap_status=`ifconfig -a | grep ath$num`
+        if [ "x$vap_status" != "x" ]; then
+	    wlg_mode=`iwconfig ath$num |grep -E "$search_mode"`
+	    if [ "x$wlg_mode" != "x" ];then
+                ifconfig ath$num up 2>&1 > /dev/null
+            fi
+        fi
+        num=`expr $num + 1`
+    done
+
+    logger "[wireless signal schedule] The wireless signal is ON,"
+
+    cat /proc/uptime | sed 's/ .*//' > $wifi_uptime_file
+else
+    if [ $ntp_success = 0 -o "x$radio_status" = "x" ];then
+        rm $WIFI_SCHED_LOCK_FILE
+        exit
+    fi
+    num=0
+    while [ $num -lt $MAX_VAP ]; do
+        vap_status=`ifconfig | grep ath$num`
+        if [ "x$vap_status" != "x" ]; then
+	    wlg_mode=`iwconfig ath$num | grep -E "$search_mode"`
+            if [ "x$wlg_mode" != "x" ];then
+                ifconfig ath$num down 2>&1 > /dev/null
+            fi
+        fi
+        num=`expr $num + 1`
+    done
+    ifconfig $hw_wifi down 2>&1 > /dev/null
+
+    logger "[wireless signal schedule] The wireless signal is OFF,"
+
+    rm -f $wifi_uptime_file
+fi
+
+rm $WIFI_SCHED_LOCK_FILE

@@ -1,0 +1,304 @@
+From 74d260ec5137bf571e11b01bc589f2cce51f8af3 Mon Sep 17 00:00:00 2001
+From: xiancong huang <xiancong.huang@dniserver.dnish.net>
+Date: Mon, 11 Apr 2011 12:11:51 +0800
+Subject: [PATCH] add wlan wps reset button control function
+ Signed-off-by: xiancong huang <xiancong.huang@dniserver.dnish.net>
+
+---
+ .../linux-2.6.31/arch/mips/atheros/gpio.c          |  245 ++++++++++++++++++++
+ 1 files changed, 245 insertions(+), 0 deletions(-)
+
+diff --git a/build_dir/linux-wndr3400v3/linux-2.6.31/arch/mips/atheros/gpio.c b/build_dir/linux-wndr3400v3/linux-2.6.31/arch/mips/atheros/gpio.c
+index 6383a00..26b283c 100644
+--- a/arch/mips/atheros/gpio.c
++++ b/arch/mips/atheros/gpio.c
+@@ -25,6 +25,10 @@ static volatile int ath_fr_opened = 0;
+ static wait_queue_head_t ath_fr_wq;
+ static u_int32_t push_time = 0;
+ struct timer_list os_timer_t;
++struct timer_list os_butdet_t; /* Button detect */
++struct timer_list os_staled_t; /* Status LED blinking */
++struct timer_list os_diswps_t; /* WPS LED blinking while WPS error occured,
++                                   like push button is pressed if WPS was disabled */
+ 
+ /* AR9344 GPIOs */
+ #define WAN_AMBER_LED_GPIO      4
+@@ -59,6 +63,25 @@ struct timer_list os_timer_t;
+ #define LED_ON 0
+ #define LED_OFF 1
+ 
++
++#define POLL_INTERVAL           100     /* millisecond */
++#define TIME_5SECONDS           5000    /* millisecond */
++#define COUNT_5SECONDS          50      /* (TIME_5SECONDS / POLL_INTERVAL) */
++#define TIME_750MSECONDS        750     /* millisecond */
++#define TIME_250MSECONDS        250     /* millisecond */
++#define WPS_LED_ERR_INTERVAL    100     /* millisecond */
++
++typedef enum {
++        free = 0,       /* release button, pop up */
++        push = 1,       /* press button */
++        hold = 2,       /* press button and hold pushed state */
++}but_state_t;
++static but_state_t wifibut = free;      /* WLAN switch */
++static but_state_t pushbut = free;      /* Push button */
++static but_state_t resetbut = free;     /* Reset button */
++
++static int rstbut_count = 0;
++
+ #define OS_TIMER_FUNC(_fn)	\
+ 	void _fn(unsigned long timer_arg)
+ 
+@@ -123,6 +146,11 @@ static struct proc_dir_entry *simple_config_entry = NULL;
+ static struct proc_dir_entry *simulate_push_button_entry = NULL;
+ static struct proc_dir_entry *tricolor_led_entry  = NULL;
+ static struct proc_dir_entry *wps_entry  = NULL;
++static struct proc_dir_entry *button_state = NULL;
++static struct proc_dir_entry *disable_wps = NULL; /* WPS is disabled? write into: 1 => disable, 0 => enable */
++static int diswps = 0;  /* 0 => WPS is enabled, 1 => WPS is disabled */
++static int diswps_blink_count = 0; /* max value: 50, blinking 5 seconds */
++
+ static int wps_led_blinking = 0;
+ 
+ /* AR9380 functions */
+@@ -513,6 +541,200 @@ static int gpio_tricolor_led_write (struct file *file, const char *buf,
+     return count;
+ }
+ 
++static int button_state_read (char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++        /**
++         * return states of all buttons.
++         * return value: <PUSHBUTTONstate><WIFIBUTTONstate><RESETBUTTONstate>
++         *   <PUSHBUTTONstate>=1x       #'x' value: 0 - free, 1 - pressed
++         *   <WIFIBUTTONstate>=2x       #'x' value: 0 - free, 1 - pressed
++         *   <RESETBUTTONstate>=3x      #'x' value: 0 - free, 1 - pressed(time<5s), 2 - pressed(time>5s)
++         **/
++         return sprintf(page, "1%u2%u3%u\n", \
++                (u_int32_t)pushbut, \
++                (u_int32_t)wifibut, \
++                (u_int32_t)resetbut);
++}
++
++
++static int button_state_write (struct file *file, const char *buf,
++                                        unsigned long count, void *data)
++{
++        /**
++         * set state of button.
++         * valid value: <Button number><value>
++         *   <Button number>: 1 - Push button, 2 - WiFi button, 3 - Reset button
++         *   <value>: should be 0, that indicate the event of button pressed is handled by upper process.
++         **/
++         u_int32_t num, val;
++         char *msg = "Error: valid value inputted into /proc/simple_config/button_state should as below.\n" \
++                        "  <Button number><value>\n" \
++                        "\t<Button number>: 1 - Push button, 2 - WiFi button, 3 - Reset button.\n" \
++                        "\t<value> should be 0.\n";
++
++         num = (u_int32_t)(*buf - '0');
++         val = (u_int32_t)(*(buf + 1) - '0');
++
++         if (val != 0) {
++                printk("%s", msg);
++                return count;
++         }
++
++         switch (num) {
++         case 1:
++                pushbut = free;
++                break;
++         case 2:
++                wifibut = free;
++                break;
++         case 3:
++                resetbut = free;
++                break;
++         default:
++                printk("%s", msg);
++                break;
++         }
++
++         return count;
++}
++
++static int disable_wps_read (char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++        return 0;
++}
++
++static int disable_wps_write (struct file *file, const char *buf,
++                                        unsigned long count, void *data)
++{
++        u_int32_t val;
++
++        if (sscanf(buf, "%d", &val) != 1)
++                return -EINVAL;
++
++        if (val == 1) { /* WPS was disabled */
++                diswps = 1;
++        } else if (val == 0) { /* WPS was enabled */
++                diswps = 0;
++                OS_CANCEL_TIMER(&os_diswps_t);
++        }
++
++        return count;
++}
++
++static OS_TIMER_FUNC(diswps_led_blink)
++{
++        static int onoff = 0;
++
++        if (!diswps ||  diswps_blink_count <= 0)
++                return;
++
++        if (onoff) {
++                ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_OFF);
++        } else {
++                ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_ON);
++        }
++        onoff = 1 - onoff;
++        diswps_blink_count--;
++        if (diswps_blink_count == 0) {
++                ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_ON);
++        }
++        OS_SET_TIMER(&os_diswps_t, WPS_LED_ERR_INTERVAL);
++}
++
++static OS_TIMER_FUNC(statusled_blink)
++{
++        static int onoff = 0;
++        if (onoff) {
++                ar9380GpioSet(POWER_LED_GPIO, LED_OFF);
++                ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
++                OS_SET_TIMER(&os_staled_t, TIME_750MSECONDS);
++        } else {
++                ar9380GpioSet(POWER_LED_GPIO, LED_OFF);
++                ath_gpio_out_val(STATUS_LED_GPIO, LED_ON);
++                OS_SET_TIMER(&os_staled_t, TIME_250MSECONDS);
++        }
++        onoff = 1 - onoff;
++}
++
++static OS_TIMER_FUNC(button_detect)
++{
++        static int staled_s = 0;
++        static int wifibut_s = 0;
++        static int pushbut_s = 0;
++        static int wlan_count = 0;
++
++        /* AR9380 GPIO3: WIRELESS ON/OFF(Input Pin / Active LOW) */
++        if (!ar9380GpioGet(WLAN_BUTTON_GPIO)) {
++                wlan_count++;
++                /* [Bug 24969]According to NTGR's requirement, it should only trigger enabling or
++                 * disabling the wireless radio after the WLAN switch button is pressed and held
++                 * for more than 1 second.
++                 * Frequency of GPIO state detecting is 100 milliseconds, so if detect that WLAN
++                 * switch button is pressed and held more than 9 times, just trigger the
++                 * functionality to trun on/off WLAN.
++                 */
++                if (wlan_count > 9 && !wifibut_s) {
++                        wifibut_s = 1;
++                        wifibut = push;
++                        OS_CANCEL_TIMER(&os_diswps_t);
++                }
++        } else {
++                wlan_count = 0;
++                if (wifibut_s) {
++                        wifibut_s = 0;
++                }
++        }
++        /* AR9344 GPIO16: JUMPSTART (Input Pin / Active LOW) */
++        if (!ath_gpio_in_val(WPS_BUTTON_GPIO)) {
++                if (!pushbut_s) {
++                        pushbut_s = 1;
++                        pushbut = push;
++                        /* blink WPS LED more than 5 seconds if WPS is disable */
++                        if (diswps) {
++                                diswps_blink_count = 50;
++                                OS_SET_TIMER(&os_diswps_t, WPS_LED_ERR_INTERVAL);
++                        }
++                }
++                /* if WPS was disabled, and push button is pressed and hold, just blink WPS LED
++                 * until push button is free, and then continue blink WPS LED 5 seconds */
++                if (diswps)
++                        diswps_blink_count = 50;
++        } else {
++                if (pushbut_s) {
++                        pushbut_s = 0;
++                }
++        }
++
++        /* AR9380 GPIO10: RESET SWITCH (Input Pin/Active LOW) */
++        if (!ar9380GpioGet(RESET_BUTTON_GPIO)) {
++                rstbut_count++;
++                /* turn off POWER LED, turn on STATUS LED (amber), set timer, blinking STATUS LED */
++                if (!staled_s) {
++                        ar9380GpioSet(POWER_LED_GPIO, LED_OFF);
++                        ath_gpio_out_val(STATUS_LED_GPIO, LED_ON);
++                        OS_SET_TIMER(&os_staled_t, TIME_5SECONDS);
++                        staled_s = 1;
++                }
++        } else {
++                if (COUNT_5SECONDS <= rstbut_count)
++                        resetbut = hold;
++                else if (0 < rstbut_count && COUNT_5SECONDS > rstbut_count)
++                        resetbut = push;
++                /* turn off POWER & STATUS LEDs, cancel timer */
++                if (staled_s) {
++                        OS_CANCEL_TIMER(&os_staled_t);
++                        ar9380GpioSet(POWER_LED_GPIO, LED_OFF);
++                        ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
++                        staled_s = 0;
++                }
++                rstbut_count = 0;
++        }
++
++        OS_SET_TIMER(&os_butdet_t, POLL_INTERVAL);
++}
++
+ void ap_usb_led_on(void)
+ {
+ #ifdef CONFIG_MACH_AR934x
+@@ -640,6 +862,22 @@ static int create_simple_config_led_proc_entry(void)
+ 	wps_entry->write_proc = wps_write;
+ 	wps_entry->read_proc = wps_read;
+ 
++	button_state = create_proc_entry ("button_state", 0644,
++                                            simple_config_entry);
++    	if (!button_state)
++        	return -ENOENT;
++	
++	button_state->write_proc = button_state_write;
++	button_state->read_proc = button_state_read;
++
++	disable_wps = create_proc_entry ("diswps", 0644,
++                                            simple_config_entry);
++	if (!disable_wps)
++		return -ENOENT;
++
++	disable_wps->write_proc = disable_wps_write;
++	disable_wps->read_proc = disable_wps_read;
++
+ 	/* disable ar9380 JTAG to use GPIO0~GPIO4 */
+ 	ar9380DisableJtag(0);
+ 
+@@ -670,6 +908,13 @@ static int create_simple_config_led_proc_entry(void)
+ 	ar9380GpioSet(POWER_LED_GPIO, LED_OFF);
+ 	ar9380GpioSet(WLAN_5G_LED_GPIO, LED_OFF);
+ 	
++	/* inital timer */
++	OS_INIT_TIMER(NULL, &os_butdet_t, button_detect, &os_butdet_t);
++	OS_INIT_TIMER(NULL, &os_staled_t, statusled_blink, &os_staled_t);
++	OS_INIT_TIMER(NULL, &os_diswps_t, diswps_led_blink, &os_diswps_t);
++
++	/* enable timer */
++	OS_SET_TIMER(&os_butdet_t, POLL_INTERVAL);
+ 	return 0;
+ }
+ 
+-- 
+1.7.0.4
+

@@ -1,0 +1,81 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% nohelp_header("welcome.htm", "ca_configure") %>
+
+<style type="text/css">
+H1 {
+	FONT-WEIGHT: bold; FONT-SIZE: 36px; BACKGROUND: white; COLOR: #9d98ff; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+TD {
+	FONT-SIZE: 14px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+H2 {
+	FONT-WEIGHT: bold; FONT-SIZE: 16px; BACKGROUND: white; COLOR: #9d98ff; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+.mobile_tables TD{FONT-SIZE: 30px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif}
+</style>
+<script>
+var browser_type="<% get_browser_language() %>";
+var firm_reg="<% cat_file("/tmp/firmware_region") %>";
+var tzo=(new Date().getTimezoneOffset()/60)*(-1);
+var mobile_tag="<% cfg_get("mobile_tag") %>";
+var ts='<% cfg_get("ca_configure") %>';
+
+function msg_continue()
+{
+	var cf=document.forms[0];
+	cf.target="_parent";
+	cf.hid_time_zone.value = check_time_zone(tzo,browser_type,firm_reg);
+		
+	if(cf.if_help[0].checked == true)
+	{
+		if(check_mobile_device() == '1')
+			cf.action="/apply.cgi?/mobile_welcome.htm timestamp="+ts;
+	}
+	else
+	{
+		cf.action="/apply.cgi?/index.htm timestamp="+ts;
+	}
+	cf.submit();
+}
+function loadvalue()
+{
+	document.forms[0].if_help[0].checked = true;
+}
+</script>
+<input type="hidden" name="hid_time_zone">
+<script>
+if(mobile_tag == 1)
+	document.write('<table class="mobile_tables" width=100% border=0 cellpadding=0 cellspacing=3 align=center>');
+else
+	document.write('<table class=tables width=100% border=0 cellpadding=0 cellspacing=3 align=center>');
+</script>
+	<TR>
+	<td></td>
+	<script>
+	if(mobile_tag == 1)
+		document.write('<TD width=90% align=left><H1>$mobile_configue</H1>');
+	else
+		document.write('<TD width=80% align=left><H2>$mobile_configue</H2>');
+	</script>
+	</TD></TR>
+	<tr><td></td><td align=left>$mobile_no_configue</td></tr>
+	<tr><td colspan=2>&nbsp;</td></tr>
+	<tr><td></td><td align=left>$mobile_need_help</td></tr>
+	<tr><td></td><td align=left><input type="radio" name="if_help" value="1" selected>$r_yes</td></tr>
+	<tr><td></td><td align=left><input type="radio" name="if_help" value="0">$mobile_no_help</td></tr>
+	<tr><td colspan=2>&nbsp;</td></tr>
+	<tr>
+	<td></td><td align=left>
+	<script>
+		document.write('&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;');
+		if(mobile_tag == 1)
+			document.write('<input name="next" class="mobile_short_common_bt" type="button" value="$wps_next_mark" onClick="msg_continue();">')
+		else
+			document.write('<input name="next" class="short_common_bt" type="button" value="$wps_next_mark" onClick="msg_continue();">')
+	</script>	
+	</td>
+	</tr>
+</table>
+</form> 
+</body>
+</html>

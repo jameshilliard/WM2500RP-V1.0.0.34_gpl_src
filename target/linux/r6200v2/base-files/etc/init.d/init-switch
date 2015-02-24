@@ -1,0 +1,123 @@
+#!/bin/sh /etc/rc.common
+START=19
+
+setup_wan_mac() {
+    local mac
+
+    mac="wan_factory_mac"
+    if [ "$1" = "dhcp" -o "$1" = "static" ]; then
+        value=$($CONFIG get wan_ether_mac_assign)
+
+        if [ "$value" = "1" ]; then
+            mac="wan_remote_mac"
+        elif [ "$value" = "2" ]; then
+            mac="wan_ether_this_mac"
+        fi
+    elif [ "$1" = "pptp" ]; then
+        value=$($CONFIG get wan_pptp_mac_assign)
+
+        if [ "$value" = "1" ]; then
+            mac="wan_remote_mac"
+        elif [ "$value" = "2" ]; then
+            mac="wan_pptp_this_mac"
+        fi
+    elif [ "$1" = "bigpond" ]; then
+        value=$($CONFIG get wan_bpa_mac_assign)
+
+        if [ "$value" = "1" ]; then
+            mac="wan_remote_mac"
+        elif [ "$value" = "2" ]; then
+            mac="wan_bpa_this_mac"
+        fi
+    elif [ "$1" = "pppoe" ]; then
+        value=$($CONFIG get wan_pppoe_mac_assign)
+
+        if [ "$value" = "1" ]; then
+            mac="wan_remote_mac"
+        elif [ "$value" = "2" ]; then
+            mac="wan_pppoe_this_mac"
+        fi
+    fi
+
+    mac_value=$($CONFIG get $mac)
+
+    ifconfig $WAN_IF down
+    ifconfig $WAN_IF hw ether $mac_value
+    ifconfig $WAN_IF up
+
+	# Enable DAD, and disable IPv6 operation if MAC-based duplicate link-local address has been found.
+	echo 2 > /proc/sys/net/ipv6/conf/${WAN_IF}/accept_dad
+	#make eth0 send NS package
+	echo "0" > /proc/sys/net/ipv6/neigh/${WAN_IF}/not_send_neighbor_solicitation
+
+	sleep 2
+	# For IPv6 Ready Log test, fixed ip setting do not enable radvd and dhcpv6s
+	local wan6_type=`$CONFIG get ipv6_type`
+	local logo_test=`$CONFIG get endis_ipv6_logo_test`
+	if [ "x$logo_test" = "x1" -a "x$wan6_type" = "xfixed" ]; then
+		/etc/net6conf/6fixed wan
+	fi
+}
+
+start() {
+#	if ! grep -q -e ag7240_mod /proc/modules; then
+#		insmod dni-qos dev_name=$WAN_RAW_IF real_dev_name=$WAN_RAW_IF
+#		load_modules /etc/modules.d/50-ap99-enet
+#	fi
+
+#	wan_default_mac=$(/sbin/get-default-wan-mac-from-flash)
+#	wan_default_mac=$(ifconfig eth0 |grep HWaddr |sed 's/.*HWaddr //g')
+#	wan_default_mac=$(echo -n $wan_default_mac)
+	wan_default_mac=$(cat /tmp/wan_mac)
+	wan_default_mac=$(echo -n $wan_default_mac)
+	$CONFIG set wan_factory_mac="$wan_default_mac"
+	echo "INIT-SWITCH: Default WAN MAC is : $wan_default_mac"
+
+#	ifconfig $WAN_IF hw ether $wan_default_mac
+
+	# WAN_IF=br1
+	# WAN_RAW_IF=vlan2
+	# config value
+	#   raw_iface=eth0
+	#   wan_ifname=br1
+	#   wan_hwname=vlan2
+
+	rawdev=`$CONFIG get raw_iface`	# eth0
+	ifconfig $rawdev up
+	# Config LAN raw wired interface, vlan1
+	vconfig set_name_type VLAN_PLUS_VID_NO_PAD
+	vconfig add $rawdev 1
+	ifconfig $LAN_IF up
+
+	# LAN: br0
+	lanbr=`$CONFIG get lan_ifname`
+	brctl addbr $lanbr
+	brctl setfd $lanbr 0
+	brctl addif $lanbr $LAN_IF
+	brctl addif $lanbr $WLAN_NG_NAME
+	# add 5G (eth2)
+	brctl addif $lanbr $WLAN_A_NAME
+	##############
+
+	# Config WAN raw wired interface, vlan2
+	vconfig set_name_type VLAN_PLUS_VID_NO_PAD
+	vconfig add $rawdev 2
+	ifconfig $WAN_RAW_IF hw ether $wan_default_mac
+	ifconfig $WAN_RAW_IF up
+
+	# WAN: br1
+	wanbr=$WAN_IF
+	brctl addbr $wanbr
+	brctl setfd $wanbr 0
+	brctl addif $wanbr $WAN_RAW_IF
+}
+
+stop() {
+	ifdown $WAN_IF	
+	ifdown $LAN_IF	
+}
+
+restart() {
+	stop
+	start
+}

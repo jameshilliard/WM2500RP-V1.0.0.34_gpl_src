@@ -1,0 +1,69 @@
+diff -Nur linux-2.6.30.old//drivers/net/rtl819x/rtl_nic.c linux-2.6.30/drivers/net/rtl819x/rtl_nic.c
+--- linux-2.6.30.old//drivers/net/rtl819x/rtl_nic.c	2012-11-30 06:22:54.788053840 -0500
++++ linux-2.6.30/drivers/net/rtl819x/rtl_nic.c	2012-11-30 06:29:12.538054311 -0500
+@@ -6517,6 +6517,41 @@
+ };
+ #endif
+ 
++static int read_proc_wan_status(char *page, char **start, off_t off,
++		int count, int *eof, void *data)
++{
++	int len;
++	char flag;
++	//unsigned char wan_status=0;
++	uint32 linkStatus, speed, duplex;
++	extern int rtk_port_phyStatus_get(uint32 port, uint32 *pLinkStatus, uint32 *pSpeed, uint32 *pDuplex);
++
++	rtk_port_phyStatus_get(4,&linkStatus,&speed,&duplex);
++		
++	if (linkStatus == 0 )
++		flag = '0';
++	else
++		flag = '1';
++
++	len = sprintf(page, "%c\n", flag);
++
++	if (len <= off+count) *eof = 1;
++	*start = page + off;
++	len -= off;
++	if (len > count) len = count;
++	if (len < 0) len = 0;
++	return len;
++}
++
++static int write_proc_wan_status(struct file *file, const char *buffer,
++		unsigned long count, void *data)
++{
++	if (count < 2)
++		return -EFAULT;
++	return count;
++}
++
++
+ int  __init re865x_probe (void)
+ {
+ /*2007-12-19*/
+@@ -6533,6 +6568,7 @@
+ #if defined(CONFIG_RTL_REPORT_LINK_STATUS)  ||  defined(CONFIG_RTK_VLAN_SUPPORT)
+ 	struct proc_dir_entry *res_stats_root;
+ #endif
++	struct proc_dir_entry *p;
+ #if defined(CONFIG_RTL_819XD)&&defined(CONFIG_RTL_8211DS_SUPPORT)&&defined(CONFIG_RTL_8197D)
+ 	uint32 reg_tmp=0;
+ #endif
+@@ -7132,6 +7168,14 @@
+ 	rtl_rxTxDoneCnt=0;
+ 	atomic_set(&rtl_devOpened, 0);
+ 
++	if( (p = create_proc_entry("wan_status",0,NULL)) != NULL)
++	{
++		p->read_proc = read_proc_wan_status;
++		p->write_proc = write_proc_wan_status;
++	}
++	else
++		printk("Realtek Eth Driver, create wan status proc failed!\n");
++
+ #if defined(PATCH_GPIO_FOR_LED)
+ 	for (port=0; port<RTL8651_PHY_NUMBER; port++)
+ 		init_led_ctrl(port);
+Binary files linux-2.6.30.old//drivers/net/rtl819x/.rtl_nic.c.swo and linux-2.6.30/drivers/net/rtl819x/.rtl_nic.c.swo differ

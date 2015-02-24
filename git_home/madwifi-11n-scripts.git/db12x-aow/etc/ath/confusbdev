@@ -1,0 +1,20 @@
+#!/bin/sh
+KVER=`uname -r | cut -f 1 -d '-'`
+MODULE_PATH=/lib/modules/$KVER/usb
+SND_MODULE_PATH=/lib/modules/$KVER/sound
+# Currently, we do not need to rmmod the below since
+# we will not be insmoding them in the first place
+# (on the db12x-aow build)
+#rmmod ehci-hcd
+#rmmod usb-storage
+#rmmod cdc_ether
+#rmmod usbnet
+#rmmod usbcore
+insmod $SND_MODULE_PATH/soundcore.ko
+insmod $SND_MODULE_PATH/snd.ko
+insmod $SND_MODULE_PATH/snd-timer.ko
+insmod $SND_MODULE_PATH/snd-page-alloc.ko
+insmod $SND_MODULE_PATH/snd-pcm.ko
+insmod $MODULE_PATH/ath_udc.ko
+insmod $MODULE_PATH/g_audio.ko
+echo "Configured USB in device mode"

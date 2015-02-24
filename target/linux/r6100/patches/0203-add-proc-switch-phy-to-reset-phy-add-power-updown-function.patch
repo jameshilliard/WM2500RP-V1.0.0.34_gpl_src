@@ -1,0 +1,31 @@
+diff -Nur linux-2.6.30.old//drivers/net/rtl819x/rtl8367r/rtk_api.c linux-2.6.30/drivers/net/rtl819x/rtl8367r/rtk_api.c
+--- linux-2.6.30.old//drivers/net/rtl819x/rtl8367r/rtk_api.c	2012-11-30 03:19:31.458055153 -0500
++++ linux-2.6.30/drivers/net/rtl819x/rtl8367r/rtk_api.c	2012-11-30 03:19:55.948055234 -0500
+@@ -5537,6 +5537,27 @@
+      return RT_ERR_OK;
+ }
+ 
++rtk_api_ret_t rtk_port_phPowerdown(rtk_port_t port, int down)
++{
++	rtk_uint32 phyData;
++	rtk_api_ret_t      retVal;
++
++	if ((retVal = rtl8367b_getAsicPHYReg(port, PHY_CONTROL_REG, &phyData)) != RT_ERR_OK)
++	{
++		printk("Failed to get port %d control phyData!!\n",port);
++		return retVal;
++	}
++	if(down)
++		phyData |= (1 << 11);   /* power down PHY, bit 11 should be set to 1 */
++	else
++		phyData &= (~(1 << 11));   /* power on PHY, bit 11 should be set to 0*/
++	if ((retVal = rtl8367b_setAsicPHYReg(port, PHY_CONTROL_REG, phyData)) != RT_ERR_OK)
++	{
++		printk("Failed to power %s port %d!!\n",down == 1 ? "down":"up", port);
++		return retVal;
++	}
++}
++
+ /* Function Name:
+  *      rtk_port_phyForceModeAbility_get
+  * Description:

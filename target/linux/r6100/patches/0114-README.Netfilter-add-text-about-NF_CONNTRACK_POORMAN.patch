@@ -1,0 +1,40 @@
+From 82c127034e1cc49eaa61fce5af253cb5b2ee2fcd Mon Sep 17 00:00:00 2001
+From: Jonathan Chang <jonathan@dniserver.dnish.net>
+Date: Thu, 9 Dec 2010 18:21:06 +0800
+Subject: [PATCH 114/137] README.Netfilter: add text about NF_CONNTRACK_POORMAN_TCP_WINDOW_CHECKING
+
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ README.Netfilter |   16 ++++++++++++++--
+ 1 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/README.Netfilter b/README.Netfilter
+index 8b83c15..55f8eae 100644
+--- a/README.Netfilter
++++ b/README.Netfilter
+@@ -1,8 +1,20 @@
+-			DNI Netfilter proc entries
++		DNI Netfilter configure options and proc entries
+ 
+-This document records all proc entry interface about DNI Netfilter.
++This document records all configure options proc entry interface about DNI Netfilter.
+ Project Leader should reference this document to enable or disable features add by DNI.
+ 
++configure options
++=================
++
++NF_CONNTRACK_POORMAN_TCP_WINDOW_CHECKING
++
++    When set to y, TCP window checking ported from linux v2.4.27 will
++    be used. Otherwise, original TCP window checking of v2.6.x will be
++    used.
++
++/proc entries
++=============
++
+ /proc/sys/dni_netfilter/conntrack_refresh_support
+ 
+     Symptom:
+-- 
+1.7.4.1
+

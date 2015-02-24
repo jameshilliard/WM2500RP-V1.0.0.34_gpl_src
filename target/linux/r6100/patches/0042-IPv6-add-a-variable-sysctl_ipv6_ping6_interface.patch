@@ -1,0 +1,56 @@
+From 248a9f1e806173cd6f51d8629ae39b2f9d84b983 Mon Sep 17 00:00:00 2001
+From: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Date: Fri, 1 Jul 2011 09:55:31 +0800
+Subject: [PATCH 042/137] IPv6: add a variable sysctl_ipv6_ping6_interface
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv6/raw.c |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv6/raw.c b/net/ipv6/raw.c
+index 61f6827..0ca1e28 100644
+--- a/net/ipv6/raw.c
++++ b/net/ipv6/raw.c
+@@ -60,6 +60,8 @@
+ #include <linux/proc_fs.h>
+ #include <linux/seq_file.h>
+ 
++int sysctl_ipv6_ping6_interface = 0;
++
+ static struct raw_hashinfo raw_v6_hashinfo = {
+ 	.lock = __RW_LOCK_UNLOCKED(raw_v6_hashinfo.lock),
+ };
+-- 
+1.7.4.1
+

@@ -1,0 +1,2 @@
+cp /etc/ath/p2p/aow_p2pdev.conf /tmp/aow_p2pdev.conf
+exit 1

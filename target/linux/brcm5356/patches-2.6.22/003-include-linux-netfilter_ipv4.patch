@@ -1,0 +1,102 @@
+diff --git a/include/linux/netfilter_ipv4/ip_autofw.h b/include/linux/netfilter_ipv4/ip_autofw.h
+new file mode 100644
+index 0000000..12fbf0b
+--- /dev/null
++++ b/include/linux/netfilter_ipv4/ip_autofw.h
+@@ -0,0 +1,35 @@
++/*
++ * Copyright (C) 2010, Broadcom Corporation. All Rights Reserved.
++ * 
++ * Permission to use, copy, modify, and/or distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ * 
++ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
++ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
++ * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++ *
++ * $Id: ip_autofw.h,v 1.1 2008-10-02 03:42:40 Exp $
++ */
++
++#ifndef _IP_AUTOFW_H
++#define _IP_AUTOFW_H
++
++#define AUTOFW_MASTER_TIMEOUT 600	/* 600 secs */
++
++struct ip_autofw_info {
++	u_int16_t proto;	/* Related protocol */
++	u_int16_t dport[2];	/* Related destination port range */
++	u_int16_t to[2];	/* Port range to map related destination port range to */
++};
++
++struct ip_autofw_expect {
++	u_int16_t dport[2];	/* Related destination port range */
++	u_int16_t to[2];	/* Port range to map related destination port range to */
++};
++
++#endif /* _IP_AUTOFW_H */
+diff --git a/include/linux/netfilter_ipv4/ipt_CONNMARK.h b/include/linux/netfilter_ipv4/ipt_CONNMARK.h
+index 9ecfee0..f9099f9 100644
+--- a/include/linux/netfilter_ipv4/ipt_CONNMARK.h
++++ b/include/linux/netfilter_ipv4/ipt_CONNMARK.h
+@@ -9,11 +9,18 @@
+  * the Free Software Foundation; either version 2 of the License, or
+  * (at your option) any later version.
+  */
+-#include <linux/netfilter/xt_CONNMARK.h>
+-#define IPT_CONNMARK_SET	XT_CONNMARK_SET
+-#define IPT_CONNMARK_SAVE	XT_CONNMARK_SAVE
+-#define	IPT_CONNMARK_RESTORE	XT_CONNMARK_RESTORE
+ 
+-#define ipt_connmark_target_info xt_connmark_target_info
++enum {
++	IPT_CONNMARK_SET = 0,
++	IPT_CONNMARK_SAVE,
++	IPT_CONNMARK_RESTORE,
++	IPT_CONNMARK_SET_RETURN
++};
++
++struct ipt_connmark_target_info {
++	unsigned long mark;
++	unsigned long mask;
++	u_int8_t mode;
++};
+ 
+ #endif /*_IPT_CONNMARK_H_target*/
+diff --git a/include/linux/netfilter_ipv4/ipt_cone.h b/include/linux/netfilter_ipv4/ipt_cone.h
+new file mode 100644
+index 0000000..12ebf88
+--- /dev/null
++++ b/include/linux/netfilter_ipv4/ipt_cone.h
+@@ -0,0 +1,27 @@
++/*
++ * Inlcude file for match cone target.
++ *
++ * Copyright (C) 2010, Broadcom Corporation. All Rights Reserved.
++ * 
++ * Permission to use, copy, modify, and/or distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ * 
++ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
++ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
++ * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++ * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++ *
++ * $Id: ipt_cone.h,v 1.1 2010-02-07 01:14:25 Exp $
++ */
++
++#ifndef	IPT_CONE_H
++#define IPT_CONE_H
++
++void ipt_cone_place_in_hashes(struct nf_conn *ct);
++void ipt_cone_cleanup_conntrack(struct nf_conn_nat *nat);
++
++#endif	/* IPT_CONE_H */

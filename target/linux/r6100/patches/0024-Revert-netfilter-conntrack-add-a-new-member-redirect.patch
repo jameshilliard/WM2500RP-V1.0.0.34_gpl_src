@@ -1,0 +1,25 @@
+From 2718916eead6025736150e69fc547643be1ff290 Mon Sep 17 00:00:00 2001
+From: Jonathan Chang <jonathan@dniserver.dnish.net>
+Date: Fri, 13 May 2011 13:54:07 +0800
+Subject: [PATCH 024/137] Revert "netfilter: conntrack: add a new member redirect_count in struct netns_ct"
+
+This reverts commit 9e70f7c091e54fdc2bc1975ac1f55ba033ec92e8.
+---
+ include/net/netns/conntrack.h |    1 -
+ 1 files changed, 0 insertions(+), 1 deletions(-)
+
+diff --git a/include/net/netns/conntrack.h b/include/net/netns/conntrack.h
+index e8c6014..9dc5840 100644
+--- a/include/net/netns/conntrack.h
++++ b/include/net/netns/conntrack.h
+@@ -10,7 +10,6 @@ struct nf_conntrack_ecache;
+ 
+ struct netns_ct {
+ 	atomic_t		count;
+-	atomic_t		redirect_count;
+ 	unsigned int		expect_count;
+ 	struct hlist_nulls_head	*hash;
+ 	struct hlist_head	*expect_hash;
+-- 
+1.7.4.1
+

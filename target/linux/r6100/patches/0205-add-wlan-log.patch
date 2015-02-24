@@ -1,0 +1,294 @@
+diff --git a/include/net/wlanlog.h b/include/net/wlanlog.h
+new file mode 100644
+index 0000000..91fe1cb
+--- /dev/null
++++ b/include/net/wlanlog.h
+@@ -0,0 +1,25 @@
++#ifndef WLANLOG_H
++#define WLANLOG_H
++
++#define WLANLOG_KSET_NAME "wlan-log"
++#define WLANLOG_KOBJ_NAME "wlanlog_obj"
++
++struct wlanlog
++{
++    struct kobject kobj;
++};
++
++#define WLANLOG_MSG_ACL 0x0001
++#define WLANLOG_MSG_AUTH 0x0002
++
++#define WLANLOG_ACL_DENIED 0
++#define WLANLOG_ACL_ALLOWED 1
++
++#ifdef CONFIG_WLANLOG
++extern void wlanlog_msg (u_int32_t, u_int8_t mac[], u_int8_t);
++#define WLANLOG_MSG(_t, _mac, _subt)  wlanlog_msg((_t), (_mac), (_subt))
++#else
++#define WLANLOG_MSG(_t, _mac, _subt)
++#endif  /* CONFIG_WLANLOG */
++
++#endif  /* WLANLOG_H */
+diff --git a/net/Kconfig b/net/Kconfig
+index c19f549..1edca3c 100644
+--- a/net/Kconfig
++++ b/net/Kconfig
+@@ -255,4 +255,6 @@ source "net/wimax/Kconfig"
+ source "net/rfkill/Kconfig"
+ source "net/9p/Kconfig"
+ 
++source "net/wlanlog/Kconfig"
++
+ endif   # if NET
+diff --git a/net/Makefile b/net/Makefile
+index 75520ee..6819416 100644
+--- a/net/Makefile
++++ b/net/Makefile
+@@ -52,6 +52,7 @@ obj-$(CONFIG_IP_SCTP)		+= sctp/
+ obj-$(CONFIG_RDS)		+= rds/
+ obj-y				+= wireless/
+ obj-$(CONFIG_MAC80211)		+= mac80211/
++obj-$(CONFIG_WLANLOG)		+= wlanlog/
+ obj-$(CONFIG_TIPC)		+= tipc/
+ obj-$(CONFIG_NETLABEL)		+= netlabel/
+ obj-$(CONFIG_IUCV)		+= iucv/
+diff --git a/net/wlanlog/Kconfig b/net/wlanlog/Kconfig
+new file mode 100644
+index 0000000..6ca8fea
+--- /dev/null
++++ b/net/wlanlog/Kconfig
+@@ -0,0 +1,6 @@
++config WLANLOG
++	bool "Wireless Log to Hotplug"
++	depends on HOTPLUG
++	---help---
++	  This is to output some events to hotplug which would save the log
++	  by following Netgear's requirement.
+diff --git a/net/wlanlog/Makefile b/net/wlanlog/Makefile
+new file mode 100644
+index 0000000..fbbd87b
+--- /dev/null
++++ b/net/wlanlog/Makefile
+@@ -0,0 +1,7 @@
++#
++# Makefile for WLAN log
++#
++
++obj-$(CONFIG_WLANLOG) += wlanlog.o
++
++
+diff --git a/net/wlanlog/wlanlog.c b/net/wlanlog/wlanlog.c
+new file mode 100644
+index 0000000..578bdeb
+--- /dev/null
++++ b/net/wlanlog/wlanlog.c
+@@ -0,0 +1,209 @@
++/*! \file wlanlog.c
++**  \brief 
++**
++** All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ * 3. The name of the author may not be used to endorse or promote products
++ *    derived from this software without specific prior written permission.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
++ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
++ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
++ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
++ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++#ifndef EXPORT_SYMTAB
++#define	EXPORT_SYMTAB
++#endif
++
++#ifndef AUTOCONF_INCLUDED
++#include <linux/config.h>
++#endif
++#include <linux/version.h>
++#include <linux/module.h>
++#include <linux/skbuff.h>
++#include <linux/netdevice.h>
++#include <linux/init.h>
++
++#include <linux/kobject.h>
++#include <linux/netlink.h>
++
++#include <net/wlanlog.h>
++
++/*
++  This module provide the functions that need to access Linux Kernel GPL
++  symbols.
++ */
++
++#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,29)
++
++static void release_wlanlog(struct kobject *kobj)
++{
++    struct wlanlog *p
++        = container_of(kobj, struct wlanlog, kobj);
++    kfree(p);
++}
++
++static struct kobj_type wlanlog_ktype = {
++    .release = release_wlanlog,
++};
++
++static struct kset *wlanlog_kset;
++static struct wlanlog *wlanlog_obj=NULL;
++
++static int __init wlanlog_init(void)
++{
++    int retval;
++
++    if (wlanlog_obj)
++        return 0;
++
++    wlanlog_kset = kset_create_and_add(WLANLOG_KSET_NAME, NULL, kernel_kobj);
++    if (!wlanlog_kset)
++        return -ENOMEM;
++
++    wlanlog_obj=kzalloc(sizeof(*wlanlog_obj), GFP_KERNEL);
++    if (!wlanlog_obj)
++        goto alloc_error1;
++
++    wlanlog_obj->kobj.kset = wlanlog_kset;
++
++    retval = kobject_init_and_add(&wlanlog_obj->kobj, &wlanlog_ktype, NULL, "%s", WLANLOG_KOBJ_NAME);
++    if (retval)
++        goto alloc_error2;
++
++    kobject_uevent(&wlanlog_obj->kobj, KOBJ_ADD);
++
++    return 0;
++
++  alloc_error2:
++    kobject_put(&wlanlog_obj->kobj);
++  alloc_error1:
++    kfree(wlanlog_obj);
++    return -ENOMEM;
++}
++
++static void __exit wlanlog_exit(void)
++{
++    kobject_put(&wlanlog_obj->kobj);
++    kset_unregister(wlanlog_kset);
++}
++
++void wlanlog_msg(u_int32_t msgtype, u_int8_t mac[ETH_ALEN], u_int8_t acstype)
++{
++    char type_env[15] = "";
++    char reportaction_env[30] = "";
++    char mac_env[30] = "";
++    char *envp[] = {
++        type_env,
++        reportaction_env,
++        mac_env,
++        NULL
++    };
++
++    switch (msgtype)
++    {
++        case WLANLOG_MSG_ACL:
++            if (acstype == WLANLOG_ACL_DENIED){
++                sprintf(type_env, "TYPE=acl");
++                sprintf(reportaction_env, "REPORT_ACTION=denied");
++            }else{
++                sprintf(type_env, "TYPE=acl");
++                sprintf(reportaction_env, "REPORT_ACTION=allowed");
++            }
++            break;
++        case WLANLOG_MSG_AUTH:
++            sprintf(type_env, "TYPE=auth");
++            sprintf(reportaction_env, "REPORT_ACTION=rejected");
++            break;
++        default:
++            break;
++    }
++    sprintf(mac_env, "MAC=%02x:%02x:%02x:%02x:%02x:%02x",
++            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
++
++    kobject_uevent_env(&wlanlog_obj->kobj, KOBJ_CHANGE, envp);
++    return;
++}
++
++subsys_initcall(wlanlog_init);
++module_exit(wlanlog_exit);
++#else
++extern struct sock *uevent_sock;
++u64 uevent_next_seqnum(void);
++static inline void ieee80211_hotplug_add_msg(struct sk_buff *skb, char *msg)
++{
++    char *scratch;
++    scratch = skb_put(skb, strlen(msg) + 1);
++    sprintf(scratch, msg);
++}
++
++void wlanlog_msg(u_int32_t msgtype, const u_int8_t mac[IEEE80211_ADDR_LEN], u_int8_t acstype)
++{
++    struct sk_buff *skb;
++    size_t len;
++    char *scratch;
++    char buf[128];
++
++    if (!uevent_sock)
++        return;
++
++/* allocate message with the maximum possible size */
++    len = strlen("wlan-log") + 2;
++    skb = alloc_skb(/* len +  */2048, GFP_KERNEL);
++    if (!skb)
++        return;
++
++/* add header */
++    scratch = skb_put(skb, len);
++    sprintf(scratch, "%s@","wlan-log");
++
++/* copy keys to our continuous event payload buffer */
++    ieee80211_hotplug_add_msg(skb, "HOME=/");
++    ieee80211_hotplug_add_msg(skb, "PATH=/sbin:/bin:/usr/sbin:/usr/bin");
++    ieee80211_hotplug_add_msg(skb, "SUBSYSTEM=wlan-log");
++    /* TODO: Add more type of message here */
++    switch (msgtype)
++    {
++    case WLANLOG_MSG_ACL:
++        if (acstype == WLANLOG_ACL_DENIED){
++            ieee80211_hotplug_add_msg(skb, "TYPE=acl");
++            ieee80211_hotplug_add_msg(skb, "ACTION=denied");
++        }else{
++            ieee80211_hotplug_add_msg(skb, "TYPE=acl");
++            ieee80211_hotplug_add_msg(skb, "ACTION=allowed");
++        }
++        break;
++    case WLANLOG_MSG_AUTH:
++        ieee80211_hotplug_add_msg(skb, "TYPE=auth");
++        ieee80211_hotplug_add_msg(skb, "ACTION=rejected");
++        break;
++    default:
++        break;
++    }
++    sprintf(buf, "MAC=%02x:%02x:%02x:%02x:%02x:%02x",
++        mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
++    ieee80211_hotplug_add_msg(skb, buf);
++    snprintf(buf, 128, "SEQNUM=%llu", uevent_next_seqnum());
++    ieee80211_hotplug_add_msg(skb, buf);
++
++    NETLINK_CB(skb).dst_group = 1;
++    netlink_broadcast(uevent_sock, skb, 0, 1, GFP_KERNEL);
++}
++#endif
++EXPORT_SYMBOL(wlanlog_msg);
++
++MODULE_LICENSE("GPL");

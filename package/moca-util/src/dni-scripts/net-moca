@@ -1,0 +1,37 @@
+#!/bin/sh /etc/rc.common
+START=22
+CONFIG="/bin/config"
+
+set_mac() {
+    mac="wan_factory_mac"
+	mac_value=$($CONFIG get $mac)
+    ifconfig $WAN_IF down
+    ifconfig $WAN_IF hw ether $mac_value
+    ifconfig $WAN_IF up
+}
+
+start() {
+	echo "MoCA Starts ..."
+	set_mac
+	mkdir -p /tmp/moca
+	#mkdir -p /tmp/moca/config-to-save
+	cp -r /etc/moca/examples /tmp/moca
+	/sbin/moca-control.sh output_config_file
+	/sbin/moca-control.sh start
+	brctl addif $BR_IF $WAN_IF
+	vlan_tag_enable=$($CONFIG get vlan_tag_enable)
+	if [ "x$vlan_tag_enable" == "x1" ]; then
+		/sbin/moca-control.sh vlan_tag_enable
+	fi
+}
+
+stop() {
+	echo "MoCA Stops ..."
+	/sbin/moca-control.sh stop
+	brctl delif $BR_IF $WAN_IF
+}
+
+restart() {
+	stop
+	start
+}

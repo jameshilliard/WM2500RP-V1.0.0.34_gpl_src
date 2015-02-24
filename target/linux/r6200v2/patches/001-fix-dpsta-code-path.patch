@@ -1,0 +1,11 @@
+--- linux-2.6.36.4.org/drivers/net/dpsta/Makefile	2012-11-15 10:58:33.638194456 -0500
++++ linux-2.6.36.4.new/drivers/net/dpsta/Makefile	2012-11-15 10:58:51.208206289 -0500
+@@ -20,7 +20,7 @@
+ 
+ obj-${CONFIG_DPSTA} := dpsta.o
+ 
+-DPSTASRC := ../../../../../../../src/router/dpsta
++DPSTASRC := ../../../../../router/dpsta
+ DPSTAOBJ := $(DPSTASRC)/dpsta_linux.o
+ SYMOBJ := $(DPSTASRC)/dpsta_linux.o
+ 

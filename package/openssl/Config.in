@@ -1,0 +1,3 @@
+config OPENSSL_ENGINE
+	bool
+	prompt "Crypto acceleration support"

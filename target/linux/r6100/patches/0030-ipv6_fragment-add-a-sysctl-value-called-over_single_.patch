@@ -1,0 +1,84 @@
+From e12ec95d419c573ed58996d3c5b31667f01c3913 Mon Sep 17 00:00:00 2001
+From: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Date: Wed, 11 May 2011 15:20:39 +0800
+Subject: [PATCH 030/137] ipv6_fragment: add a sysctl value called over_single_max_time to netns_frags struct
+
+Add a sysctl value called over_single_max_time to net struct to define
+how long refuse receiving fragments.
+
+In NETGEAR's SEPC,if an implementation has already received more than
+32 fragments of an IPv6 packet,the implementation MUST discard these
+32 fragments and also discard any fragment, belonging to the same IPv6
+packet, received in the next 90 seconds.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/inet_frag.h |    1 +
+ net/ipv6/reassembly.c   |    2 ++
+ 2 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/inet_frag.h b/include/net/inet_frag.h
+index 861f8b1..8c1e6d2 100644
+--- a/include/net/inet_frag.h
++++ b/include/net/inet_frag.h
+@@ -11,6 +11,7 @@ struct netns_frags {
+ 	int			high_thresh;
+ 	int			low_thresh;
+ 	int			single_max;
++	int			over_single_max_timeout;
+ };
+ 
+ struct inet_frag_queue {
+diff --git a/net/ipv6/reassembly.c b/net/ipv6/reassembly.c
+index dfe59ae..ab93743 100644
+--- a/net/ipv6/reassembly.c
++++ b/net/ipv6/reassembly.c
+@@ -708,6 +708,7 @@ static int ip6_frags_ns_sysctl_register(struct net *net)
+ 		table[1].data = &net->ipv6.frags.low_thresh;
+ 		table[2].data = &net->ipv6.frags.timeout;
+ 		table[3].data = &net->ipv6.frags.single_max;
++		table[4].data = &net->ipv6.frags.over_single_max_timeout;
+ 	}
+ 
+ 	hdr = register_net_sysctl_table(net, net_ipv6_ctl_path, table);
+@@ -772,6 +773,7 @@ static int ipv6_frags_init_net(struct net *net)
+ 	net->ipv6.frags.low_thresh = 192 * 1024;
+ 	net->ipv6.frags.timeout = IPV6_FRAG_TIMEOUT;
+ 	net->ipv6.frags.single_max = 0;
++	net->ipv6.frags.over_single_max_timeout = IPV6_FRAG_BEYOND_SINGLE_MAX_TIMEOUT;
+ 
+ 	inet_frags_init_net(&net->ipv6.frags);
+ 
+-- 
+1.7.4.1
+

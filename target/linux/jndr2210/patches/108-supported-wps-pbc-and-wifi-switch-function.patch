@@ -1,0 +1,146 @@
+diff -Nur linux-2.6.30.orig/drivers/char/rtl_gpio.c linux-2.6.30/drivers/char/rtl_gpio.c
+--- linux-2.6.30.orig/drivers/char/rtl_gpio.c	2012-03-02 10:55:44.766811277 -0500
++++ linux-2.6.30/drivers/char/rtl_gpio.c	2012-03-02 11:17:11.366811585 -0500
+@@ -40,6 +40,9 @@
+ extern unsigned int get_8192cd_gpio0_7();
+ #endif
+ 
++unsigned int rtl8192_init_finished = 0;
++EXPORT_SYMBOL(rtl8192_init_finished);
++
+ // 2009-0414
+ //#define	DET_WPS_SPEC
+ #ifndef CONFIG_RTK_VOIP_DRIVERS_ATA_DECT //DECT SPI use GPIO E interrupt, need refine code to share irq.
+@@ -502,11 +505,12 @@
+ //#define WLAN_LED_GPIO 0
+ #define POWER_LED_GPIO 2       /* green */
+ #define STATUS_LED_GPIO 6     /* amber */
+-#define WPS_LED_GPIO  4
+-//#define WLAN_BUTTON_GPIO 23
+-#define WPS_BUTTON_GPIO 3
+ #define RESET_BUTTON_GPIO 5
+ 
++//RTL8192DR GPIOs
++#define WPS_BUTTON_GPIO 2
++#define WLAN_BUTTON_GPIO 0
++
+ /* LED active voltage */
+ /**
+  * AR9331 GPIOs Define - WNR1000v4
+@@ -529,7 +533,6 @@
+ #define TIME_250MSECONDS       250     /* millisecond */
+ #define WPS_LED_ERR_INTERVAL    100     /* millisecond */
+ 
+-
+ typedef enum {
+        free = 0,       /* release button, pop up */
+        push = 1,       /* press button */
+@@ -561,6 +564,18 @@
+        else
+                RTL_W32(AUTOCFG_LED_DATABASE, (RTL_R32(AUTOCFG_LED_DATABASE) | (1 << gpio)));
+ }
++
++void wps_led_on_off(int gpio, led_status status)
++{
++       RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) & (~(1 << (gpio + 24)))));
++       RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << (gpio + 16))));
++
++       if(status)
++               RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) & (~(1 << (gpio + 8)))));
++       else
++               RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << (gpio + 8))));
++}
++
+ static int button_state_read (char *page, char **start, off_t off,
+                                int count, int *eof, void *data)
+ {
+@@ -647,14 +662,14 @@
+                 return;
+ 
+         if (onoff) {
+-                 led_on_off(WPS_LED_GPIO, OFF);
++                 wps_led_on_off(WPS_LED_G_PIN, OFF);
+         } else {
+-                  led_on_off(WPS_LED_GPIO, ON);
++                 wps_led_on_off(WPS_LED_G_PIN, ON);
+         }
+         onoff = 1 - onoff;
+         diswps_blink_count--;
+         if (diswps_blink_count == 0) {
+-                  led_on_off(WPS_LED_GPIO, ON);
++                 wps_led_on_off(WPS_LED_G_PIN, ON);
+         }
+         OS_SET_TIMER(&os_diswps_t, WPS_LED_ERR_INTERVAL);
+ }
+@@ -679,9 +694,7 @@
+        static int wifibut_s = 0;
+        static int pushbut_s = 0;
+ 
+-#if 0 //jndr2210 do not have wlan on off button
+-       /* GPIO 23: WIRELESS ON/OFF(Input Pin / Active LOW) */
+-       if (!ar7240_gpio_in_val(WLAN_BUTTON_GPIO)) {
++       if (rtl8192_init_finished && !(RTL_R32(P8192D_GPIO_0_7_CRTL) & (1 << WLAN_BUTTON_GPIO))){
+                if (!wifibut_s) {
+                        wifibut_s = 1;
+                        wifibut = push;
+@@ -691,9 +704,8 @@
+                        wifibut_s = 0;
+                }
+        }
+-#endif
+-       /* GPIO 11: JUMPSTART (Input Pin / Active HIGH) */
+-         if(!(RTL_R32(RESET_PIN_DATABASE) & (1 << WPS_BUTTON_GPIO)) ){
++
++       if(rtl8192_init_finished && !(RTL_R32(P8192D_GPIO_0_7_CRTL) & (1 << WPS_BUTTON_GPIO))){
+                 if (!pushbut_s) {
+                         pushbut_s = 1;
+                         pushbut = push;
+@@ -1616,7 +1628,7 @@
+ {
+         char flag[20];
+        
+-	RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << (WPS_LED_G_PIN + 24))));
++	RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) & (~(1 << (WPS_LED_G_PIN + 24)))));
+ 	RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << (WPS_LED_G_PIN + 16))));
+         if (count < 2)
+                 return -EFAULT;
+diff -Nur linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/8192cd_hw.c linux-2.6.30/drivers/net/wireless/rtl8192cd/8192cd_hw.c
+--- linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/8192cd_hw.c	2011-12-12 03:30:04.000000000 -0500
++++ linux-2.6.30/drivers/net/wireless/rtl8192cd/8192cd_hw.c	2012-03-02 11:13:47.046811536 -0500
+@@ -6153,7 +6153,6 @@
+ 		if (val32)
+ 			return -1;
+ 	}
+-
+ #ifdef CONFIG_RTL_92D_SUPPORT
+ 	if (GET_CHIP_VER(priv)==VERSION_8192D) {
+ 		if(priv->pmib->dot11RFEntry.xcap != 0xff) {
+@@ -6162,7 +6161,6 @@
+ 		}
+ 	}
+ #endif
+-
+ 	// support up to MCS7 for 1T1R, modify rx capability here
+ 	/*
+ 	if (get_rf_mimo_mode(priv) == MIMO_1T1R
+diff -Nur linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/8192cd_osdep.c linux-2.6.30/drivers/net/wireless/rtl8192cd/8192cd_osdep.c
+--- linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/8192cd_osdep.c	2011-12-12 03:30:04.000000000 -0500
++++ linux-2.6.30/drivers/net/wireless/rtl8192cd/8192cd_osdep.c	2012-03-02 11:09:18.316811472 -0500
+@@ -147,6 +147,8 @@
+ #endif
+ #endif // CONFIG_WIRELESS_LAN_MODULE
+ 
++extern unsigned int rtl8192_init_finished; //defined in rtl_gpio.c
++
+ struct _device_info_ wlan_device[] =
+ {
+ #if defined(USE_RTL8186_SDK)
+@@ -7336,7 +7338,7 @@
+ #ifdef USB_PKT_RATE_CTRL_SUPPORT
+ 	register_usb_hook = (register_usb_pkt_cnt_fn)(register_usb_pkt_cnt_f);
+ #endif
+-
++	rtl8192_init_finished = 1;
+ 	return 0;
+ }
+ 

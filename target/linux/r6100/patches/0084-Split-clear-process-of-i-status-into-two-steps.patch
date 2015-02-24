@@ -1,0 +1,27 @@
+From af8bad528101982fafafc0465727e5c29f748ae0 Mon Sep 17 00:00:00 2001
+From: michell.dong <michell.dong@dniserver.dnish.net>
+Date: Wed, 28 Nov 2012 12:15:17 -0500
+Subject: [PATCH] Split clear process of i->status into two steps
+
+Signed-off-by: michell.dong <michell.dong@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |    3 ++-
+ 1 files changed, 2 insertions(+), 1 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index 9120bf4..cd1d3d3 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -949,7 +949,8 @@ static int clean_nat(struct nf_conn *i, void *data)
+ 		return 0;
+ 	memset(nat, 0, sizeof(*nat));
+ #if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
+-	i->status &= ~(IPS_NAT_MASK | IPS_NAT_DONE_MASK | IPS_SEQ_ADJUST | IPS_SNATP2P_MASK | IPS_SNATP2P_DONE_MASK);
++	i->status &= ~(IPS_NAT_MASK | IPS_NAT_DONE_MASK | IPS_SEQ_ADJUST);
++	i->status &= ~(IPS_SNATP2P_MASK | IPS_SNATP2P_DONE_MASK);
+ #else
+ 	i->status &= ~(IPS_NAT_MASK | IPS_NAT_DONE_MASK | IPS_SEQ_ADJUST);
+ #endif
+-- 
+1.7.4.1
+

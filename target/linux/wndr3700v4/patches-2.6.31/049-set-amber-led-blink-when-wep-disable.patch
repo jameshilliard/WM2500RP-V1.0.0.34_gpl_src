@@ -1,0 +1,49 @@
+diff -Nur linux-2.6.31.org/arch/mips/atheros/gpio.c linux-2.6.31/arch/mips/atheros/gpio.c
+--- linux-2.6.31.org/arch/mips/atheros/gpio.c	2012-05-23 15:54:55.036504783 +0800
++++ linux-2.6.31/arch/mips/atheros/gpio.c	2012-05-23 15:57:49.586505858 +0800
+@@ -620,8 +620,10 @@
+         if (sscanf(buf, "%d", &val) != 1)
+                 return -EINVAL;
+ 
+-        if (val == 1) { /* WPS was disabled */
++        if (val == 1) { /* WPS was disabled and the final wps green led should be on */
+                 diswps = 1;
++	} else if (val == 2) { /* WPS was disabled and the final wps green led should be off */
++		diswps = 2;
+         } else if (val == 0) { /* WPS was enabled */
+                 diswps = 0;
+                 OS_CANCEL_TIMER(&os_diswps_t);
+@@ -797,16 +799,21 @@
+ 
+         if (!diswps ||  diswps_blink_count <= 0)
+                 return;
+-
++	
+         if (onoff) {
+-                ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_OFF);
++                ath_gpio_out_val(WPS_AMBER_LED_GPIO, LED_OFF);
+         } else {
+-                ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_ON);
++                ath_gpio_out_val(WPS_AMBER_LED_GPIO, LED_ON);
+         }
+         onoff = 1 - onoff;
+         diswps_blink_count--;
+         if (diswps_blink_count == 0) {
+-                ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_ON);
++                ath_gpio_out_val(WPS_AMBER_LED_GPIO, LED_OFF);
++                if (diswps == 1) {
++                        ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_ON);
++                } else if (diswps == 2) {
++                        ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_OFF);
++                }
+         }
+         OS_SET_TIMER(&os_diswps_t, WPS_LED_ERR_INTERVAL);
+ }
+@@ -862,6 +869,7 @@
+                         /* blink WPS LED more than 5 seconds if WPS is disable */
+                         if (diswps) {
+                                 diswps_blink_count = 50;
++                                ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_OFF);
+                                 OS_SET_TIMER(&os_diswps_t, WPS_LED_ERR_INTERVAL);
+                         }
+                 }

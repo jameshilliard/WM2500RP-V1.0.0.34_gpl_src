@@ -1,0 +1,97 @@
+#!/bin/sh
+# Script for PPPoE Proxy feature on Atheros wireless router (PB44)
+
+PATH=/usr/local/sbin:/usr/sbin:/sbin:/usr/bin:/bin
+export PATH
+# These variables are for the use of the scripts run by run-parts
+PPP_IFACE="$1"
+PPP_TTY="$2"
+PPP_SPEED="$3"
+PPP_LOCAL="$4"
+PPP_REMOTE="$5"
+PPP_IPPARAM="$8"
+PPP_USER="$6"
+PPP_PID="$7"
+PPP_PEERNAME=$PEERNAME
+
+
+CONNMAP="/var/local/tmp/ppp/pppoeconnmap"
+
+FIELD_NUM_WAN_IF=3 #depend on the map file format
+FIELD_NUM_MAX_SESSION=4 #depend on the map file format
+FIELD_NUM_LOCAL_IF=7 #depend on the map file format
+FIELD_NUM_IConDev=5 #depend on the map file format
+FIELD_NUM_IPPPCon=6 #depend on the map file format
+
+USER_NAME=""
+USER_INDEX=""
+PUBLIC_PID=""
+
+MAX_PROXY_SESSION=2	# default maximum proxy session
+
+#just for debug
+#echo "ppp_iface=$PPP_IFACE ppp_local=$PPP_LOCAL ppp_remote=$PPP_REMOTE User=$PPP_USER pid=$PPP_PID" peerName=$PPP_PEERNAME >> /etc/ppp/debug
+#set -x
+#PPP_USER="test1"
+#PPP_PID="1000"
+#PPP_LOCAL="192.168.5.1"
+#PPP_PEERNAME="test1"
+#PPP_IFACE="ppp0"
+
+################### check connection type (local/public) ###################
+if [ "${PPP_LOCAL}" = "192.168.5.1" ]; then
+####################### this is local connection ##########################
+	USER_NAME=$PPP_PEERNAME
+
+
+# maximum proxy session limitation per user account
+    MAX_PROXY_SESSION=`pppfileconfig -f ${CONNMAP} -u $USER_NAME -n $FIELD_NUM_MAX_SESSION`
+	
+    SESSION_COUNT_tmp=0
+	FIELD_COUNT_tmp=1
+	PPP_CFG_CMD="pppfileconfig -f ${CONNMAP} -u $USER_NAME -n $FIELD_NUM_LOCAL_IF"
+    EXIXTING_LOCAL_IF=`${PPP_CFG_CMD} | cut -f $FIELD_COUNT_tmp -d ','`
+    if [ "*" != "${EXIXTING_LOCAL_IF}" ]; then
+	    while [ `${PPP_CFG_CMD} | cut -f $FIELD_COUNT_tmp -d ','` ]
+	    do
+        
+		    SESSION_COUNT_tmp=`expr $SESSION_COUNT_tmp + 1`	
+		    FIELD_COUNT_tmp=`expr $FIELD_COUNT_tmp + 1`
+	    done
+     fi
+
+	if test "$SESSION_COUNT_tmp" -ge "$MAX_PROXY_SESSION" ; then # at this point, the new localIF hasn't been inserted to the map
+		kill -9 $PPP_PID
+		exit
+	fi
+
+# default map handling
+    DEFAULT_LOCAL_IF=`pppfileconfig -f ${CONNMAP} -u $USER_NAME -n $FIELD_NUM_LOCAL_IF`
+    if [ "*" = "${DEFAULT_LOCAL_IF}" ]; then
+        pppfileconfig -f ${CONNMAP} -u ${USER_NAME} -n ${FIELD_NUM_LOCAL_IF} -v '' 
+    fi
+	
+# add new proxier inferface
+
+	CURRENT_LOCAL_IFs=`pppfileconfig -f ${CONNMAP} -u $USER_NAME -n $FIELD_NUM_LOCAL_IF`
+	CURRENT_LOCAL_IFs="${CURRENT_LOCAL_IFs}${PPP_IFACE},"
+	pppfileconfig -f ${CONNMAP} -u ${USER_NAME} -n ${FIELD_NUM_LOCAL_IF} -v ${CURRENT_LOCAL_IFs}
+
+else
+######### public connection ###################################################
+	USER_NAME=$PPP_USER
+	PUBLIC_PID=$PPP_PID
+
+    #pppfileconfig -f ${CONNMAP} -u ${USER_NAME} -n ${FIELD_NUM_WAN_IF} -v ${PPP_IFACE} 
+    pppfileconfig -f ${CONNMAP} -u ${PUBLIC_PID} -n ${FIELD_NUM_WAN_IF} -v ${PPP_IFACE} 
+
+	#PPP_CFG_CMD="pppfileconfig -f ${CONNMAP} -u $USER_NAME -n $FIELD_NUM_IConDev"
+	PPP_CFG_CMD="pppfileconfig -f ${CONNMAP} -u $PUBLIC_PID -n $FIELD_NUM_IConDev"
+    Index_ConDev=`${PPP_CFG_CMD}` 
+	#PPP_CFG_CMD="pppfileconfig -f ${CONNMAP} -u $USER_NAME -n $FIELD_NUM_IPPPCon"
+	PPP_CFG_CMD="pppfileconfig -f ${CONNMAP} -u $PUBLIC_PID -n $FIELD_NUM_IPPPCon"
+    Index_PPPCon=`${PPP_CFG_CMD}`
+
+    web_ssi -w ${Index_ConDev} ${Index_PPPCon} 2 ${PPP_LOCAL} "255.255.255.255" ${PPP_REMOTE} "${DNS1},${DNS2}" 
+
+fi

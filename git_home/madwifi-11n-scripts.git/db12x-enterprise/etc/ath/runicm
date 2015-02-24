@@ -1,0 +1,160 @@
+#!/bin/sh
+
+# Copyright (c) 2012 Qualcomm Atheros, Inc..
+# All Rights Reserved.
+# Qualcomm Atheros Confidential and Proprietary.
+
+## Set to 1 to display information for debug purposes
+DISPLAY_RUN_ICM_INFO=0
+
+NUMRADIOS=`echo $1`
+
+if [ "${NUMRADIOS}" != "1" -a "${NUMRADIOS}" != "2" ]; then
+    echo "$0: Invalid number of radios ($NUMRADIOS)"
+    exit 1
+fi
+
+ICM_MODE_INPUT=`echo $2`
+## Default mode: standalone
+SERVER_MODE_ARG=""
+
+if [ "${ICM_MODE_INPUT}" = "server" ]; then
+    SERVER_MODE_ARG="-v"
+fi
+
+ICM_DAEMON_ENABLE_INPUT=`echo $3`
+## Default mode: enabled
+ICM_DAEMON_ENABLE_ARG="-e"
+
+if [ "${ICM_DAEMON_ENABLE_INPUT}" = "0" ]; then
+    ICM_DAEMON_ENABLE_ARG=""
+fi
+
+## Processing for radio 1
+IFNUM=`echo $4 | cut -f 1 -d ':'`
+RF=`echo $4 | cut -f 2 -d ':'`
+PRI_CH=`echo $4 | cut -f 3 -d ':'`
+SEC_CH=`echo $4 | cut -f 4 -d ':'`
+
+if [ "${IFNUM}" != "0" -a "${IFNUM}" != "1" ]; then
+    IFNUM=0
+fi
+
+## Determine the operating mode and frequency
+if [ $PRI_CH = 11na ]; then
+    CHMODE=11na
+    PRI_CH=0
+elif [ $PRI_CH = 11ng ]; then
+    CHMODE=11ng
+    PRI_CH=0
+elif [ $PRI_CH -gt 14 ]; then
+    CHMODE=11na
+else
+    CHMODE=11ng
+fi
+
+ISHT40PLUS=`expr match $AP_CHMODE .*HT40PLUS.*`
+ISHT40MINUS=`expr match $AP_CHMODE .*HT40MINUS.*`
+ISHT40=`expr match $AP_CHMODE .*HT40.*`
+ISHT20=`expr match $AP_CHMODE .*HT20.*`
+
+
+if [ $CHMODE = 11ng ]; then
+    BAND=0
+else
+    BAND=1
+fi
+
+if [ "$ISHT20" != "0" ]; then
+    CHWIDTH=0
+elif [ "$ISHT40MINUS" != "0" ]; then
+    CHWIDTH=1
+elif [ "$ISHT40PLUS" != "0" ]; then
+    CHWIDTH=2
+elif [ "$ISHT40" != "0" ]; then
+    CHWIDTH=3
+fi
+
+if [ "${NUMRADIOS}" = "2" ]; then
+    ## Processing for radio 2
+    IFNUM_2=`echo $5 | cut -f 1 -d ':'`
+    RF_2=`echo $5 | cut -f 2 -d ':'`
+    PRI_CH_2=`echo $5 | cut -f 3 -d ':'`
+    SEC_CH_2=`echo $5 | cut -f 4 -d ':'`
+
+    if [ "${IFNUM_2}" != "0" -a "${IFNUM_2}" != "1" ]; then
+        IFNUM_2=1
+    fi
+
+    ## Determine the operating mode and frequency
+    if [ $PRI_CH_2 = 11na ]; then
+        CHMODE_2=11na
+        PRI_CH_2=0
+    elif [ $PRI_CH_2 = 11ng ]; then
+        CHMODE_2=11ng
+        PRI_CH_2=0
+    elif [ $PRI_CH_2 -gt 14 ]; then
+        CHMODE_2=11na
+    else
+        CHMODE_2=11ng
+    fi
+
+    ISHT40PLUS_2=`expr match $AP_CHMODE_2 .*HT40PLUS.*`
+    ISHT40MINUS_2=`expr match $AP_CHMODE_2 .*HT40MINUS.*`
+    ISHT40_2=`expr match $AP_CHMODE_2 .*HT40.*`
+    ISHT20_2=`expr match $AP_CHMODE_2 .*HT20.*`
+
+
+    if [ $CHMODE_2 = 11ng ]; then
+        BAND_2=0
+    else
+        BAND_2=1
+    fi
+
+    if [ "$ISHT20_2" != "0" ]; then
+        CHWIDTH_2=0
+    elif [ "$ISHT40MINUS_2" != "0" ]; then
+        CHWIDTH_2=1
+    elif [ "$ISHT40PLUS_2" != "0" ]; then
+        CHWIDTH_2=2
+    elif [ "$ISHT40_2" != "0" ]; then
+        CHWIDTH_2=3
+    fi
+fi
+
+echo "starting icm"
+
+if [ "${DISPLAY_RUN_ICM_INFO}" = "1" ]; then
+    echo "NUMRADIOS = $NUMRADIOS"
+    echo ""
+    echo "Radio 1"
+    echo "IFNUM     = $IFNUM"
+    echo "RF        = $RF"
+    echo "PRI_CH    = $PRI_CH"
+    echo "SEC_CH    = $SEC_CH"
+    echo "CHMODE    = $CHMODE"
+    echo "BAND      = $BAND"
+    echo "ISHT20    = $ISHT20"
+    echo "ISHT40PLUS    = $ISHT40PLUS"
+    echo "ISHT40MINUS   = $ISHT40MINUS"
+
+    if [ "${NUMRADIOS}" = "2" ]; then
+        echo "Radio 2"
+        echo "IFNUM_2   = $IFNUM_2"
+        echo "RF_2      = $RF_2"
+        echo "PRI_CH_2  = $PRI_CH_2"
+        echo "SEC_CH_2  = $SEC_CH_2"
+        echo "CHMODE_2  = $CHMODE_2"
+        echo "BAND_2    = $BAND_2"
+        echo "ISHT20_2  = $ISHT20_2"
+        echo "ISHT40PLUS_2  = $ISHT40PLUS_2"
+        echo "ISHT40MINUS_2 = $ISHT40MINUS_2"
+    fi
+fi
+
+if [ "${NUMRADIOS}" = "2" ]; then
+    icm $ICM_DAEMON_ENABLE_ARG -n 2 -o $BAND -c $PRI_CH  -w $CHWIDTH -p $BAND_2 -d $PRI_CH_2  -x $CHWIDTH_2 $SERVER_MODE_ARG &
+else 
+    icm $ICM_DAEMON_ENABLE_ARG -n 1 -o $BAND -c $PRI_CH  -w $CHWIDTH $SERVER_MODE_ARG &
+fi
+

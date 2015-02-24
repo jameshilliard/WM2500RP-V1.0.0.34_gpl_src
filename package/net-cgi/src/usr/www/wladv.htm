@@ -1,0 +1,215 @@
+<% cfg_set("refresh_message", "1") %>
+<% cfg_set("wire_message", "1") %>
+<% cfg_set("adv_wire_page", "1") %>
+
+<% http_header("style/form.css", "/funcs.js", "/wlan.js") %>
+<% body_header("_wladv", "wladv.htm", "wlan_adv") %>
+
+<script>
+<% web_flag() %>	
+<% wps_lock_flag() %>
+var wireless_schedule_flag = parent.wireless_schedule_flag;
+var wps_progress_status="<% wps_process_status() %>";
+var ap_mode_enable="<% cfg_get("ap_mode") %>";
+var endis_pin="<% cfg_get("endis_pin") %>";
+var ap_configed="<% cfg_get("lan_wps_oob") %>";
+var endis_ssid_broadcast="<% cfg_get("endis_ssid_broadcast") %>";
+var wlan_adv_wpspin="<% cfg_get("wps_device_pin") %>";
+
+var gui_region="<% cfg_get("GUI_Region") %>";
+var lan_dhcp="<% cfg_get("lan_dhcp") %>";
+var wps_protect='<% cfg_get("wps_pin_attack_check") %>';
+</script>
+<input type="hidden" name="refresh_url">
+<input type="hidden" name="refresh_page">
+<input type="hidden" name="hidden_ap_mode" value="">
+<input type="hidden" name="hidden_endis_ssid_broadcast" value="">
+<input type="hidden" name="hidden_endis_wps" value="">
+<input type="hidden" name="hidden_keep_exist" value="">
+<input type="hidden" name="hid_protect_enable" value="">
+<div class="page_title">$wlan_adv_head</div>
+<div class="fix_button">
+<TABLE width=100% border=0 cellpadding=0 cellspacing=2>
+<TR>
+    <TD nowrap colspan=2 align=center>
+	<input class="cancel_bt" type="button" value="$cancel_mark" onClick="location.href='wladv.htm';">&nbsp;&nbsp;&nbsp;
+	<input class="apply_bt" type="submit" value="$apply_mark" onclick="url_change_ornot();return wladv_apply()"></td>
+</tr>
+</TABLE>
+</div>
+<div id="main" class="main_top_button">
+	<table>
+		<tr><td nowrap><input type="checkbox" name="enable_ap" value="1" onClick="check_schedule_onoff();">$adva_wlan_router</td></tr>
+		<tr><td nowrap><input type="checkbox" name="endis_ssid_broadcast" id="ssid_broad" value="1">$adva_wlan_ssid_broadcast</td></tr>
+		
+	</table>
+$bluebar
+	<tr>
+    <td nowrap><b><a tabindex=-1 href="javascript:loadhelp('_wladv','wps')">$wlan_adv_wps</a></b></td> 
+	</tr>
+    <br>
+	<div id='wladv_pin'>
+	<TR>
+	    <td nowrap>$wlan_adv_routerpin</TD>
+		<td nowrap><b><% cfg_get("wps_device_pin") %></b></TD>
+	  </TR> 
+	</div>  
+	<div id='wladv_endis_wps'>
+	  <tr>
+	    <td nowrap><input type=checkbox name=pin_disable id="endis_id" value=1>
+		<script>//bug 24987:when wps_lock_down is 1,display 'Disable Device's PIN(Temporarily)'
+		document.write("$wlan_adv_endis_pin");
+		if( wps_lock_down == '1' )
+			document.write("$temporarily_mark");
+		</script></td>
+	  </tr>
+	</div>
+	<div id='wladv_enable_wps'>
+	<TR>
+	<TD nowrap colspan=2 >
+	<input type="checkbox" name="pin_enable" value=1 onClick="wps_protection_display()">$wlan_adv_enable_pin<script>if( "<% cfg_get("wps_lock_down") %>" == "1" ) document.write("$temporarily_mark_v11");</script>
+	</TD>
+	</TR>
+</div>
+<div id='wladv_appin_cfg'>
+	<TR>
+	<TD nowrap colspan=2 ><img src=/spacer.gif width=20 height=12 border=0>
+	<input type="checkbox" name="protect_enable" onClick="wps_protection_display()">$wlan_adv_wps_pin1
+	<input type="text" name="wps_fail_count" size="3" maxlength="3" value="<% cfg_get("wps_pin_attack_num") %>" onKeyPress="return getkey('num', event)">$wlan_adv_wps_pin2
+	<BR><img src=/spacer.gif width=20 height=12 border=0><img src=/spacer.gif width=20 height=12 border=0>$wlan_adv_wps_pin3
+	</TD>
+	</TR>
+</div>
+	<div id='wladv_keep_exist'>
+	  <tr>
+	    <td nowrap><input type=checkbox name=keep_exist id="keep_id" value=1>$wlan_adv_keep</td>
+	  </tr>
+	</div>
+$bluebar
+    <tr>
+        <td nowrap><a tabindex=-1 href="javascript:loadhelp('_wladv','access')"><b>$wlan_wlacl</b></a></td>
+        <td nowrap><input class="common_bt" type="button" name="access" value="$setup_acl" onClick="location.href='wlacl.htm'"></td>
+    </tr>
+<!------ WPA2 Mixed DIV End ------>
+<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+$bluebar
+</table>
+</table>
+</div>
+<% help_box("0","_wladv") %>
+
+</FORM>
+<script>
+
+function loadvalue()
+{	
+	top.enabled_wps=<% wps_menu() %>;
+	menu_color_change('wladv');
+	
+	var form=document.forms[0];
+	if(!(gui_region == "English" || gui_region == "Chinese" || gui_region == "Korean"))	
+		document.getElementsByName("access")[0].className = "wladv_long_common_bt";
+	//else
+		//document.getElementsByName("access")[0].className = "long_common_bt";
+
+	if(ap_mode_enable=='1')
+		form.enable_ap.checked = true;
+	else
+		form.enable_ap.checked = false;
+	
+        if(endis_ssid_broadcast=="1")
+                form.endis_ssid_broadcast.checked = true;
+        else
+                form.endis_ssid_broadcast.checked = false;
+        if(endis_pin == '1' || wps_lock_down == '1')
+		{
+                form.pin_disable.checked = true;
+				form.pin_enable.checked = false;
+		}
+        else
+		{
+                form.pin_disable.checked = false;
+				form.pin_enable.checked = true;
+		}
+        if(ap_configed == 'disabled')
+                form.keep_exist.checked = true;
+        else if ( ap_configed == 'enabled' )
+                form.keep_exist.checked = false;
+
+	if( wps_protect_pin_flag == 1 )
+	{
+		document.getElementById("wladv_enable_wps").style.display = "";
+		document.getElementById("wladv_appin_cfg").style.display = "";
+		document.getElementById("wladv_endis_wps").style.display = "none";
+	}
+	else
+	{
+		document.getElementById("wladv_enable_wps").style.display = "none";
+		document.getElementById("wladv_appin_cfg").style.display = "none";
+		document.getElementById("wladv_endis_wps").style.display = "";
+	}
+	
+	if ( endis_pin == '1' || wps_lock_down == '1' )
+	{
+		getObj('wladv_pin').color = 'gray';
+	}
+	
+	if( wps_protect_pin_flag == 1 )
+	{
+		if (wps_protect == '0')
+			form.protect_enable.checked = false;
+		else
+			form.protect_enable.checked = true;
+	}
+	wps_protection_display();
+	
+	if ( top.enabled_wps == 0 ) //33145
+	{
+		getObj('wladv_pin').color = 'gray';	
+		getObj('wladv_enable_wps').color = 'gray';
+		getObj('wladv_endis_wps').color = 'gray';	
+		getObj('wladv_keep_exist').color = 'gray';	
+		
+		form.pin_disable.disabled=true;
+		form.pin_enable.disabled=true;
+		form.keep_exist.disabled=true;
+
+		getObj('wladv_appin_cfg').color = 'gray';
+		form.wps_fail_count.disabled=true;
+		form.protect_enable.disabled=true;
+	}
+	
+	/*if ( ap_mode_enable=='0' )
+	{
+		getObj('wladv_pin').color = 'gray';	
+		getObj('wladv_endis_wps').color = 'gray';	
+		getObj('wladv_keep_exist').color = 'gray';	
+		form.endis_wps.disabled=true;
+		form.keep_exist.disabled=true;
+	}
+	if( '$wl_ap_transmit' == '1' )
+	{
+		form.keep_id.checked = true;
+		form.keep_id.disabled = true;
+	}*/
+	//top.contents.location.reload();
+}
+function wps_protection_display()
+{
+	var cf=document.forms[0];
+	if( wps_protect_pin_flag == 1 )
+	{
+		if ( cf.pin_enable.checked == false || cf.pin_enable.disabled == true)
+			document.getElementById("wladv_appin_cfg").style.display="none";
+		else
+			document.getElementById("wladv_appin_cfg").style.display="";
+		if (cf.protect_enable.checked == false)
+			cf.wps_fail_count.disabled = true;
+		else
+			cf.wps_fail_count.disabled = false;
+	}
+}
+</script>
+</body>
+</html>
+

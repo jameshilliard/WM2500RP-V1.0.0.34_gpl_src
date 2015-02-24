@@ -1,0 +1,68 @@
+From 30c5e9fdc4328e380302f6281de4ad1d48eef795 Mon Sep 17 00:00:00 2001
+From: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Date: Wed, 11 May 2011 15:20:31 +0800
+Subject: [PATCH 025/137] ipv6_fragment: add int element "fragment_count" in struct frag_queue
+
+Add int element "fragment_count" in struct frag_queue which equivalent of
+ipv4 struct ipq.
+
+In NETGEAR's SEPC, If an IPv6 packet has more than 32 fragments, then the
+whole packet MUST be discarded silently.For example, if an implementation
+has already received 32 fragments of an IPv6 packet, and there is more
+fragment of the packet to be received, the implementation MUST discard
+these 32 fragments and also discard any fragment, belonging to the
+same IPv6 packet, received in the next 90 seconds.
+
+For this request, add int element "fragment_count" in struct frag_queue to
+save how many fragments had been received.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv6/reassembly.c |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv6/reassembly.c b/net/ipv6/reassembly.c
+index e9ac7a1..b5fff4b 100644
+--- a/net/ipv6/reassembly.c
++++ b/net/ipv6/reassembly.c
+@@ -78,6 +78,7 @@ struct frag_queue
+ 	int			iif;
+ 	unsigned int		csum;
+ 	__u16			nhoffset;
++	int			fragment_count;		/* how many fragments had received	*/
+ };
+ 
+ static struct inet_frags ip6_frags;
+-- 
+1.7.4.1
+

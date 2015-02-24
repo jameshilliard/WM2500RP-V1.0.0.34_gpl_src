@@ -1,0 +1,527 @@
+<% cfg_set("try_connect", "1") %>
+<% http_header("style/form.css", "/funcs.js") %>
+
+<% ca_connect_page_set() %>
+
+<style type=text/css>
+.prgbar1 { font-family:Arial; padding:0px; height: 20px; width: 250px; font-weight: bolder; font-size: 10pt; border: 1px solid; border-color: #09c; color: #0000FF}
+</style>
+<script>
+var wl_sectype="<% cfg_get("wl_sectype") %>";
+
+var wl_get_keylength = "<% cfg_get("key_length") %>";
+var sta_wl_weppassphrase = "<% cfg_get("sta_wl_weppassphrase") %>";
+
+var gui_region="<% cfg_get("GUI_Region") %>";
+var weppassphrase1=xss_replace("<% cfg_sed_passphrase("weppassphrase") %>");
+var weppassphrase="<% cfg_sed_passphrase("weppassphrase") %>";
+var get_wpa1_tmp=xss_replace("<% cfg_sed_passphrase("wl0.1_wpa_psk") %>");
+var get_wpa1="<% cfg_sed_passphrase("wl0.1_wpa_psk") %>";
+var get_wpa_aes_tmp=xss_replace("<% cfg_sed_passphrase("wl0.1_wpa_psk") %>");
+var get_wpa_aes="<% cfg_sed_passphrase("wl0.1_wpa_psk") %>";
+var get_wpa2_tkip_tmp=xss_replace("<% cfg_sed_passphrase("wl0.1_wpa_psk") %>");
+var get_wpa2_tkip="<% cfg_sed_passphrase("wl0.1_wpa_psk") %>";
+var get_wpa2_tmp=xss_replace("<% cfg_sed_passphrase("wl0.1_wpa_psk") %>");
+var get_wpa2="<% cfg_sed_passphrase("wl0.1_wpa_psk") %>";
+var get_wpas_tmp=xss_replace("<% cfg_sed_passphrase("wl0.1_wpa_psk") %>");
+var get_wpas="<% cfg_sed_passphrase("wl0.1_wpa_psk") %>";
+
+var wl_key1=xss_replace("<% cfg_sed_passphrase("wl0.1_key1") %>");
+var wl_key2=xss_replace("<% cfg_sed_passphrase("wl0.1_key2") %>");
+var wl_key3=xss_replace("<% cfg_sed_passphrase("wl0.1_key3") %>");
+var wl_key4=xss_replace("<% cfg_sed_passphrase("wl0.1_key4") %>");
+var ap_get_wpa1=xss_replace("<% cfg_sed_passphrase("wl0.1_wpa_psk") %>");
+var ap_get_wpa_aes=xss_replace("<% cfg_sed_passphrase("wl0.1_wpa_psk") %>");
+var ap_get_wpa2_tkip=xss_replace("<% cfg_sed_passphrase("wl0.1_wpa_psk") %>");
+var ap_get_wpa2=xss_replace("<% cfg_sed_passphrase("wl0.1_wpa_psk") %>");
+var ap_get_wpas=xss_replace("<% cfg_sed_passphrase("wl0.1_wpa_psk") %>");
+
+var wlan_get_ssid1=xss_replace("<% cfg_sed_passphrase("wl_ssid") %>");
+var ap_client="<% cfg_get("ap_client") %>";
+var lan_dhcp="<% cfg_get("lan_dhcp") %>";
+var wlan_get_ssid="<% cfg_sed_passphrase("wl_ssid") %>";
+
+var wl_ap_sectype="<% cfg_get("sta_wl_sectype") %>";
+var ap_mode="<% cfg_get("ap_mode") %>";
+var wl_get_ap_keylength="<% cfg_get("wl_get_ap_keylength") %>";
+var wl0_ssid="";
+var passwd_phrase="";
+var passwd_phrase1="";
+var ap_passwd_phrase="";
+var dns_hijack="<% cfg_get("dns_hijack") %>";
+var setup_wizard_tag="<% cfg_get("setup_wizard_tag") %>";
+
+var adv_wire_page="<% cfg_get("adv_wire_page") %>";
+if(ap_client=="1"){
+        if(wlan_get_ssid.indexOf("<")>-1){
+                wlan_get_ssid=wlan_get_ssid.replace(/<lt;/g,'&lt;');
+                wlan_get_ssid=wlan_get_ssid.replace(/>gt;/g,'&gt;');
+                wl0_ssid=wlan_get_ssid;
+        }else{
+                wl0_ssid=wlan_get_ssid;
+        }
+}else{
+        if(parent.wl0_ssid.indexOf("<")>-1){
+                wl0_ssid=parent.wl0_ssid.replace(/\</g,'&lt;');
+                wl0_ssid=wl0_ssid.replace(/\>/g,'&gt;');
+        }else{
+                wl0_ssid=parent.wl0_ssid;
+        }
+}
+
+if(wl_ap_sectype=="2"){
+        ap_passwd_phrase=wl_key1;
+        ap_sectype="WEP";
+}else if(wl_ap_sectype=="3"){
+        ap_passwd_phrase=ap_get_wpa1;
+        ap_sectype="WPA-PSK[TKIP]";
+}else if(wl_ap_sectype=="4"){
+        ap_passwd_phrase=ap_get_wpa_aes;
+        ap_sectype="WPA-PSK[AES]";
+}else if(wl_ap_sectype=="5"){
+        ap_sectype="WPA2-PSK[TKIP]";
+        ap_passwd_phrase=ap_get_wpa2_tkip;
+}else if(wl_ap_sectype=="6"){
+        ap_passwd_phrase=ap_get_wpa2;
+        ap_sectype="WPA2-PSK[AES]";
+}else if(wl_ap_sectype=="7"){
+        ap_sectype="WPA/WPA2-PSK";
+        ap_passwd_phrase=ap_get_wpas;
+}else
+        ap_sectype="NONE";
+
+if(wl_sectype=="2"){
+        sectype="WEP";
+        passwd_phrase=wl_key1;
+		passwd_phrase1=wl_key1;
+}else if(wl_sectype=="3"){
+        passwd_phrase=get_wpa1;
+		passwd_phrase1=get_wpa1_tmp;
+        sectype="WPA-PSK[TKIP]";
+}else if(wl_sectype=="4"){
+        passwd_phrase=get_wpa_aes;
+		passwd_phrase1=get_wpa_aes_tmp;
+        sectype="WPA-PSK[AES]";
+}else if(wl_sectype=="5"){
+        sectype="WPA2-PSK[TKIP]";
+        passwd_phrase=get_wpa2_tkip;
+		passwd_phrase1=get_wpa2_tkip_tmp;
+}else if(wl_sectype=="6"){
+        passwd_phrase=get_wpa2;
+		passwd_phrase1=get_wpa2_tmp;
+        sectype="WPA2-PSK[AES]";
+}else if(wl_sectype=="7"){
+        sectype="WPA/WPA2-PSK";
+        passwd_phrase=get_wpas;
+		passwd_phrase1=get_wpas_tmp;
+}else
+        sectype="NONE";
+
+var sta_list = "<% cat_file("/tmp/check_link") %>";
+var link_status="<% cat_file("/tmp/link_status" %>";
+var maxchars = 100;
+var delay_time = 1600; // msecs
+var charcount = 0;
+pro1="<br><table width=100% border=0 cellpadding=0 cellspacing=0 height=30><tr bgcolor=#dddddd><td width="
+pro2="\% bgcolor=#0099cc align=right><font color=#0099cc>"
+pro3="%</font></td><td width="
+pro4="\%></td><td width=0% bgcolor=#ffffff>"
+pro5="%</td></tr></table>"
+if( setup_wizard_tag == "0" )
+{
+	//top.contents.location.href="menu.htm";
+	top.wl_sectype=wl_sectype;
+	top.ap_mode=ap_mode;
+	top.enabled_wps=<% wps_menu() %>;
+	
+	if(adv_wire_page == "0")
+		menu_color_change('wireless');
+	else if(adv_wire_page == "1")
+		menu_color_change('wladv');
+	else if(adv_wire_page == "2")
+		menu_color_change('internet');
+}
+function menu_width()
+{
+	if( setup_wizard_tag == 1 )
+    	load_default(3);
+}
+function updateProgress()
+{
+	var pro=charcount;
+    //var progress=pro1+pro+pro2+pro+pro3+(100-pro)+pro4+"<b>"+charcount+"</b>"+pro5;
+    //document.getElementById("view").innerHTML=progress;
+	//if( dns_hijack == 1 )
+    	//load_default(4);
+    if (charcount < maxchars)
+    {
+    	charcount=charcount+2;
+        setTimeout("updateProgress()",delay_time);
+    }
+   else
+   {
+                //if("$iswireless" == "yes")
+            //    {
+                        document.getElementById("countdown").style.display="none";
+                        document.getElementById("summary").style.display="block";
+                        setTimeout("alert(\"$ca_change\" + wlan_get_ssid1 + \"$ca_follow\")",1000);
+                        loadvalue();
+						//if( dns_hijack == 1 )
+							//load_default(5);
+            //    }
+        //      else
+        //      {
+                //      url_change_ornot();
+        //      }
+   }
+
+}
+
+
+function url_change_ornot ()
+{
+        var browser=eval ( '"' + top.location + '"' );
+
+        var no_change_url="ca_connect_rightpage.htm";
+        var changed_url="welcome.htm"
+
+        if( setup_wizard_tag == "0" )
+        {
+                no_change_url="RST_status.htm";
+                changed_url="index.htm";
+        }
+
+        if  ( lan_dhcp == "1")
+        {
+                if (browser.indexOf("www.mywifiext.net") > -1 )
+                {
+                        parent.location.href="http://www.mywifiext.com/"+changed_url;
+                }
+                else if (browser.indexOf("www.mywifiext.com")>-1 )
+                {
+                        parent.location.href="http://www.mywifiext.net/"+changed_url;
+                }
+                else if (browser.indexOf("mywifiext.net") > -1 )
+                {
+                        parent.location.href="http://mywifiext.com/"+changed_url;
+                }
+                else if (browser.indexOf("mywifiext.com")>-1 )
+                {
+                        parent.location.href="http://mywifiext.net/"+changed_url;
+                }
+                else
+                {
+                        parent.location.href="http://www.mywifiext.net/"+changed_url;
+                }
+        }
+        else
+        {
+                location.href=no_change_url;
+        }
+
+}
+function msg_close()
+{
+        alert(ca_close_alert);
+        CloseWindow();
+}
+function CloseWindow()
+{
+        top.window.opener=null;
+        top.window.close();
+}
+function copyToClipboard(txt) { 
+          if(window.clipboardData) {   
+                 //window.clipboardData.clearData();   
+                 window.clipboardData.setData("Text", txt);  
+         }    
+   } 
+function loadvalue()
+{
+if( setup_wizard_tag == 1 )
+	load_default(3);
+/*if(navigator.userAgent.indexOf("MSIE") != -1) { 
+		if (sectype=="WPA-PSK" || sectype=="WPA2-PSK" || sectype=="WPA/WPA2-PSK")
+            document.getElementById('cpy_wpa').style.visibility="visible";
+		else if(sectype=="WEP")
+		{
+			document.getElementById('cpy_wep').style.visibility="visible";
+			document.getElementById('cpy1').style.visibility="visible";
+			document.getElementById('cpy2').style.visibility="visible";
+			document.getElementById('cpy3').style.visibility="visible";
+			document.getElementById('cpy4').style.visibility="visible";
+		}
+    }*/   	
+}
+
+function check_popup()
+{
+	if(mac_os_popup() != "popup")
+		updateProgress();
+	else
+	{
+		document.getElementById("countdown").style.display="none";
+		document.getElementById("summary").style.display="block";
+	}
+}
+
+var sUserAgent = navigator.userAgent;  
+ var fAppVersion = parseFloat(navigator.appVersion);  
+     //test the Win Platform  
+ var isWin = (navigator.platform == "Win32") || (navigator.platform == "Windows");  
+    
+ //test the Macintosh Platform  
+ var isMac = (navigator.platform == "Mac68K") || (navigator.platform == "MacPPC")   
+             || (navigator.platform == "Macintosh") || (navigator.platform == "MacIntel");  
+   
+ //test the Linux Platform 
+ var isLin = (navigator.platform == "Linux i686") && !isWin && !isMac;  
+   
+   
+ //  
+  var isWin95 = isWin98 = isWinNT4 = isWin2K = isWinME = isWinXP = isWinVista = isWin7 = false;  
+ var isMac68K = isMacPPC = isMacOS = false;  
+ var isLinux = false;  
+
+ //An accurate version of the type of platform
+ if (isLin)
+		isLinux =  sUserAgent.indexOf("Linux") > -1;  
+ if (isWin) {  
+      isWin95 = sUserAgent.indexOf("Win95") > -1   
+               || sUserAgent.indexOf("Windows 95") > -1;  
+     isWin98 = sUserAgent.indexOf("Win98") > -1   
+               || sUserAgent.indexOf("Windows 98") > -1;  
+     isWinME = sUserAgent.indexOf("Win 9x 4.90") > -1   
+               || sUserAgent.indexOf("Windows ME") > -1;  
+     isWin2K = sUserAgent.indexOf("Windows NT 5.0") > -1   
+               || sUserAgent.indexOf("Windows 2000") > -1;  
+     isWinXP = sUserAgent.indexOf("Windows NT 5.1") > -1   
+               || sUserAgent.indexOf("Windows XP") > -1; 
+     isWinVista = sUserAgent.indexOf("Windows NT 6.0") > -1   
+               || sUserAgent.indexOf("Windows Vista") > -1;  
+     isWin7 = sUserAgent.indexOf("Windows NT 6.1") > -1   
+               || sUserAgent.indexOf("Windows 7") > -1;      
+     isWinNT4 = sUserAgent.indexOf("WinNT") > -1   
+               || sUserAgent.indexOf("Windows NT") > -1   
+               || sUserAgent.indexOf("WinNT4.0") > -1   
+                || sUserAgent.indexOf("Windows NT 4.0") > -1   
+                && (!isWinME && !isWin2K && !isWinXP);                   
+ }   
+
+ //An accurate version of the type of platform  
+ if (isMac) {  
+     isMac68K = sUserAgent.indexOf("Mac_68000") > -1   
+                || sUserAgent.indexOf("68K") > -1;  
+     isMacPPC = sUserAgent.indexOf("Mac_PowerPC") > -1   
+                || sUserAgent.indexOf("PPC") > -1; 
+     isMacOS =  sUserAgent.indexOf("Mac OS") > -1;  
+  }
+  
+function check_if_continue()
+{
+	var cf=document.forms[0];
+	if(cf.sel_continue.checked == true)
+	{
+		cf.next_button.disabled=false;
+		cf.next_button.className="short_common_bt";
+	}
+	else
+	{
+		cf.next_button.disabled=true;
+		cf.next_button.className="short_common_gr_bt";
+	}
+}
+</script>
+</HEAD>
+<body bgcolor="#ffffff" onLoad="menu_width();check_popup()">
+<form>
+<div id="main" class="wizard_top_button">
+<div id="countdown" style="display:block">
+<table align=left border=0 width=100%>
+<tr><td colspan=2><img style="display:none" src="/image/buttons.gif"></td></tr>
+<tr><td colspan=2><input style="display:none" class="short_common_gr_bt" type="button"></td></tr>
+<tr><td colspan=2><input style="display:none" class="short_common_bt" type="button"></td></tr>
+<tr>
+                <td colspan=2>
+                <table align=left border=0 cellpadding=20 cellspacing=0 width=100%>
+                <tr>
+                <!--<script>
+                if(dns_hijack==1)
+                {
+                        document.write('<td colspan=2 rowspan=100 width=70 align=center valign=top>');document.write(ca_icon+"<br><br><br>");icons_show_status();document.write('&nbsp;</td>');
+                }
+                </script>-->
+                <td colspan=2>
+                <h1><script>
+                        if( setup_wizard_tag == "0" )
+				document.write("$wait_for_connect3");
+                        else
+                                document.write("$ca_wait_for_connect");
+                </script></h1></td></tr>
+                <tr>
+                <td colspan=2 align=center>
+                <img src="/image/wait30.gif"></td></tr>
+        </table>
+        </td>
+  </tr>
+</table>
+</div><!-- end countdown-->
+
+<div id="summary" class="ca_main" style="display:none">
+<table width=100%><tr><td width="3%">&nbsp;</td><td>
+<table align=left border=0 width=100%>
+        <tr><td colspan=2><h1><script>
+        if( setup_wizard_tag == "1" )
+                document.write("$ca_15_logging_1");
+        else
+                document.write("$extender_info");
+        </script></h1></td></tr>
+$bluebar
+<!--<script >		
+		if( dns_hijack == "1" )
+		{
+			document.write('<tr><td colspan=2>');
+			document.write(ca_click); 
+			document.write('</td></tr>');
+			document.write('<tr><td colspan=2>');
+			if( gui_region == "German" )
+				document.write('<input name="next" class=wizard_long_bt  align="right" type="button" value="'+ca_next_mark+'" onClick="url_change_ornot();">');
+			else
+				document.write('<input name="next" class=wizard_common_bt  align="right" type="button" value="'+ca_next_mark+'" onClick="url_change_ornot();">');
+			document.write('</td></tr>');
+			document.write(bluebar);
+			document.write('<tr><td colspan=2>');
+			document.write(ca_15_logging_2); 
+			document.write('</td></tr>');
+			document.write(bluebar)
+		}
+		</script>-->
+	<tr><td colspan=2>$ca_network_create </td></tr>
+    <tr><td colspan=2><b>$ca_15_repeater $ca_24</b></td></tr>
+        <script>
+                //line1
+                document.write("<tr>")
+		document.write("<td nowrap colspan=2>")
+                document.write("$spacebar $ca_15_ssid :&nbsp;")
+				wl0_ssid=wl0_ssid.replace(/ /g,'&nbsp;');
+                document.write(wl0_ssid+"</td></tr>")
+                //line2
+                document.write("<tr>");
+                document.write("<td nowrap colspan=2>");
+                document.write("$spacebar");
+                document.write("$ca_15_sec:&nbsp;");
+                document.write(sectype+"</td></tr>");
+                // line 3
+                document.write('<tr>');
+                document.write('<td nowrap width=40%>');document.write("$spacebar");
+                if(sectype=="WEP"){
+                        document.write("$sec_enc"); document.write(':&nbsp;');
+                        if(wl_get_keylength=="5")
+                                document.write("$sec_64");
+                        else if(wl_get_keylength=="13")
+                                document.write("$sec_128");
+                        document.write('</td></tr>');
+                }else if (sectype.indexOf("WPA-PSK") > -1 || sectype.indexOf("WPA2-PSK") > -1 || sectype=="WPA/WPA2-PSK"){
+                        document.write("$ca_15a_passphrase :&nbsp;");
+                        //document.write(passwd_phrase+"</td></tr>");
+						if( gui_region == "French" )
+							document.write(passwd_phrase+'</td><td><input type="button" class="long_common_bt" id="cpy_wpa" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(passwd_phrase1)"></td></tr>')
+						else
+							document.write(passwd_phrase+'</td><td><input type="button" class="wizard_middle_common_bt" id="cpy_wpa" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(passwd_phrase1)"></td></tr>')
+                }else
+                        document.write("</td></tr>");
+                // line 4
+                document.write('<tr>');
+                if(sectype=="WEP"){
+                        document.write('<td nowrap width=40%>');document.write("$spacebar");document.write("$ca_12a_passphrase"); document.write(':&nbsp;');
+                        //document.write('$weppassphrase</td></tr>');
+						if( gui_region == "French" )
+							document.write(weppassphrase+'</td><td><input type="button" class="long_common_bt" id="cpy_wep" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(weppassphrase1)"></td></tr>')
+						else
+							document.write(weppassphrase+'</td><td><input type="button" class="wizard_middle_common_bt" id="cpy_wep" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(weppassphrase1)"></td></tr>')
+                }else
+                        document.write("<td></td></tr>");
+                // line 5
+                document.write('<tr>');
+                if(sectype=="WEP"){
+                        document.write('<td nowrap width=40%>');document.write("$spacebar");document.write("$sec_key1:");
+                        if( gui_region == "French" )
+							document.write(wl_key1+'</td><td><input type="button" class="long_common_bt" id="cpy1" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(wl_key1)"></td></tr>');
+						else
+							document.write(wl_key1+'</td><td><input type="button" class="wizard_middle_common_bt" id="cpy1" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(wl_key1)"></td></tr>');
+                }else
+                        document.write("<td></td></tr>");
+                // line 6
+                document.write('<tr>');
+                if(sectype=="WEP"){
+                        document.write('<td nowrap width=40%>');document.write("$spacebar");document.write("$sec_key2:");
+                        if( gui_region == "French" )
+							document.write(wl_key2+'</td><td><input type="button" class="long_common_bt" id="cpy2" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(wl_key2)"></td></tr>');
+						else
+							document.write(wl_key2+'</td><td><input type="button" class="wizard_middle_common_bt" id="cpy2" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(wl_key2)"></td></tr>');
+                }else
+                        document.write("<td></td></tr>");
+                // line 7
+                document.write('<tr>');
+                if(sectype=="WEP"){
+                        document.write('<td nowrap width=40%>');document.write("$spacebar");document.write("$sec_key3:");
+                        if( gui_region == "French" )
+							document.write(wl_key3+'</td><td><input type="button" class="long_common_bt" id="cpy3" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(wl_key3)"></td></tr>');
+						else
+							document.write(wl_key3+'</td><td><input type="button" class="wizard_middle_common_bt" id="cpy3" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(wl_key3)"></td></tr>');
+                }else
+                        document.write("<td></td></tr>");
+                // line 8
+                document.write('<tr>');
+                if(sectype=="WEP"){
+                        document.write('<td nowrap width=40%>');document.write("$spacebar");document.write("$sec_key4:");
+                        if( gui_region == "French" )
+							document.write(wl_key4+'</td><td><input type="button" class="long_common_bt" id="cpy4" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(wl_key4)"></td></tr>');
+						else
+							document.write(wl_key4+'</td><td><input type="button" class="wizard_middle_common_bt" id="cpy4" style="visibility:hidden" value="$cp_passwd" onclick="copyToClipboard(wl_key4)"></td></tr>');
+                }else
+                        document.write("<td></td></tr>");
+        </script>
+		<tr><td colspan=2></td></tr>
+        <script>
+		if( setup_wizard_tag == "1" )
+			document.write("<tr><td colspan=2>$ca_next_msg</td></tr>")
+		
+			document.write('<tr><td colspan=2><img style="display:none" src="/test_gray.gif"></td></tr>');
+			document.write('<tr><td colspan=2><img style="display:none" src="/test.gif"></td></tr>');
+			
+				if(isWinVista || isWin7)
+  					document.write('<tr><td colspan=2><img src="/vista.jpg"></td></tr>');
+  				else if(isMac68K || isMacPPC || isMacOS)
+					document.write('<tr><td colspan=2><img src="/mac.jpg"></td></tr>');
+				else if(isLinux)
+					document.write('<tr><td colspan=2><img src="/ubuntu-wireless.jpg"></td></tr>');
+				else
+					document.write('<tr><td colspan=2><img src="/WZC.jpg"></td></tr>'); 
+		
+		document.write("$bluebar");
+		 document.write("<tr><td colspan=2><input type=\"checkbox\" name=\"sel_continue\" id=\"sel_continue\" onclick=\"check_if_continue();\">$ca_sel_continue</td></tr>"); 
+		 document.write('<tr><td colspan=2 align=right><input class="short_common_gr_bt" type="button" name="next_button" value="$next_mark" disabled onClick="url_change_ornot();"></TD></tr>');
+		 </script>
+		<!-- <script >		
+		if( dns_hijack == "0" )
+		{
+			document.write(bluebar);
+			document.write('<tr><td colspan=2>');
+			if( gui_region == "German" )
+				document.write('<input name="next" class=wizard_long_bt  align="right" type="button" value="'+ca_next_mark+'" onClick="url_change_ornot();">');
+			else
+				document.write('<input name="next" class=wizard_common_bt  align="right" type="button" value="'+ca_next_mark+'" onClick="url_change_ornot();">');
+			
+			document.write('</td></tr>');
+		}
+		</script>-->
+        <tr><td>$spacebar<b>
+</table></td><td width="3%">&nbsp;</td></tr>
+</table>
+</div><!-- end summary -->
+</div>
+</form>
+</BODY>
+</HTML>
+

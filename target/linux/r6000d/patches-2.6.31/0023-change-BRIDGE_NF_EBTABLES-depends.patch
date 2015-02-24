@@ -1,0 +1,12 @@
+diff -Nurp linux-2.6.31.orig/net/bridge/netfilter/Kconfig linux-2.6.31/net/bridge/netfilter/Kconfig
+--- linux-2.6.31.orig/net/bridge/netfilter/Kconfig	2011-05-04 17:17:48.000000000 +0800
++++ linux-2.6.31/net/bridge/netfilter/Kconfig	2011-05-04 17:19:50.000000000 +0800
+@@ -4,7 +4,7 @@
+ 
+ menuconfig BRIDGE_NF_EBTABLES
+ 	tristate "Ethernet Bridge tables (ebtables) support"
+-	depends on BRIDGE && BRIDGE_NETFILTER
++	depends on BRIDGE && NETFILTER
+ 	select NETFILTER_XTABLES
+ 	help
+ 	  ebtables is a general, extensible frame/packet identification

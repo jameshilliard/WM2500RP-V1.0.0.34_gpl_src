@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# configure misc settings
+echo 60 > /proc/sys/net/ipv4/neigh/default/base_reachable_time
+echo 0 > /proc/sys/net/ipv4/neigh/default/ucast_solicit
+
+# configure wlan interfaces
+iwpriv wlan1 shortgi 0
+
+# configure network interfaces
+ifconfig wlan0 up
+ifconfig wlan1 up
+
+# start wsupp bridge
+if [ ! -e /tmp/p2pdev.conf ]; then
+        echo Using default p2pdev.conf
+        cp /etc/ath/p2p/p2pdev.conf.def /tmp/p2pdev.conf
+fi
+
+wpa_supplicant -iwlan0 -c /etc/ath/p2p/wpa-sta.conf -N -iwlan1 -c /tmp/p2pdev.conf &
+
+exit 1

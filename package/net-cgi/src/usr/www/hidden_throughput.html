@@ -1,0 +1,46 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% nohelp_header("hidden_throughput.html", "throughput_obss") %>
+
+<script>
+var obss_coex="<% cfg_get("wl0_obss_coex") %>";
+var ccode="<% cfg_get("sb/1/ccode") %>";
+function loadvalue()
+{
+	if(obss_coex == 1)
+		document.forms[0].Obsscoex[1].checked = true;
+	else
+		document.forms[0].Obsscoex[0].checked = true;
+}
+
+function check_Obsscoex()
+{
+	var cf=document.forms[0];
+	if(cf.Obsscoex[0].checked == true)
+		cf.hid_obsscoex.value=0;
+	else
+		cf.hid_obsscoex.value=1;
+		
+	cf.submit();
+}
+</script>
+$bluebar
+<input type="hidden" name="hid_obsscoex">
+<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+
+<tr><td nowrap colspan=2><script>document.write("sb/1/ccode : " + ccode)</script></td></tr>
+<tr><td nowrap colspan=2><input type="radio" name="Obsscoex" value="0" ><script>document.write("wl obss_coex 0 : off")</script></td></tr>
+<tr><td nowrap colspan=2><input type="radio" name="Obsscoex" value="1" ><script>document.write("wl obss_coex 1 : on")</script></td></tr>
+</table>
+$bluebar
+
+<table align="center">
+<TR>
+    <td nowrap colspan=2 align=center>
+      <input type="button"  value="$apply_mark" onclick="check_Obsscoex();">&nbsp;&nbsp;
+	</td>
+</TR>
+</TABLE>
+</FORM>
+</body>
+</html>
+

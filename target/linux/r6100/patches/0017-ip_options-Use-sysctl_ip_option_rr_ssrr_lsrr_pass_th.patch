@@ -1,0 +1,80 @@
+From d2bdee9abd6c81d0a6df14d512f3028c31ee05d2 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Tue, 7 Dec 2010 14:26:17 +0800
+Subject: [PATCH 017/137] ip_options: Use sysctl_ip_option_rr_ssrr_lsrr_pass_through to let ip option pass through or not
+
+NETGEAR Home Wireless Router Engineer Spec v1.6
+1.1 Basic NAT
+  2. For IP options Record Route (7), Strict Source Route (9), and Loose Source Route (3),
+an implementation SHOULD let the options pass through without changing anything.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/ip_options.c |   12 ++++++++----
+ 1 files changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/net/ipv4/ip_options.c b/net/ipv4/ip_options.c
+index b826a3a..edcd765 100644
+--- a/net/ipv4/ip_options.c
++++ b/net/ipv4/ip_options.c
+@@ -303,9 +303,11 @@ int ip_options_compile(struct net *net,
+ 			 * Reset the values, so `ip_options_rcv_srr` and `ip_forward_options` will NOT process it;
+ 			 * The IP packet is still with some other options ?
+ 			 */
+-			memset(opt, 0, sizeof(struct ip_options));
++			if (sysctl_ip_option_rr_ssrr_lsrr_pass_through != 0) {
++				memset(opt, 0, sizeof(struct ip_options));
+ 
+-			return 0;
++				return 0;
++			}
+ #endif
+ 			if (optlen < 3) {
+ 				pp_ptr = optptr + 1;
+@@ -346,9 +348,11 @@ int ip_options_compile(struct net *net,
+ 			 * Reset the values, so `ip_forward_options` will NOT process it; The IP packet is still with
+ 			 * some other options ?
+ 			 */
+-			memset(opt, 0, sizeof(struct ip_options));
++			if (sysctl_ip_option_rr_ssrr_lsrr_pass_through != 0) {
++				memset(opt, 0, sizeof(struct ip_options));
+ 
+-			return 0;
++				return 0;
++			}
+ #endif
+ 			if (opt->rr) {
+ 				pp_ptr = optptr;
+-- 
+1.7.4.1
+

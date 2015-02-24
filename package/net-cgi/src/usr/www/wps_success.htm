@@ -1,0 +1,63 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% body_header("_wps", "", "") %>
+
+<script>
+//wps_client_name=$($nvram get wps_sta_devname | awk -F " - Jumpstart" '{print $1}')
+
+var wds_endis_fun ="<% cfg_get("wds_endis_fun") %>";
+var wds_repeater_basic="<% cfg_get("wds_repeater_basic") %>";
+var endis_wl_radio="<% cfg_get("endis_wl_radio") %>";
+var wps_status="<% wps_process_status() %>";
+var wps_mac="<% cfg_get("macAddr") %>";
+var client_name="<% cfg_get("client_name") %>";
+function loadvalue()
+{
+	top.enable_action=1;
+	/*if ( wds_endis_fun == "1" && wds_repeater_basic == "0" && endis_wl_radio == "1" )
+		top.contents.location.href="menu.htm";
+	else
+		top.contents.location.href="menu.htm";*/
+}
+</script>
+<div class="page_title">$wps_add_success</div>
+<div id="main" class="main">
+<table WIDTH="100%" BORDER="0" CELLSPACING="0" CELLPADDING="4">
+<TR><TD colSpan=3></TD></TR><TR><td colspan=3><img src=/liteblue.gif width=100% height=12></td></TR>
+<script>
+if(client_name == "")
+	document.write("$wps_success_message_one"+"("+wps_mac+")"+"&nbsp;$wps_success_message_two");
+else
+	document.write("$wps_success_message_one"+"'"+client_name+"'"+"&nbsp;"+"("+wps_mac+")"+"&nbsp;$wps_success_message_two");
+if (parent.wps_endis_configured == "1")	
+	document.write("<tr><td align=center><font color=#ff0000>$wps_success_message_three</font></TD></TR>");
+	
+function go2url()
+{
+	if (parent.wps_endis_configured == "1")
+		location.href="WLG_wireless.htm";
+	else
+		location.href="wps.htm";
+}	
+</script>
+</table>
+
+<table WIDTH="100%" BORDER="0" CELLSPACING="3" CELLPADDING="0">
+$bluebar
+</table>
+
+<table WIDTH="100%" BORDER="0" CELLSPACING="0" CELLPADDING="4">
+<script>
+if (parent.wps_endis_configured == "1")	
+	document.write("<TR><td align=center>$wps_ok</TD></TR>");
+else
+	document.write("<TR><td align=center>$wps_add_failure_gopage</TD></TR>");
+</script>
+<TR><TD align=center><INPUT class="short_common_bt" TYPE="BUTTON" NAME="OK" VALUE="OK" onclick="go2url();"></TD></TR>	
+</TABLE>
+</div>
+<% help_box("1","_wps") %>
+
+</form>
+</BODY>
+</HTML>
+

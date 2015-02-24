@@ -1,0 +1,37 @@
+#!/bin/sh
+
+. /etc/net6conf/6data.conf
+
+start ()
+{
+	local logo_test=`$CONFIG get endis_ipv6_logo_test`
+
+	## This makes DUT crash -- FIXME ##
+	## And disable this for we're not a L3 product.
+	#echo 1 > /proc/sys/net/ipv6/conf/all/forwarding
+
+	if [ "x$logo_test" = "x1" -a "x$wan6_type" = "xfixed" ]; then
+		echo 1 > /proc/sys/net/ipv6/ipv6_srcrt_type_2
+		echo 1 > /proc/sys/net/ipv6/ipv6_ping6_interface
+	else
+		## No such ipv6_srcrt_type_2, it means IPv6 type 2 Routing Header.
+		#echo 0 > /proc/sys/net/ipv6/ipv6_srcrt_type_2
+		echo 0 > /proc/sys/net/ipv6/ipv6_ping6_interface
+		# Enable DAD, and randomly generate another IPv6 link-local address if
+		# MAC-based duplicate link-local address has been found
+		#echo 3 > /proc/sys/net/ipv6/conf/${WAN}/accept_dad
+		# make WAN interface send NS packets
+		#echo 0 > /proc/sys/net/ipv6/neigh/${WAN}/not_send_neighbor_solicitation
+
+		## make LAN interface send NS packets
+		## This seems not really work. Even I set all interfaces' not_send_neighbor_solicitation
+		## to 1, the NS packets are also sent out.
+		#echo 0 > /proc/sys/net/ipv6/neigh/${LAN}/not_send_neighbor_solicitation
+	fi
+}
+
+case "$1" in
+        start)
+        start
+        ;;
+esac

@@ -1,0 +1,16 @@
+#################################################################
+# Atheros Communications Gateway
+# PCD Script for pb92 platform
+#################################################################
+
+RULE = GATEWAY_LASTRULE
+START_COND = NONE
+COMMAND = NONE
+SCHED = NICE,0
+DAEMON = NO
+END_COND = NONE
+END_COND_TIMEOUT = -1
+FAILURE_ACTION = NONE
+ACTIVE = YES
+
+#################################################################

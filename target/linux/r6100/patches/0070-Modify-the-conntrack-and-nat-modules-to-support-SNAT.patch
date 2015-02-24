@@ -1,0 +1,182 @@
+From 8dd89348078f627116c212c475c70cff4c7ada6d Mon Sep 17 00:00:00 2001
+From: michell.dong <michell.dong@dniserver.dnish.net>
+Date: Thu, 1 Dec 2011 10:05:00 -0500
+Subject: [PATCH 070/137] Modify the conntrack and nat modules to support SNATP2P and HAIRPIN
+
+Signed-off-by: michell.dong <michell.dong@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c         |   42 ++++++++++++++++++++++++++++++
+ net/ipv4/netfilter/nf_nat_proto_common.c |   12 ++++++++-
+ net/ipv4/netfilter/nf_nat_rule.c         |   20 ++++++++++++++
+ net/netfilter/nf_conntrack_proto_tcp.c   |    9 ++++++
+ 4 files changed, 82 insertions(+), 1 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index dc31833..d3d1271 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -120,6 +120,13 @@ nf_nat_used_tuple(const struct nf_conntrack_tuple *tuple,
+ 	   We could keep a separate hash if this proves too slow. */
+ 	struct nf_conntrack_tuple reply;
+ 
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE) || defined(CONFIG_IP_NF_TARGET_HAIRPIN) || defined(CONFIG_IP_NF_TARGET_HAIRPIN_MODULE)
++       if ((ignored_conntrack->status & IPS_SNATP2P_SRC) &&
++          !(ignored_conntrack->status & IPS_SNATP2P_SRC_DONE))
++               if (modified_src_occupied(tuple, ignored_conntrack))
++                       return 1;
++#endif
++
+ 	nf_ct_invert_tuplepr(&reply, tuple);
+ 	return nf_conntrack_tuple_taken(&reply, ignored_conntrack);
+ }
+@@ -475,6 +482,22 @@ nf_nat_setup_info(struct nf_conn *ct,
+ 		spin_unlock_bh(&nf_nat_lock);
+ 	}
+ 
++
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE) || defined(CONFIG_IP_NF_TARGET_HAIRPIN) || defined(CONFIG_IP_NF_TARGET_HAIRPIN_MODULE)
++       if (have_to_hash_modified) {
++               unsigned int dsthash;
++
++               dsthash = hash_by_dst(ct->status & IPS_SNATP2P_SRC
++                               ? &ct->tuplehash[IP_CT_DIR_REPLY].tuple
++                               : &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
++               spin_lock_bh(&nf_nat_lock);
++               nat = nfct_nat(ct);
++               hlist_add_head_rcu(&nat->by_modified_source,
++                                  &net->ipv4.nat_by_modified_source[dsthash]);
++               spin_unlock_bh(&nf_nat_lock);
++       }
++#endif
++
+ 	/* It's done. */
+ 	if (maniptype == IP_NAT_MANIP_DST) {
+ 		if (ct->status & IPS_SNATP2P_DST)
+@@ -711,6 +734,10 @@ static void nf_nat_cleanup_conntrack(struct nf_conn *ct)
+ 
+ 	spin_lock_bh(&nf_nat_lock);
+ 	hlist_del_rcu(&nat->bysource);
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE) || defined(CONFIG_IP_NF_TARGET_HAIRPIN) || defined(CONFIG_IP_NF_TARGET_HAIRPIN_MODULE)
++       if ((nat->ct->status & IPS_SNATP2P_MASK) && (nat->ct->status & IPS_SNATP2P_DONE_MASK))
++               hlist_del_rcu(&nat->by_modified_source);
++#endif
+ 	spin_unlock_bh(&nf_nat_lock);
+ }
+ 
+@@ -838,6 +865,16 @@ static int __net_init nf_nat_net_init(struct net *net)
+ 						      &net->ipv4.nat_vmalloced, 0);
+ 	if (!net->ipv4.nat_bysource)
+ 		return -ENOMEM;
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE) || defined(CONFIG_IP_NF_TARGET_HAIRPIN) || defined(CONFIG_IP_NF_TARGET_HAIRPIN_MODULE)
++       nat_htable_size = nf_nat_htable_size;
++       net->ipv4.nat_by_modified_source = nf_ct_alloc_hashtable(&nf_nat_htable_size,
++                                                               &net->ipv4.nat_modified_vmalloced, 0);
++       BUG_ON(nat_htable_size != nf_nat_htable_size);
++       if (!net->ipv4.nat_by_modified_source)
++               return -ENOMEM;
++#endif
++
++
+ 	return 0;
+ }
+ 
+@@ -860,6 +897,11 @@ static void __net_exit nf_nat_net_exit(struct net *net)
+ 	synchronize_rcu();
+ 	nf_ct_free_hashtable(net->ipv4.nat_bysource, net->ipv4.nat_vmalloced,
+ 			     nf_nat_htable_size);
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE) || defined(CONFIG_IP_NF_TARGET_HAIRPIN) || defined(CONFIG_IP_NF_TARGET_HAIRPIN_MODULE)
++       nf_ct_free_hashtable(net->ipv4.nat_by_modified_source, net->ipv4.nat_modified_vmalloced,
++                            nf_nat_htable_size);
++#endif
++
+ }
+ 
+ static struct pernet_operations nf_nat_net_ops = {
+diff --git a/net/ipv4/netfilter/nf_nat_proto_common.c b/net/ipv4/netfilter/nf_nat_proto_common.c
+index 02e7c27..c549f20 100644
+--- a/net/ipv4/netfilter/nf_nat_proto_common.c
++++ b/net/ipv4/netfilter/nf_nat_proto_common.c
+@@ -81,8 +81,13 @@ bool nf_nat_proto_unique_tuple(struct nf_conntrack_tuple *tuple,
+ 				range_size = 1023 - min + 1;
+ 			}
+ 		} else {
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE) || defined(CONFIG_IP_NF_TARGET_HAIRPIN) || defined(CONFIG_IP_NF_TARGET_HAIRPIN_MODULE)
++                       min = ntohs(*portptr) & 0x1 ? 49153 : 49152;
++                       range_size = 65535 - min + 1;
++#else
+ 			min = 1024;
+ 			range_size = 65535 - 1024 + 1;
++#endif
+ 		}
+ 	} else {
+ 		min = ntohs(range->min.all);
+@@ -189,7 +194,12 @@ if(ct->master || (ct->status & IPS_EXPECTED)){
+ 	}
+ }
+ #else
+-	for (i = 0; i < range_size; i++, off++) {
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE) || defined(CONFIG_IP_NF_TARGET_HAIRPIN) || defined(CONFIG_IP_NF_TARGET_HAIRPIN_MODULE)
++       for (i = 0; i < range_size; i += 2, off += 2)
++#else
++       for (i = 0; i < range_size; i++, off++)
++#endif
++       {
+ 		*portptr = htons(min + off % range_size);
+ 		if (nf_nat_used_tuple(tuple, ct))
+ 			continue;
+diff --git a/net/ipv4/netfilter/nf_nat_rule.c b/net/ipv4/netfilter/nf_nat_rule.c
+index 799c414..2376f22 100644
+--- a/net/ipv4/netfilter/nf_nat_rule.c
++++ b/net/ipv4/netfilter/nf_nat_rule.c
+@@ -158,6 +158,26 @@ int nf_nat_rule_find(struct sk_buff *skb,
+ 
+ 	if (ret == NF_ACCEPT) {
+ 		if (!nf_nat_initialized(ct, HOOK2MANIP(hooknum))) {
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE) || defined(CONFIG_IP_NF_TARGET_HAIRPIN) || defined(CONFIG_IP_NF_TARGET_HAIRPIN_MODULE)
++                       if ((HOOK2MANIP(hooknum) == IP_NAT_MANIP_DST)) {
++                               struct nf_conntrack_tuple reply_tuple, new_tuple;
++
++                               nf_ct_invert_tuplepr(&reply_tuple,
++                                               &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple);
++                               if (find_appropriate_p2p_dst(net, &reply_tuple, &new_tuple)) {
++                                       struct nf_nat_range range;
++                                       /* This must be a fresh one. */
++                                       BUG_ON(ct->status & IPS_NAT_DONE_MASK);
++                                       ct->status |= IPS_SNATP2P_DST;
++                                       range.flags = IP_NAT_RANGE_MAP_IPS | IP_NAT_RANGE_PROTO_SPECIFIED;
++                                       range.min.all = range.max.all = new_tuple.dst.u.all;
++                                       range.min_ip = range.max_ip = new_tuple.dst.u3.ip;
++                                       ret = nf_nat_setup_info(ct, &range, IP_NAT_MANIP_DST);
++                               }
++                       }
++                       if (!nf_nat_initialized(ct, HOOK2MANIP(hooknum)))
++#endif
++
+ 				/* NUL mapping */
+ 				ret = alloc_null_binding(ct, hooknum);
+ 		}
+diff --git a/net/netfilter/nf_conntrack_proto_tcp.c b/net/netfilter/nf_conntrack_proto_tcp.c
+index c607fe7..6b5fd87 100644
+--- a/net/netfilter/nf_conntrack_proto_tcp.c
++++ b/net/netfilter/nf_conntrack_proto_tcp.c
+@@ -1045,8 +1045,17 @@ static int tcp_packet(struct nf_conn *ct,
+ 		   problem case, so we can delete the conntrack
+ 		   immediately.  --RR */
+ 		if (th->rst) {
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE) || defined(CONFIG_IP_NF_TARGET_HAIRPIN) || defined(CONFIG_IP_NF_TARGET_HAIRPIN_MODULE)
++                       /* Maybe we don't need to care this condition anymore, Rusty?
++                          Since we take care of holepunch and hairpin! */
++                       if (ct->status & IPS_SNATP2P_SRC_DONE) {
++                               nf_ct_refresh_acct(ct, ctinfo, skb, 2 MINS);
++                               return NF_DROP;
++                       }
++#else
+ 			nf_ct_kill_acct(ct, ctinfo, skb);
+ 			return NF_ACCEPT;
++#endif
+ 		}
+ 	} else if (!test_bit(IPS_ASSURED_BIT, &ct->status)
+ 		   && (old_state == TCP_CONNTRACK_SYN_RECV
+-- 
+1.7.4.1
+

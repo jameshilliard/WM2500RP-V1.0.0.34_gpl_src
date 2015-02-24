@@ -1,0 +1,100 @@
+#!/bin/sh
+# udhcpc script edited by Tim Riker <Tim@Rikers.org>
+
+CONFIG="/bin/config"
+ECHO="/bin/echo"
+DATE="/bin/date"
+IFCONFIG="/sbin/ifconfig"
+ROUTE="/sbin/route"
+
+RESOLV_CONF="/tmp/resolv.conf"
+
+LAN_PHY="eth1"
+
+[ -z "$1" ] && $ECHO "Error: should be called from udhcpc" && exit 1
+[ -n "$broadcast" ] && BROADCAST="broadcast $broadcast"
+[ -n "$subnet" ] && NETMASK="netmask $subnet"
+
+case "$1" in
+	deconfig)
+	#	$IFCONFIG $interface 0.0.0.0 && $CONFIG set lan_ipaddr=0.0.0.0
+
+		# start 6to4 when ipv4 wan type is changed.
+	#	local ipv6_wantype=$($CONFIG get ipv6_type)
+	#	if [ "x$ipv6_wantype" = "x6to4" ]; then
+	#		/etc/net6conf/net6conf restart
+	#	fi
+	;;
+
+	renew|bound)
+		old_lan_ipaddr=$($CONFIG get lan_ipaddr)
+		$IFCONFIG $interface $ip $BROADCAST $NETMASK && $CONFIG set lan_ipaddr=$ip && $CONFIG set old_lan_ipaddr=$ip && $CONFIG set lan_netmask=$subnet
+
+		$ECHO -n > $RESOLV_CONF
+		dns_num=0
+		for i in $dns ; do
+			$ECHO adding dns $i
+			$ECHO nameserver $i >> $RESOLV_CONF
+
+			#[DNS]the DUT only use 3 DNS server,The 4th and more DNS servers in the list, if there is any, Must be dropped.
+			dns_num=`expr $dns_num + 1`
+			if [ $dns_num -eq 1 ]; then
+				wan_dns1=$i
+				$CONFIG set lan_ether_dns1=$wan_dns1
+			fi
+			if [ $dns_num -eq 3 ]; then
+				wan_dns3=$i
+				break
+			fi
+		done
+
+		$CONFIG set lan_gateway=0.0.0.0
+		if [ -n "$router" ]; then
+			$ECHO "deleting routers"
+			while $ROUTE del default gw 0.0.0.0 dev $interface >&- 2>&-; do
+				:
+			done
+
+			for i in $router ; do
+				$ECHO "adding router $i"
+				$ROUTE add default gw $i dev $interface 
+			done
+			$CONFIG set lan_gateway=$router
+		fi
+
+
+		[ -n "$lease" ] && $CONFIG set dhcpc_lease_time=$lease
+		[ -n "$serverid" ] && $CONFIG set wan_dhcp_server=$serverid
+
+		$CONFIG set dhcpc_lease_obtain="$(cat /proc/uptime | awk -F. '{print $1}')"
+
+		# start 6to4 when ipv4 wan type is changed.
+		local ipv6_wantype=$($CONFIG get ipv6_type)
+		if [ "x$ipv6_wantype" = "x6to4" ]; then
+			/etc/net6conf/net6conf restart
+		fi
+
+		#below is for dni-autoip
+		/usr/sbin/dniautoip-control.sh remove_udhcpd 2> /dev/null
+		if [ "x$($CONFIG get dhcpc_lease_time)" = "x60" -a "x$($CONFIG get lan_ether_dns1)" = "x192.168.1.250" ]; then
+			#We should ignore DHCP lease, which is from WM2500RP's Local AUTO DHCP Server
+			/usr/sbin/dniautoip-control.sh not_get_dynamic_ip 2> /dev/null
+		else
+			/usr/sbin/dniautoip-control.sh get_dynamic_ip 2> /dev/null
+		fi
+
+		# Restart NTP
+		killall ntpclient
+		sleep 1
+		if [ "$($CONFIG get endis_ntp)" = "1" ]; then
+		#ntpclient -h "$($CONFIG get ntpserver1)" -b "second_server=$($CONFIG get ntpserver2)" -i 15 -m 60 -p 123 -s
+		/usr/sbin/ntpclient
+		fi
+
+		# Restart UPnP
+		/sbin/cmdupnp restart
+
+	;;
+esac
+
+exit 0

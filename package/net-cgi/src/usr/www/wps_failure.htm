@@ -1,0 +1,94 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% body_header("_wps", "", "") %>
+
+<script>
+wps_charcount = parent.wps_charcount; 
+wps_status="<% wps_process_status() %>";
+var wds_endis_fun ="<% cfg_get("wds_endis_fun") %>";
+var wds_repeater_basic="<% cfg_get("wds_repeater_basic") %>";
+var endis_wl_radio="<% cfg_get("endis_wl_radio") %>";
+var wps_now_configured="<% cfg_get("wps_status") %>";
+
+var pin_error = "<% cfg_get("pin_error") %>";
+var T_minutes = "2";
+	if ( parent.wps_choice == 1 )
+		T_minutes="4";
+	else
+	{
+		T_minutes="2";
+		pin_error = "0";
+	}
+		
+function loadvalue()
+{
+	top.enable_action=1;
+	/*if ( wds_endis_fun == "1" && wds_repeater_basic == "0" && endis_wl_radio == "1" )
+		top.contents.location.href="menu.htm";
+	else
+		top.contents.location.href="menu.htm";*/
+}
+</script>
+
+<div class="page_title">$wps_add_failure</div>
+<div id="main" class="main">
+<table WIDTH="100%" BORDER="0" CELLSPACING="0" CELLPADDING="4">
+<TR><TD colSpan=3></TD></TR><TR><td colspan=3><img src=/liteblue.gif width=100% height=12></td></TR>
+<script>
+if (wps_status == 4)    // client's PIN is not correct	
+{
+	document.write("<TR><TD align=center><font color=#ff0000><B>$wps_pin_error</B></font></TD></TR>");
+	document.write("<TR><TD align=center><B>$wps_fail_add</B></TD></TR>");
+}
+else if (wps_status == 0)    // timeout
+{
+	document.write("<TR><TD align=center><font color=#ff0000><B>$wps_add_failure_text1</B></font></TD></TR>");
+	document.write("<TR><TD align=center><B>$wps_add_failure_text2"+T_minutes+" $wps_add_failure_min</B></TD></TR>");
+}
+else if (wps_status == 5)    // user push cancel button
+{
+	document.write("<TR><TD align=center><font color=#ff0000><B>$wps_fail_cancel</B></font></TD></TR>");
+	document.write("<TR><TD align=center><B>$wps_fail_add</B></TD></TR>");
+}	
+else if(wps_status == 6)
+{
+	document.write("<TR><TD align=center><font color=#ff0000><B>$wps_add_failure_text3</B></font></TD></TR>");
+	document.write("<TR><TD align=center><B>$wps_fail_add</B></TD></TR>");
+}
+else
+{
+	document.write("<TR><TD align=center><font color=#ff0000><B>$wps_add_failure_text1</B></font></TD></TR>");
+	document.write("<TR><TD align=center><B>$wps_add_failure_text2"+T_minutes+" $wps_add_failure_min</B></TD></TR>");
+}
+
+if (parent.wps_endis_configured == "1")
+	document.write("<tr><td align=center><font color=#ff0000>$wps_success_message_three</font></TD></TR>");
+	
+function go2url()
+{
+	//if ( parent.wps_endis_configured == 1 && wps_status == 2 )
+		//location.href="wlan.htm";
+	//else
+		location.href="wps.htm";
+}	
+</script>
+</table>
+
+<table WIDTH="100%" BORDER="0" CELLSPACING="3" CELLPADDING="0">
+$bluebar
+</table>
+
+<table WIDTH="100%" BORDER="0" CELLSPACING="0" CELLPADDING="4">
+<script>
+if (parent.wps_endis_configured == "1")
+	document.write("<TR><td align=center>$wps_ok</TD></TR>");
+else
+	document.write("<TR><td align=center>$wps_add_failure_gopage</TD></TR>");
+</script>	
+<TR><TD align=center><INPUT class="short_common_bt" TYPE="BUTTON" NAME="OK" VALUE="OK" onclick="go2url();"></TD></TR>	
+</TABLE>
+</div>
+<% help_box("1","_wps") %>
+
+</form>
+</BODY>
+</HTML>

@@ -1,0 +1,24 @@
+	#classes for wrr
+	tc class add dev $DEV parent 1:1 classid 1:100 htb rate 1200kbit ceil 1200kbit prio 0
+
+	# create WRR class
+	tc qdisc add dev $DEV parent 1:100 handle 1000: wrr src ip $WRR_CLIENTS 0
+	tc qdisc change handle 1000: dev $DEV wrr qdisc wmode1=$WRR_WEIGHT1_MODE wmode2=$WRR_WEIGHT2_MODE
+
+	# Attach SFQ queues to WRR
+
+	NUM=$WRR_CLIENTS;
+	while [ $NUM -ge 1 ]; do
+		HNUM=$(printf %X $NUM)
+		tc qdisc add dev $DEV parent 1000:$HNUM handle $[ 1000+$NUM]: sfq perturb 10
+
+		tc class change classid 1000:$HNUM dev $DEV \
+			wrr min1=$WRR_WEIGHT1_MIN max1=$WRR_WEIGHT1_MAX \
+			decr1=$WRR_WEIGHT1_DECR incr1=$WRR_WEIGHT1_INCR \
+			weight1=$WRR_WEIGHT1_VAL \
+			min2=$WRR_WEIGHT2_MIN max2=$WRR_WEIGHT2_MAX \
+			decr2=$WRR_WEIGHT2_DECR incr2=$WRR_WEIGHT2_INCR \
+			weight2=$WRR_WEIGHT2_VAL
+
+		NUM=$NUM-1
+	done  

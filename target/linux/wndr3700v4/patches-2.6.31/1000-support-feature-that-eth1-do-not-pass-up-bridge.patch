@@ -1,0 +1,106 @@
+--- linux-2.6.31/net/Kconfig.bak	2012-03-07 09:59:52.145956660 +0800
++++ linux-2.6.31/net/Kconfig	2012-03-07 10:44:58.088455117 +0800
+@@ -148,6 +148,11 @@
+ 
+ 	  If unsure, say Y.
+ 
++config DNI_ETH1_NO_PASSUP
++      tristate "DNI_ETH1_NO_PASSUP"
++      ---help---
++         when enable this option, packets receive from eth1 will not pass up to bridge br1
++
+ config BRIDGE_NETFILTER
+ 	bool "Bridged IP/ARP packets filtering"
+ 	depends on BRIDGE && NETFILTER && INET
+--- linux-2.6.31/net/bridge/br_input.c.bak	2012-03-07 10:51:28.168455139 +0800
++++ linux-2.6.31/net/bridge/br_input.c	2012-03-07 10:47:23.178454810 +0800
+@@ -16,6 +16,7 @@
+ #include <linux/etherdevice.h>
+ #include <linux/netfilter_bridge.h>
+ #include "br_private.h"
++
+ #ifdef CONFIG_DNI_MCAST_TO_UNICAST
+ #include <linux/ip.h>
+ #include <linux/igmp.h>
+@@ -65,6 +66,23 @@
+ }
+ 
+ #endif
++
++#ifdef CONFIG_DNI_ETH1_NO_PASSUP
++static void br_pass_frame_up_from_eth1(struct net_bridge *br, struct sk_buff *skb)
++{
++        struct net_device *indev;
++
++        indev = skb->dev;
++	/*7 this kind packet has not yet been define, i use it to identify as this packet 
++	pass from eth1, it is so ugly, fix me please
++	*/
++	skb->pkt_type = 7;
++
++        NF_HOOK(PF_BRIDGE, NF_BR_LOCAL_IN, skb, indev, NULL,
++                netif_receive_skb);
++}
++#endif
++
+ /* Bridge group multicast address 802.1d (pg 51). */
+ const u8 br_group_address[ETH_ALEN] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x00 };
+ 
+@@ -118,8 +136,13 @@
+ 	br = p->br;
+ 	br_fdb_update(br, p, eth_hdr(skb)->h_source);
+ 
+-	if (p->state == BR_STATE_LEARNING)
++	if (p->state == BR_STATE_LEARNING 
++#ifdef CONFIG_DNI_ETH1_NO_PASSUP
++		&& strncmp(skb->dev->name, "eth1", 4)
++#endif
++	) {
+ 		goto drop;
++	}
+ 
+ 	/* The packet skb2 goes to the local host (NULL to skip). */
+ 	skb2 = NULL;
+@@ -137,9 +160,19 @@
+ 		br->dev->stats.multicast++;
+ 		skb2 = skb;
+ 	} else if ((dst = __br_fdb_get(br, dest)) && dst->is_local) {
++#ifdef CONFIG_DNI_ETH1_NO_PASSUP
++		/* if the mac address of eth1 is found in the fdb, we should pass this packet to IP layer directly*/
++		if (!strncmp(br->dev->name, "br1", 3) && !strncmp(dst->dst->dev->name, "eth1", 4) && skb->protocol != 0x8100) {
++			skb2 = skb;
++			skb = NULL;
++			br_pass_frame_up_from_eth1(br, skb2);
++			return 0;
++		} 
++#endif
+ 		skb2 = skb;
+ 		/* Do not forward the packet since it's local. */
+ 		skb = NULL;
++	
+ 	}
+ 
+ 	if (skb2 == skb)
+--- linux-2.6.31/net/core/dev.c.bak	2012-03-07 10:51:57.705331173 +0800
++++ linux-2.6.31/net/core/dev.c	2012-03-07 10:46:27.398455201 +0800
+@@ -2106,9 +2106,18 @@
+ {
+ 	struct net_bridge_port *port;
+ 
+-	if (skb->pkt_type == PACKET_LOOPBACK ||
+-	    (port = rcu_dereference(skb->dev->br_port)) == NULL)
++	if (skb->pkt_type == PACKET_LOOPBACK || 
++#ifdef CONFIG_DNI_ETH1_NO_PASSUP
++	skb->pkt_type == 7 ||
++#endif
++	(port = rcu_dereference(skb->dev->br_port)) == NULL) {
++#ifdef CONFIG_DNI_ETH1_NO_PASSUP
++		if (skb->pkt_type == 7) {
++			skb->pkt_type = PACKET_HOST;
++		}
++#endif
+ 		return skb;
++	}
+ 
+ 	if (*pt_prev) {
+ 		*ret = deliver_skb(skb, *pt_prev, orig_dev);

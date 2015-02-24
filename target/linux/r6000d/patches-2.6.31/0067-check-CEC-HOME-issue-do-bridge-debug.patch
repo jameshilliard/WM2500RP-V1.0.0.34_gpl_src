@@ -1,0 +1,164 @@
+diff -Nrup linux-2.6.31.orig//net/core/dev.c linux-2.6.31/net/core/dev.c
+--- linux-2.6.31.orig//net/core/dev.c	2013-08-09 20:29:32.661413438 +0800
++++ linux-2.6.31/net/core/dev.c	2013-08-09 20:31:53.751413066 +0800
+@@ -124,6 +124,7 @@
+ #include <linux/if_arp.h>
+ #include <linux/if_vlan.h>
+ #include <linux/ip.h>
++#include <linux/icmp.h>
+ #include <net/ip.h>
+ #include <linux/ipv6.h>
+ #include <linux/in.h>
+@@ -174,6 +175,126 @@ static DEFINE_SPINLOCK(ptype_lock);
+ static struct list_head ptype_base[PTYPE_HASH_SIZE] __read_mostly;
+ static struct list_head ptype_all __read_mostly;	/* Taps */
+ 
++//NETG HOME IOT issue.
++int debug_br_enable = 0;
++static struct proc_dir_entry *debug_br_proc_entry;
++
++int debug_br_read( char *page, char **start, off_t off,
++                                int count, int *eof, void *data )
++{
++       printk("Debug Bridge %s.\n", (debug_br_enable)?"Enable":"Disable");
++       return 0;
++}
++
++ssize_t debug_br_write( struct file *filp, const char __user *buff,
++                                          unsigned long len, void *data )
++{
++	char line[4];
++	if (copy_from_user( line, buff, len ))
++	return -EFAULT;
++	debug_br_enable = line[0] - '0';
++	return len;
++}
++void create_debug_br_entry(void)
++{
++	debug_br_proc_entry = create_proc_entry("debug_br", 0666, NULL);
++
++	if(debug_br_proc_entry) {
++		debug_br_proc_entry->read_proc = debug_br_read;
++		debug_br_proc_entry->write_proc = debug_br_write;
++	}
++}
++void print_br_debug(struct sk_buff *skb)
++{
++	char dev_name[8] = {0};
++	char proto[8] = {0};
++	char opcode[8] = {0};
++	char mac_source[6] = {0};
++	char mac_dest[6] = {0};
++	int ip_source, ip_dest;
++	unsigned char flag = 0;
++	unsigned char *ptr;
++
++	if(!strcmp(skb->dev->name, "eth1.1") || !strcmp(skb->dev->name, "ath0") || !strcmp(skb->dev->name, "ath1") || !strcmp(skb->dev->name, "br0")) {
++		strcpy(dev_name, skb->dev->name);
++		struct ethhdr *eh = (struct ethhdr *)skb->data;
++		memcpy(mac_source, eh->h_source, 6);
++		memcpy(mac_dest, eh->h_dest, 6);
++		if(eh->h_proto == ETH_P_ARP) {
++			strcpy(proto, "arp");
++			struct arphdr *ah = arp_hdr(skb);
++			if(ah->ar_op == ARPOP_REQUEST) strcpy(opcode, "request");
++			else if(ah->ar_op == ARPOP_REPLY) strcpy(opcode, "reply");
++			ptr = (unsigned char *)(ah+1);
++			ptr += 6;
++			memcpy(&ip_source, ptr, 4);
++			ptr += 4;
++			ptr += 6;
++			memcpy(&ip_dest, ptr, 4);
++			flag = 1;
++		}
++		if(eh->h_proto == ETH_P_IP) {
++			struct iphdr *ih = (struct iphdr *)ip_hdr(skb);
++			int i;
++			if(ih->protocol == 0x01) {
++				strcpy(proto, "icmp");
++				ptr = (unsigned char *)ih;
++				switch (*(unsigned char *)(ptr+20)) {
++					case ICMP_ECHOREPLY:
++						strcpy(opcode, "reply");
++						break;
++					case ICMP_DEST_UNREACH:
++						strcpy(opcode, "unreach");
++						break;
++					case ICMP_SOURCE_QUENCH:	
++						strcpy(opcode, "quench");
++						break;
++					case ICMP_REDIRECT:
++						strcpy(opcode, "redir");
++						break;
++					case ICMP_ECHO:	
++						strcpy(opcode, "request");
++						break;
++					case ICMP_TIME_EXCEEDED:
++						strcpy(opcode, "exceed");
++						break;
++					case ICMP_PARAMETERPROB:
++						strcpy(opcode, "paramet");
++						break;
++					case ICMP_TIMESTAMP:	
++						strcpy(opcode, "timesta");
++						break;
++					case ICMP_TIMESTAMPREPLY:
++						strcpy(opcode, "stampre");
++						break;
++					case ICMP_INFO_REQUEST:
++						strcpy(opcode, "inforeq");
++						break;
++					case ICMP_INFO_REPLY:	
++						strcpy(opcode, "inforep");
++						break;
++					case ICMP_ADDRESS:	
++						strcpy(opcode, "address");
++						break;
++					case ICMP_ADDRESSREPLY:	
++						strcpy(opcode, "addrrep");
++						break;
++					default:
++						strcpy(opcode, "unknow");
++				}
++				ip_source = ih->saddr;
++				ip_dest = ih->daddr;
++				flag = 1;
++			}
++		}
++		if(flag && printk_ratelimit()) {
++			if(printk_ratelimit())
++				printk("bridge debug: %pM->%pM, %d.%d.%d.%d->%d.%d.%d.%d, %s %s to %s\n",
++					mac_source, mac_dest, NIPQUAD(ip_source), NIPQUAD(ip_dest), proto, opcode, dev_name);
++		}
++	}
++}
++
+ /*
+  * The @dev_base_head list is protected by @dev_base_lock and the rtnl
+  * semaphore.
+@@ -1710,6 +1831,8 @@ int dev_hard_start_xmit(struct sk_buff *
+ 		if (dev->priv_flags & IFF_XMIT_DST_RELEASE)
+ 			skb_dst_drop(skb);
+ 
++		if(debug_br_enable) print_br_debug(skb);
++
+ 		rc = ops->ndo_start_xmit(skb, dev);
+ 		if (rc == 0)
+ 			txq_trans_update(txq);
+@@ -5566,6 +5689,7 @@ static struct pernet_operations __net_in
+ 	.exit = default_device_exit,
+ };
+ 
++
+ /*
+  *	Initialize the DEV module. At boot time this walks the device list and
+  *	unhooks any devices that fail to initialise (normally hardware not
+@@ -5638,6 +5762,8 @@ static int __init net_dev_init(void)
+ 	dst_init();
+ 	dev_mcast_init();
+ 	rc = 0;
++
++	create_debug_br_entry();
+ out:
+ 	return rc;
+ }

@@ -1,0 +1,30 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<BODY bgcolor=#ffffff onLoad="loadvalue();">
+<script>
+<% rm_detwan_files() %>
+var auto_upgrade_tag="<% cfg_get("auto_upgrade_tag") %>";
+function loadvalue()
+{
+	if(auto_upgrade_tag == 1)
+		setTimeout("location.href='RST_status.htm'",5000);
+	else
+		setTimeout("location.href='upgrade.htm'",5000);
+}
+</script>
+
+<TR><td nowrap colspan=2><H1>$firmware_check
+</H1></TD></TR>
+$bluebar
+<tr><td nowrap colspan=2><center><br><b>
+$no_new_version</b></center></td></tr>
+$bluebar
+<tr><td nowrap><center>
+<script>
+	if(auto_upgrade_tag == 0)
+		document.write("$few_second")
+</script>
+</center>
+</td>
+</tr>
+<body>
+</html>

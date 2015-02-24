@@ -1,0 +1,17 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% body_header("", "welcome.htm", "wizard_to_welcome") %>
+
+<script>
+var ts='<% cfg_get("wizard_to_welcome") %>';
+function loadvalue()
+{
+	var cf=document.forms[0];
+	cf.target="_self";
+	if(check_mobile_device() == '1')
+		cf.action="/apply.cgi?/mobile_welcome.htm timestamp="+ts;
+	cf.submit();
+}
+</script>
+</FORM>
+</body>
+</html>

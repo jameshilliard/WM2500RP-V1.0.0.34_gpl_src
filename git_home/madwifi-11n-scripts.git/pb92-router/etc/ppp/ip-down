@@ -1,0 +1,69 @@
+#!/bin/sh
+# Script for PPPoE Proxy feature on Atheros wireless router (PB44)
+
+PATH=/usr/local/sbin:/usr/sbin:/sbin:/usr/bin:/bin
+export PATH
+# These variables are for the use of the scripts run by run-parts
+PPP_IFACE="$1"
+PPP_TTY="$2"
+PPP_SPEED="$3"
+PPP_LOCAL="$4"
+PPP_REMOTE="$5"
+PPP_IPPARAM="$8"
+PPP_USER="$6"
+PPP_PID="$7"
+PPP_PEERNAME=$PEERNAME
+export PPP_IFACE PPP_TTY PPP_SPEED PPP_LOCAL PPP_REMOTE PPP_IPPARAM
+
+#echo "ppp_iface=$PPP_IFACE ppp_local=$PPP_LOCAL ppp_remote=$PPP_REMOTE User=$PPP_USER pid=$PPP_PID" peerName=$PPP_PEERNAME >> /etc/ppp/debug
+
+CONNMAP="/var/local/tmp/ppp/pppoeconnmap"
+
+FIELD_NUM_WAN_IF=3 #depend on the map file format
+FIELD_NUM_MAX_SESSION=4 #depend on the map file format
+FIELD_NUM_LOCAL_IF=7 #depend on the map file format
+
+USER_NAME=""
+USER_INDEX=""
+PUBLIC_PID=""
+
+#just for debug
+
+#set -x
+#PPP_IFACE="ppp0"
+#PPP_USER="test1"
+#PPP_PID="6230"
+
+#PPP_LOCAL="192.168.5.1"
+#PPP_PEERNAME="test1"
+#PPP_IFACE="ppp0"
+
+################### check connection type (local/public) ###################
+if [ "${PPP_LOCAL}" = "192.168.5.1" ]; then
+####################### this is local connection ##########################
+	USER_NAME=$PPP_PEERNAME
+
+	CURRENT_LOCAL_IFs=`pppfileconfig -f ${CONNMAP} -u ${USER_NAME} -n ${FIELD_NUM_LOCAL_IF}`
+    if [ '*' = "${CURRENT_LOCAL_IFs}" ]; then
+        echo "invalid ip-down called !!"
+        exit
+    fi
+
+	SUB_STR="${PPP_IFACE},"
+	pppfileconfig -f ${CONNMAP} -u ${USER_NAME} -n ${FIELD_NUM_LOCAL_IF} -r ${SUB_STR}
+
+	NEW_LOCAL_IFs=`pppfileconfig -f ${CONNMAP} -u ${USER_NAME} -n ${FIELD_NUM_LOCAL_IF}`
+    if test -z "${NEW_LOCAL_IFs}" ; then
+	    pppfileconfig -f ${CONNMAP} -u ${USER_NAME} -n ${FIELD_NUM_LOCAL_IF} -v '*' 
+    fi
+ 
+else
+
+    
+######### public connection ###################################################
+	USER_NAME=$PPP_USER
+	PUBLIC_PID=$PPP_PID
+
+	pppfileconfig -f ${CONNMAP} -u ${USER_NAME} -n ${FIELD_NUM_WAN_IF} -v '*' 
+
+fi

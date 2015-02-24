@@ -1,0 +1,37 @@
+#------------------------------------------------------------------------------
+# Example File Format of "/etc/clink/en0/sapm.conf"
+#
+# sapmprofileid nn  // nn = profile id
+#                           -1 = disable SAPM
+#                           0  = use first SAPM profile
+# Profile p         // p = Identifier for profile.
+# threshold t       // t = Additional bitloading margin is to be added
+#                          when receive level is at this level and lower.
+# carrier s m       // s = Subcarrier number to add additional bitloading margin.
+#                          255 = fc + 49.8046875 MHz (MoCA2 no spectral inversion)
+#                          243 = fc + 47.4609375 MHz
+#                          004 = fc + 00.7812500 MHz
+#                          000 = fc
+#                          508 = fc - 00.7812500 MHz
+#                          269 = fc - 47.4609375 MHz
+#                          256 = fc - 50.0000000 MHz
+#                   // m = Amount of additional bitloading margin to be added.
+#                          0   = no adjustment
+#                          255 = carrier disabled
+#------------------------------------------------------------------------------
+sapmprofileid -1
+# MoCA fc = 600 MHz, ATSC fc = 593 MHz, Add 1dB BLM to edges of ATSC.
+#------------------------------------------------------------------------------
+Profile 0
+threshold 50
+carrier 19 2
+carrier 20 2
+carrier 21 2
+carrier 22 2
+carrier 23 2
+#
+carrier 51 2
+carrier 52 2
+carrier 53 2
+carrier 54 2
+carrier 55 2

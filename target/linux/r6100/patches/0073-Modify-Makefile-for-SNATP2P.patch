@@ -1,0 +1,25 @@
+From f531913fa336f455d6335f316b7a938cb681ae8f Mon Sep 17 00:00:00 2001
+From: michell.dong <michell.dong@dniserver.dnish.net>
+Date: Wed, 28 Nov 2012 12:02:16 -0500
+Subject: [PATCH] Modify Makefile for SNATP2P
+
+Signed-off-by: michell.dong <michell.dong@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/Makefile |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/Makefile b/net/ipv4/netfilter/Makefile
+index 8fa7be4..3dc68b2 100644
+--- a/net/ipv4/netfilter/Makefile
++++ b/net/ipv4/netfilter/Makefile
+@@ -61,6 +61,7 @@ obj-$(CONFIG_IP_NF_TARGET_MASQUERADE) += ipt_MASQUERADE.o
+ obj-$(CONFIG_IP_NF_TARGET_NETMAP) += ipt_NETMAP.o
+ obj-$(CONFIG_IP_NF_TARGET_REDIRECT) += ipt_REDIRECT.o
+ obj-$(CONFIG_IP_NF_TARGET_REJECT) += ipt_REJECT.o
++obj-$(CONFIG_IP_NF_TARGET_SNATP2P) += ipt_SNATP2P.o
+ obj-$(CONFIG_IP_NF_TARGET_ULOG) += ipt_ULOG.o
+ obj-$(CONFIG_IP_NF_TARGET_CONENAT) += ipt_CONENAT.o
+ obj-$(CONFIG_IP_NF_TARGET_TRIGGER) += ipt_TRIGGER.o
+-- 
+1.7.4.1
+

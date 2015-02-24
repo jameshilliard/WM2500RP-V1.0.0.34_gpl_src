@@ -1,0 +1,21 @@
+diff -Nurp linux-2.6.31.orig//fs/jffs2/build.c linux-2.6.31/fs/jffs2/build.c
+--- linux-2.6.31.orig//fs/jffs2/build.c	2013-01-09 14:37:02.575350926 -0500
++++ linux-2.6.31/fs/jffs2/build.c	2013-01-09 14:38:54.215350917 -0500
+@@ -122,6 +122,17 @@ static int jffs2_build_filesystem(struct
+ 		printk("done.\n");
+ 	}
+ 
++	if (c->flags & (1 << 7)) {
++		printk("%s(): unlocking the mtd device... ", __func__);
++		if (c->mtd->unlock)
++			c->mtd->unlock(c->mtd, 0, c->mtd->size);
++		printk("done.\n");
++
++		printk("%s(): erasing all blocks after the end marker... ", __func__);
++		jffs2_erase_pending_blocks(c, -1);
++		printk("done.\n");
++	}
++
+ 	dbg_fsbuild("pass 1 starting\n");
+ 	c->flags |= JFFS2_SB_FLAG_BUILDING;
+ 	/* Now scan the directory tree, increasing nlink according to every dirent found. */

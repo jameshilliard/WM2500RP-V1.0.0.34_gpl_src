@@ -1,0 +1,52 @@
+<% http_header("style/form.css", "/funcs.js", "/ipv6.js") %>
+<% body_header("_IPv6", "IPv6_index.htm", "ipv6_con_type") %>
+<div class="page_title">$ipv6_head</div>
+<div class="fix_button">
+<TABLE width=100% border=0 cellpadding=0 cellspacing=2>
+<TR>
+        <TD nowrap colspan=2 align=center>
+		<input class="cancel_bt" type='button' name='Cancel' value='$cancel_mark' onClick='location.href="IPv6_disabled.htm";'>&nbsp;&nbsp;
+        <input class="apply_bt" type='submit' name='Apply' value='$apply_mark' >
+        </TD>
+</TR>
+</TABLE>
+</div>
+<div id="main" class="main_top_button"> 
+<% table_header() %>
+<!--$bluebar-->
+
+<script>
+
+function loadvalue()
+{
+}
+
+</script>
+
+<TR>
+        <TD nowrap>
+        <A tabindex=-1 href="javascript:loadhelp('_IPv6','internet')"><B>$ipv6_internet_con_type</B></A>
+        </TD>
+        <TD nowrap align=right>
+        <select name="con_type" onChange="change_ipv6(document.forms[0].con_type.value)">
+                <option value="disabled" selected>$pppoe2_disable</option>
+		<option value="fixed">$ipv6_fixed</option>
+		<option value="dhcp">$router_status_dhcp</option>
+        </select>
+        </TD>
+</TR>
+$bluebar
+<!--TR>
+	<TD nowrap colspan=2 align=center>
+	<input type='submit' name='Apply' value='$apply_mark'>&nbsp;&nbsp;
+	<input type='button' name='Cancel' value='$cancel_mark' onClick='location.href="IPv6_disabled.htm";'>
+		<input class="cancel_bt" type='button' name='Cancel' value='$cancel_mark' onClick='location.href="IPv6_disabled.htm";'>&nbsp;&nbsp;
+        <input class="apply_bt" type='submit' name='Apply' value='$apply_mark' >
+	</TD>
+</TR-->
+</TABLE>
+</div>
+<% help_box("0","_IPv6") %>
+</FORM>
+</BODY>
+</HTML>

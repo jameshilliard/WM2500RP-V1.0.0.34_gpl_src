@@ -1,0 +1,399 @@
+From cc14d2e989c6a3a0d2624c98e5974bc8ca57fc32 Mon Sep 17 00:00:00 2001
+From: xiancong huang <xiancong.huang@dniserver.dnish.net>
+Date: Fri, 8 Apr 2011 19:28:57 +0800
+Subject: [PATCH] add ar9344 gpio functions
+ Signed-off-by: xiancong huang <xiancong.huang@dniserver.dnish.net>
+
+---
+ .../linux-2.6.31/arch/mips/atheros/gpio.c          |  272 +++++++++++++++-----
+ 1 files changed, 205 insertions(+), 67 deletions(-)
+
+diff --git a/build_dir/linux-wndr3700v4/linux-2.6.31/arch/mips/atheros/gpio.c b/build_dir/linux-wndr3700v4/linux-2.6.31/arch/mips/atheros/gpio.c
+index 6851e36..604057b 100644
+--- a/arch/mips/atheros/gpio.c
++++ b/arch/mips/atheros/gpio.c
+@@ -26,6 +26,16 @@ static wait_queue_head_t ath_fr_wq;
+ static u_int32_t push_time = 0;
+ struct timer_list os_timer_t;
+ 
++/* AR9344 GPIOs */
++#define WAN_AMBER_LED_GPIO      4
++#define USB_LED_GPIO            11
++#define WPS_AMBER_LED_GPIO      12
++#define WLAN_2G_LED_GPIO        13
++#define STATUS_LED_GPIO         14
++#define WPS_GREEN_LED_GPIO      15
++#define WPS_BUTTON_GPIO         16
++#define WAN_GREEN_LED_GPIO      21
++
+ #define frdbg printk
+ 
+ #define WPS_LED_OFF	1
+@@ -38,6 +48,9 @@ struct timer_list os_timer_t;
+ #define SIMPLE_CONFIG_ON	2
+ #define SIMPLE_CONFIG_BLINK	3
+ 
++#define LED_ON 0
++#define LED_OFF 1
++
+ #define OS_TIMER_FUNC(_fn)	\
+ 	void _fn(unsigned long timer_arg)
+ 
+@@ -100,7 +113,8 @@ static multi_callback_t sccallback[2];
+ static volatile int ignore_pushbutton = 0;
+ static struct proc_dir_entry *simple_config_entry = NULL;
+ static struct proc_dir_entry *simulate_push_button_entry = NULL;
+-static struct proc_dir_entry *simple_config_led_entry = NULL;
++static struct proc_dir_entry *tricolor_led_entry  = NULL;
++static struct proc_dir_entry *wps_entry  = NULL;
+ static int wps_led_blinking = 0;
+ 
+ void ath_gpio_config_int(int gpio,
+@@ -285,21 +299,6 @@ int32_t unregister_simple_config_callback(char *cbname)
+ }
+ EXPORT_SYMBOL(unregister_simple_config_callback);
+ 
+-static OS_TIMER_FUNC(wps_led_blink)
+-{
+-	static int WPSled = WPS_LED_ON, sec = 0;
+-	ath_gpio_out_val(WPS_LED_GPIO, WPSled);
+-	WPSled = !WPSled;
+-	sec++;
+-	if (sec < 130) {
+-		OS_SET_TIMER(&os_timer_t, 1000);
+-	} else {
+-		sec = 0;
+-		wps_led_blinking = 0;
+-		OS_CANCEL_TIMER(&os_timer_t);
+-		ath_gpio_out_val(WPS_LED_GPIO, WPS_LED_OFF);
+-	}
+-}
+ 
+ int ath_simple_config_invoke_cb(int simplecfg_only, int irq_enable, int cpl)
+ {
+@@ -401,72 +400,127 @@ static int push_button_write(struct file *file, const char *buf,
+ 	return count;
+ }
+ 
++static int wps_read (char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++	if (sccallback[0].registered_cb) {
++		if (sccallback[0].cb_arg2) {
++			*(u_int32_t *)sccallback[0].cb_arg2 = 0;
++		}
++	sccallback[0].registered_cb (0, sccallback[0].cb_arg1, (struct pt_regs *)"info",  \
++		sccallback[0].cb_arg2);
++	}
++	if (sccallback[1].registered_cb) {
++		if (sccallback[1].cb_arg2) {
++			*(u_int32_t *)sccallback[1].cb_arg2 = 0;
++	}
++	sccallback[1].registered_cb (0, sccallback[1].cb_arg1, (struct pt_regs *)"info",  \
++		sccallback[1].cb_arg2);
++	}
++	return 0;
++}
++
++static int wps_write (struct file *file, const char *buf,
++                                        unsigned long count, void *data)
++{
++	if (0 != strncmp(buf,"pin=",4) && 0 != strncmp(buf,"stop",4))
++		return count;
++
++	if (sccallback[0].registered_cb) {
++		if (sccallback[0].cb_arg2) {
++			*(u_int32_t *)sccallback[0].cb_arg2 = 0;
++		}
++		sccallback[0].registered_cb (0, sccallback[0].cb_arg1, (struct pt_regs *)buf,  \
++			sccallback[0].cb_arg2);
++	}
++	if (sccallback[1].registered_cb) {
++		if (sccallback[1].cb_arg2) {
++			*(u_int32_t *)sccallback[1].cb_arg2 = 0;
++		}
++		sccallback[1].registered_cb (0, sccallback[1].cb_arg1, (struct pt_regs *)buf,  \
++			sccallback[1].cb_arg2);
++	}
++	return count;
++}
++
+ typedef enum {
+-	LED_STATE_OFF = 1,
+-	LED_STATE_ON = 2,
+-	LED_STATE_BLINKING = 3,
++        LED_STATE_OFF   =       0,
++        LED_STATE_GREEN =       1,
++        LED_STATE_AMBER =       2,
++        LED_STATE_ORANGE =      3,
++        LED_STATE_MAX =         4
+ } led_state_e;
+ 
+-static led_state_e simple_config_led_state = LED_STATE_OFF;
++static led_state_e gpio_tricolorled = LED_STATE_OFF;
+ 
+-static int gpio_simple_config_led_read(char *page, char **start, off_t off,
+-					int count, int *eof, void *data)
++static int gpio_tricolor_led_read (char *page, char **start, off_t off,
++               int count, int *eof, void *data)
+ {
+-	return sprintf(page, "%d\n", simple_config_led_state);
++    return sprintf (page, "%d\n", gpio_tricolorled);
+ }
+ 
+-static int gpio_simple_config_led_write(struct file *file, const char *buf,
+-					unsigned long count, void *data)
++static int gpio_tricolor_led_write (struct file *file, const char *buf,
++                                        unsigned long count, void *data)
+ {
+-	u_int32_t val;
+-
+-	if (sscanf(buf, "%d", &val) != 1)
+-		return -EINVAL;
+-
+-	if ((val == SIMPLE_CONFIG_BLINK) && !wps_led_blinking) { /* wps LED blinking */
+-		wps_led_blinking = 1;
+-		simple_config_led_state = SIMPLE_CONFIG_BLINK;
+-		ath_gpio_out_val(WPS_LED_GPIO, WPS_LED_ON);
+-		OS_INIT_TIMER(NULL, &os_timer_t, wps_led_blink, &os_timer_t);
+-		OS_SET_TIMER(&os_timer_t, 1000);
+-	} else if (val == SIMPLE_CONFIG_ON) {	/* WPS Success */
+-		wps_led_blinking = 0;
+-		simple_config_led_state = SIMPLE_CONFIG_ON;
+-		OS_CANCEL_TIMER(&os_timer_t);
+-		ath_gpio_out_val(WPS_LED_GPIO, WPS_LED_ON);
+-	} else if (val == SIMPLE_CONFIG_OFF) {	/* WPS failed */
+-		wps_led_blinking = 0;
+-		simple_config_led_state = SIMPLE_CONFIG_OFF;
+-		OS_CANCEL_TIMER(&os_timer_t);
+-		ath_gpio_out_val(WPS_LED_GPIO, WPS_LED_OFF);
+-	}
+-
+-	return count;
++    u_int32_t val, green_led_onoff = 0, amber_led_onoff = 0;
++
++    if (sscanf(buf, "%d", &val) != 1)
++        return -EINVAL;
++
++    if (val >= LED_STATE_MAX)
++        return -EINVAL;
++
++    switch (val) {
++        case LED_STATE_OFF :
++                green_led_onoff = LED_OFF;   /* both LEDs OFF */
++                amber_led_onoff = LED_OFF;
++                break;
++
++        case LED_STATE_GREEN:
++                green_led_onoff = LED_ON;    /* green ON, amber OFF */
++                amber_led_onoff = LED_OFF;
++                break;
++
++        case LED_STATE_AMBER:
++                green_led_onoff = LED_OFF;   /* green OFF, amber ON */
++                amber_led_onoff = LED_ON;
++                break;
++
++        case LED_STATE_ORANGE:
++                green_led_onoff = LED_ON;    /* both LEDs ON */
++                amber_led_onoff = LED_ON;
++                break;
++    }
++    
++    ath_gpio_out_val(WPS_GREEN_LED_GPIO, green_led_onoff);
++    ath_gpio_out_val(WPS_AMBER_LED_GPIO, amber_led_onoff);
++    
++    return count;
+ }
+ 
+ void ap_usb_led_on(void)
+ {
+ #ifdef CONFIG_MACH_AR934x
+-#if !defined(CONFIG_I2S) && defined(AP_USB_LED_GPIO)
++#if !defined(CONFIG_I2S) && defined(USB_LED_GPIO)
+     unsigned int rddata;
+ 
+-    if(AP_USB_LED_GPIO == 4) { 
++    if(USB_LED_GPIO == 4) { 
+      	rddata = ath_reg_rd(ATH_GPIO_OUT_FUNCTION1); //87- for USB suspend
+     	rddata = rddata & 0xffffff00;
+     	rddata = rddata | ATH_GPIO_OUT_FUNCTION1_ENABLE_GPIO_4(0x0);
+     	ath_reg_wr(ATH_GPIO_OUT_FUNCTION1, rddata);
+-    }else if(AP_USB_LED_GPIO == 11) {
++    }else if(USB_LED_GPIO == 11) {
+         rddata = ath_reg_rd(ATH_GPIO_OUT_FUNCTION2); //87- for USB suspend
+         rddata = rddata & 0x00ffffff;
+         rddata = rddata | ATH_GPIO_OUT_FUNCTION2_ENABLE_GPIO_11(0x0);
+         ath_reg_wr(ATH_GPIO_OUT_FUNCTION2, rddata);
+     }
+     
+-    ath_reg_rmw_clear(ATH_GPIO_OE, (1<<AP_USB_LED_GPIO));
+-    ath_reg_rmw_clear(ATH_GPIO_OUT, (1<<AP_USB_LED_GPIO));
++    ath_reg_rmw_clear(ATH_GPIO_OE, (1<<USB_LED_GPIO));
++    ath_reg_rmw_clear(ATH_GPIO_OUT, (1<<USB_LED_GPIO));
+ #endif
+ #else
+-	ath_gpio_out_val(AP_USB_LED_GPIO, USB_LED_ON);
++	ath_gpio_out_val(USB_LED_GPIO, LED_ON);
+ #endif
+ }
+ 
+@@ -475,15 +529,62 @@ EXPORT_SYMBOL(ap_usb_led_on);
+ void ap_usb_led_off(void)
+ {
+ #ifdef CONFIG_MACH_AR934x
+-#if !defined(CONFIG_I2S) && defined(AP_USB_LED_GPIO)
+-	ath_reg_rmw_set(ATH_GPIO_OUT, (1<<AP_USB_LED_GPIO));
++#if !defined(CONFIG_I2S) && defined(USB_LED_GPIO)
++	ath_reg_rmw_set(ATH_GPIO_OUT, (1<<USB_LED_GPIO));
+ #endif
+ #else
+-	ath_gpio_out_val(AP_USB_LED_GPIO, USB_LED_OFF);
++	ath_gpio_out_val(USB_LED_GPIO, LED_OFF);
+ #endif
+ }
+ EXPORT_SYMBOL(ap_usb_led_off);
+ 
++void ap_power_led_on(void)
++{
++#ifdef POWER_LED_GPIO
++#endif
++}
++EXPORT_SYMBOL(ap_power_led_on);
++
++void ap_power_led_off(void)
++{
++#ifdef POWER_LED_GPIO
++#endif
++}
++EXPORT_SYMBOL(ap_power_led_off);
++
++void ap_status_led_on(void)
++{
++#ifdef STATUS_LED_GPIO
++       ath_gpio_out_val(STATUS_LED_GPIO, LED_ON);
++#endif
++}
++EXPORT_SYMBOL(ap_status_led_on);
++
++void ap_status_led_off(void)
++{
++#ifdef STATUS_LED_GPIO
++       ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
++#endif
++}
++EXPORT_SYMBOL(ap_status_led_off);
++
++void ap_wlan_2g_led_on_off(int status)
++{
++#ifdef WLAN_2G_LED_GPIO
++       ath_gpio_out_val(WLAN_2G_LED_GPIO, status); 
++#endif
++}
++EXPORT_SYMBOL(ap_wlan_2g_led_on_off);
++
++void ap_wlan_5g_led_on_off(int status)
++{
++#ifdef WLAN_5G_LED_GPIO
++       ath_gpio_out_val(WLAN_5G_LED_GPIO, status);
++#endif
++}
++EXPORT_SYMBOL(ap_wlan_5g_led_on_off);
++
++
+ static int create_simple_config_led_proc_entry(void)
+ {
+ 	if (simple_config_entry != NULL) {
+@@ -503,19 +604,44 @@ static int create_simple_config_led_proc_entry(void)
+ 	simulate_push_button_entry->write_proc = push_button_write;
+ 	simulate_push_button_entry->read_proc = push_button_read;
+ 
+-	simple_config_led_entry = create_proc_entry("simple_config_led", 0644,
+-							simple_config_entry);
+-	if (!simple_config_led_entry)
++	tricolor_led_entry = create_proc_entry ("tricolor_led", 0644,
++						simple_config_entry);
++	if (!tricolor_led_entry)
+ 		return -ENOENT;
+ 
+-	simple_config_led_entry->write_proc = gpio_simple_config_led_write;
+-	simple_config_led_entry->read_proc = gpio_simple_config_led_read;
++	tricolor_led_entry->write_proc = gpio_tricolor_led_write;
++	tricolor_led_entry->read_proc = gpio_tricolor_led_read;
++
++	wps_entry = create_proc_entry ("wps", 0644,
++					simple_config_entry);
++	if (!wps_entry)
++		return -ENOENT;
++
++	wps_entry->write_proc = wps_write;
++	wps_entry->read_proc = wps_read;
++
+ 
+ 	/* configure gpio as outputs */
+-	ath_gpio_config_output(WPS_LED_GPIO);
++	ath_gpio_config_output(WAN_AMBER_LED_GPIO);
++	ath_gpio_config_output(USB_LED_GPIO);
++	ath_gpio_config_output(WPS_AMBER_LED_GPIO);
++	ath_gpio_config_output(WLAN_2G_LED_GPIO);
++	ath_gpio_config_output(STATUS_LED_GPIO);
++	ath_gpio_config_output(WPS_GREEN_LED_GPIO);
++	ath_gpio_config_output(WAN_GREEN_LED_GPIO);
++
++	/* configure gpio as inputs */
++	ath_gpio_config_input(WPS_BUTTON_GPIO);
+ 
+ 	/* switch off the led */
+-	ath_gpio_out_val(WPS_LED_GPIO, WPS_LED_OFF);
++	ath_gpio_out_val(WAN_AMBER_LED_GPIO, LED_OFF);
++	ath_gpio_out_val(USB_LED_GPIO, LED_OFF);
++	ath_gpio_out_val(WPS_AMBER_LED_GPIO, LED_OFF);
++	ath_gpio_out_val(WLAN_2G_LED_GPIO, LED_OFF);
++	ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
++	ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_OFF);
++	ath_gpio_out_val(WAN_GREEN_LED_GPIO, LED_OFF);
++	
+ 	return 0;
+ }
+ 
+@@ -596,6 +722,7 @@ int __init ath_simple_config_init(void)
+ 	u32 mask = 0;
+ #endif
+ 	int req, ret;
++	unsigned int rddata;
+ 
+ 	ret = misc_register(&athfr_miscdev);
+ 
+@@ -625,6 +752,8 @@ int __init ath_simple_config_init(void)
+ #endif
+ #endif
+ 
++/* interrupts of AR9344 is not used on WNR3700v3, don't enable it */
++#if 0
+ 	req = request_irq(ATH_GPIO_IRQn(JUMPSTART_GPIO), jumpstart_irq, 0,
+ 			"SW JUMPSTART/FACTORY RESET", NULL);
+ 	if (req != 0) {
+@@ -633,9 +762,18 @@ int __init ath_simple_config_init(void)
+ 		ath_gpio_intr_shutdown(ATH_GPIO_IRQn(JUMPSTART_GPIO));
+ 		return -1;
+ 	}
+-#if !defined(CONFIG_I2S) && defined(AP_USB_LED_GPIO)
+-	ath_gpio_config_output(AP_USB_LED_GPIO);
+ #endif
++/*
++#if !defined(CONFIG_I2S) && defined(USB_LED_GPIO)
++	ath_gpio_config_output(USB_LED_GPIO);
++#endif
++*/
++	/* configure GPIO4 as WAN amber led pin */
++	rddata = ath_reg_rd(ATH_GPIO_OUT_FUNCTION1);
++	rddata = rddata & 0xffffff00;
++	rddata = rddata | ATH_GPIO_OUT_FUNCTION1_ENABLE_GPIO_4(0x0);
++	ath_reg_wr(ATH_GPIO_OUT_FUNCTION1, rddata);
++
+ 	init_waitqueue_head(&ath_fr_wq);
+ 
+ 	create_simple_config_led_proc_entry();
+-- 
+1.7.0.4
+

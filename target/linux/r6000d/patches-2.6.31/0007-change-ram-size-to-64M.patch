@@ -1,0 +1,11 @@
+--- linux-2.6.31/arch/mips/atheros.org/prom.c	2011-03-28 16:21:09.000000000 +0800
++++ linux-2.6.31/arch/mips/atheros/prom.c	2011-03-28 15:52:29.000000000 +0800
+@@ -42,7 +42,7 @@
+ 
+ void __init prom_init(void)
+ {
+-	int memsz = 0x2000000, argc = 0, i;
++	int memsz = 0x8000000, argc = 0, i;
+ 	char **arg = (char **)fw_arg1;
+ 
+ 	printk("flash_size passed from bootloader = %d\n", (int)fw_arg3);

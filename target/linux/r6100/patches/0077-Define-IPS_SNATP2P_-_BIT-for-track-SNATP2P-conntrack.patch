@@ -1,0 +1,56 @@
+From 9aa6e1cf1ffe2912fa4ee3b07afe08599c7c6f35 Mon Sep 17 00:00:00 2001
+From: stone.liu <stone.liu@dniserver.dnish.net>
+Date: Wed, 26 Oct 2011 12:13:25 -0400
+Subject: [PATCH 077/137] Define IPS_SNATP2P_*_BIT for track SNATP2P conntrack status
+
+Define IPS_SNATP2P_*_BIT for track SNATP2P conntrack status.
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+
+Conflicts:
+
+	include/linux/netfilter/nf_conntrack_common.h
+
+Signed-off-by: stone.liu <stone.liu@dniserver.dnish.net>
+---
+ include/linux/netfilter/nf_conntrack_common.h |   10 ++++++----
+ 1 files changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/include/linux/netfilter/nf_conntrack_common.h b/include/linux/netfilter/nf_conntrack_common.h
+index 8e5f2bf..8ca5166 100644
+--- a/include/linux/netfilter/nf_conntrack_common.h
++++ b/include/linux/netfilter/nf_conntrack_common.h
+@@ -93,23 +93,25 @@ enum ip_conntrack_status {
+ 	IPS_SPI_DoS_BIT = 15,
+ 	IPS_SPI_DoS	= (1 << IPS_SPI_DoS_BIT),
+ 
+-	IPS_SNATP2P_SRC_BIT = 15,
++#if defined(CONFIG_IP_NF_TARGET_SNATP2P) || defined(CONFIG_IP_NF_TARGET_SNATP2P_MODULE)
++	IPS_SNATP2P_SRC_BIT = 16,
+ 	IPS_SNATP2P_SRC = (1 << IPS_SNATP2P_SRC_BIT),
+ 
+-	IPS_SNATP2P_DST_BIT = 16,
++	IPS_SNATP2P_DST_BIT = 17,
+ 	IPS_SNATP2P_DST = (1 << IPS_SNATP2P_DST_BIT),
+ 
+ 	/* Both together. */
+ 	IPS_SNATP2P_MASK = (IPS_SNATP2P_DST | IPS_SNATP2P_SRC),
+ 
+-	IPS_SNATP2P_SRC_DONE_BIT = 17,
++	IPS_SNATP2P_SRC_DONE_BIT = 18,
+ 	IPS_SNATP2P_SRC_DONE = (1 << IPS_SNATP2P_SRC_DONE_BIT),
+ 
+-	IPS_SNATP2P_DST_DONE_BIT = 18,
++	IPS_SNATP2P_DST_DONE_BIT = 19,
+ 	IPS_SNATP2P_DST_DONE = (1 << IPS_SNATP2P_DST_DONE_BIT),
+ 
+ 	/* Both together. */
+ 	IPS_SNATP2P_DONE_MASK = (IPS_SNATP2P_DST_DONE | IPS_SNATP2P_SRC_DONE),
++#endif
+ };
+ 
+ /* Connection tracking event bits */
+-- 
+1.7.4.1
+

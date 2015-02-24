@@ -1,0 +1,50 @@
+From 81569a4cf2801e190df0cefa3e339b2ea8d89c6a Mon Sep 17 00:00:00 2001
+From: michell.dong <michell.dong@dniserver.dnish.net>
+Date: Thu, 1 Dec 2011 09:52:18 -0500
+Subject: [PATCH 022/137] ppp_generic: Fix Logic error about using dod_skip_control_packet
+
+With this fix, if dod_skip_control_packet is 0, ppp_generic.c would run
+just like original Linux Kernel.
+
+Only if dod_skip_control_packet is set to 1, ppp_generic.c would skip
+some control packets under PPP dial on demand mode
+
+Signed-off-by: michell.dong <michell.dong@dniserver.dnish.net>
+---
+ drivers/net/ppp_generic.c |    6 +++---
+ 1 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/ppp_generic.c b/drivers/net/ppp_generic.c
+index b6c0152..a4e4486 100644
+--- a/drivers/net/ppp_generic.c
++++ b/drivers/net/ppp_generic.c
+@@ -1705,7 +1705,7 @@ static void ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
+ 
+        int actived = 1;
+ 
+-       if (proto == PPP_IP)
++       if (proto == PPP_IP && (dod_skip_control_packet != 0))
+                actived = session_actived_frame(skb->data);
+ 
+ 
+@@ -1736,7 +1736,7 @@ static void ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
+ 		skb_pull(skb, 2);
+ #else
+ 		/* for data packets, record the time */
+-               if (actived && (dod_skip_control_packet != 0))
++               if (actived)
+ #if defined(CONFIG_PPP_IDLE_TIMEOUT_REFINE)
+ 		if(timeoutCheck_skipp_pkt(iphp)!=1)
+ #endif
+@@ -1873,7 +1873,7 @@ static void ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
+ 	if (ppp->flags & SC_LOOP_TRAFFIC) {
+ 		if (ppp->file.rq.qlen > PPP_MAX_RQLEN)
+ 			goto drop;
+-               if (!actived && (dod_skip_control_packet != 0))
++               if (!actived)
+                        goto drop;
+ 		skb_queue_tail(&ppp->file.rq, skb);
+ 		wake_up_interruptible(&ppp->file.rwait);
+-- 
+1.7.4.1
+

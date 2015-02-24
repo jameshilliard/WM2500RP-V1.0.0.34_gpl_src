@@ -1,0 +1,130 @@
+diff -Nur linux-2.6.30.old//drivers/mtd/maps/rtl819x_flash.c linux-2.6.30/drivers/mtd/maps/rtl819x_flash.c
+--- linux-2.6.30.old//drivers/mtd/maps/rtl819x_flash.c	2012-11-27 11:53:37.028082401 -0500
++++ linux-2.6.30/drivers/mtd/maps/rtl819x_flash.c	2012-11-28 03:30:37.518077288 -0500
+@@ -166,41 +166,92 @@
+ 
+ #elif defined( CONFIG_ROOTFS_SQUASH )
+ #ifndef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
++
++
++/*
++#
++# -------------------------------------------------------------------
++# | 64K  | 1M256K | remain | 32K    | 16K | 16K     | 128K  | 64K    |
++# | boot | kernel | rootfs | artmtd | pot | traffic | langu | config |
++# -------------------------------------------------------------------
++#
++*/
++
++#define RTL_FLASH_SIZE		CONFIG_RTL_FLASH_SIZE
++#define ROOTFS_FLASH_START	CONFIG_RTL_ROOT_IMAGE_OFFSET
++
++#define FLASH_BLOCK_SIZE 0x10000 //64k
++//datalib	64k
++#define DATALIB_FLASH_SIZE 		FLASH_BLOCK_SIZE
++#define DATALIB_FLASH_OFFSET		RTL_FLASH_SIZE-DATALIB_FLASH_SIZE
++//language	128k
++#define LANGUAGE_FLASH_SIZE		FLASH_BLOCK_SIZE*2
++#define LANGUAGE_FLASH_OFFSET		(DATALIB_FLASH_OFFSET)-LANGUAGE_FLASH_SIZE
++//trafficmeter	16k
++#define TRAFFICMETER_FLASH_SIZE		0x4000
++#define TRAFFICMETER_FLASH_OFFSET	(LANGUAGE_FLASH_OFFSET)-TRAFFICMETER_FLASH_SIZE
++//pot		16k
++#define POT_FLASH_SIZE			0x4000
++#define POT_FLASH_OFFSET		(TRAFFICMETER_FLASH_OFFSET)-POT_FLASH_SIZE
++//artmtd	32k
++#define ARTMTD_FLASH_SIZE		0x8000
++#define ARTMTD_FLASH_OFFSET		(POT_FLASH_OFFSET)-ARTMTD_FLASH_SIZE
++
++//boot		64k
++#define BOOT_FLASH_OFFSET 		0x00000000 
++#define BOOT_FLASH_SIZE			FLASH_BLOCK_SIZE
++
++//kernel	1M256k
++#define KERNEL_FLASH_OFFSET		BOOT_FLASH_OFFSET+BOOT_FLASH_SIZE
++#define KERNEL_FLASH_SIZE		ROOTFS_FLASH_START-(KERNEL_FLASH_OFFSET)
++
++//rootfs	
++#define ROOTFS_FLASH_OFFSET		ROOTFS_FLASH_START
++#define ROOTFS_FLASH_SIZE		(ARTMTD_FLASH_OFFSET)-ROOTFS_FLASH_OFFSET
++
++
+ static struct mtd_partition rtl8196_parts1[] = {
+-        {
+-                name: "boot+cfg+linux",
+-                size:           (CONFIG_RTL_ROOT_IMAGE_OFFSET-0),
+-                offset:         0x00000000,
+-        },
+-        {
+-                name:           "root fs",  
+-#ifdef CONFIG_RTL_TWO_SPI_FLASH_ENABLE
+-#ifdef CONFIG_MTD_CONCAT
+-                size:        (CONFIG_RTL_SPI_FLASH1_SIZE+CONFIG_RTL_SPI_FLASH2_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
+-#else
+-		  size:        (CONFIG_RTL_SPI_FLASH1_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
+-#endif
+-#else
+-#if !defined(CONFIG_MTD_CHAR)
+-                size:        (CONFIG_RTL_FLASH_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
+-#else
+-		size:        (CONFIG_RTL_FLATFS_IMAGE_OFFSET-CONFIG_RTL_ROOT_IMAGE_OFFSET),
+-#endif                	
+-#endif
+-                offset:         (CONFIG_RTL_ROOT_IMAGE_OFFSET),
+-        }
+-#if defined(CONFIG_MTD_CHAR)   
+-	,     
+-          {
+-                name:           "flatfs",  
+-
+-                size:        (CONFIG_RTL_FLASH_SIZE-CONFIG_RTL_FLATFS_IMAGE_OFFSET),
+-                offset:         (CONFIG_RTL_FLATFS_IMAGE_OFFSET),
+-        }
+-#endif        
+-        
+-        
+-        
++	// boot-hw partition include rtl setting
++	{
++		name:		"boot-hw",
++		size:		(BOOT_FLASH_SIZE),
++		offset:		(BOOT_FLASH_OFFSET),
++	},
++	{
++		name:		"kernel",
++		size:		(KERNEL_FLASH_SIZE),
++		offset:		(KERNEL_FLASH_OFFSET),
++	},
++	{
++		name:		"rootfs",
++		size:		(ROOTFS_FLASH_SIZE),
++		offset:		(ROOTFS_FLASH_OFFSET),
++	},
++	{
++		name:		"artmtd",
++		size:		(ARTMTD_FLASH_SIZE),
++		offset:		(ARTMTD_FLASH_OFFSET),
++	},
++	{
++		name:		"pot",
++		size:		(POT_FLASH_SIZE),
++		offset:		(POT_FLASH_OFFSET),
++	},
++	{
++		name:		"trafficmeter",
++		size:		(TRAFFICMETER_FLASH_SIZE),
++		offset:		(TRAFFICMETER_FLASH_OFFSET),
++	},
++	{
++		name:		"language",
++		size:		(LANGUAGE_FLASH_SIZE),
++		offset:		(LANGUAGE_FLASH_OFFSET),
++	},
++	{
++		name:		"config",
++		size:		(DATALIB_FLASH_SIZE),
++		offset:		(DATALIB_FLASH_OFFSET),
++	},
+ };
+ 
+ #else //!CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE

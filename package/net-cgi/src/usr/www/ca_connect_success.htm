@@ -1,0 +1,74 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% nobody_header("ca_connect_success.htm", "ca_connect_finish") %>
+
+<% cfg_set("refresh_page", "client_setting") %>
+<script>
+var gui_region="<% cfg_get("GUI_Region") %>";
+var sta_list = "<% cat_file("/tmp/check_link") %>";
+var link_status="<% cat_file("/tmp/wl0_status") %>";
+var link_rate="<% cat_file("/tmp/link_rate_min") %>";
+var dns_hijack="<% cfg_get("dns_hijack") %>";
+var setup_wizard_tag="<% cfg_get("setup_wizard_tag") %>";
+
+var led_color="<% cfg_get("led_color") %>";
+if(setup_wizard_tag=="1")
+	setTimeout("load_default(3)",1000);
+
+function click_next()
+{
+	if( get_browser() == "IE" || get_browser() == "Firefox")
+	{
+		if (confirm("$ca_add_bookmark"))	
+			addfavorite();
+	}
+	top.location.href="http://www.netgear.com/success/wn1000rp.aspx";
+}
+</script>
+<input type="hidden" name="related_region" value="">
+<input type="hidden" name="refresh_url">
+<input type="hidden" name="refresh_page">
+<div class="ca_main"> 
+<table width=100%><tr><td width="5%">&nbsp;</td><td>
+<table width=100% border=0 cellpadding=0 cellspacing=0>
+	<TR>
+	<!--<script>
+	if(dns_hijack==1)
+	{
+		document.write('<td  rowspan=100 width=70 align=center valign=top>');document.write(ca_icon+"<br><br><br>");icons_show_status();document.write('&nbsp;</td>');
+	}
+	</script>-->
+	<TD colSpan=2><H1>$ca_con_success_head</H1></TD></TR>
+	$bluebar
+		<tr>
+		<td>
+			<script>
+			if(link_status=="1" && led_color=="2")
+				document.write("$ca_con_amber");
+			else
+				document.write("$ca_con_success");
+
+			//document.write("&nbsp;"+link_rate+"&nbsp;Mbps.");
+			</script>
+			
+		</td></tr>
+		
+	$bluebar
+
+	<tr>
+	<td nowrap align=center>
+		<input name="next" class="short_common_bt" align="right" type="button" value="$finish" onClick="click_next();">
+	</td>
+	</tr>
+</table></td><td width="5%">&nbsp;</td></tr>
+</table> 
+</div>
+</form>
+</body>
+</html>
+<% cfg_set("ca_finish", "1") %>
+<% cfg_set("ca_finish_success", "1") %>
+<% cfg_set("configured", "1") %>
+<% cfg_set("dns_hijack", "0") %>
+<% echo_set("0", "/proc/sys/net/ipv4/dns_hijack") %>
+<% commit() %>
+

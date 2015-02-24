@@ -1,0 +1,113 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% nohelp_header("download_image_process.htm", "download_image") %>
+
+<script>
+<% rm_detwan_files() %>
+<% check_version()  %>
+<% save_timestamp("download_image", "download_language", "download_all") %>
+var ts='<% cfg_get("download_image") %>';
+
+var gui_region="<% cfg_get("GUI_Region") %>";
+var str_lang="";
+var str_firm="";
+function getObj(name)
+{
+    if (document.getElementById)
+    {
+        return document.getElementById(name);
+    }
+    else if (document.all)
+    {
+        return document.all[name];
+    }
+    else if (document.layers)
+    {
+        return document.layers[name];
+    }
+}
+
+function clickYes()
+{
+	var cf=document.forms[0];
+	if ( updateLanguage == 1 && updateFirmware == 0 ){
+		cf.submit_flag.value="download_language";
+		cf.action="/func.cgi?/download_language_process.htm timestamp="+ts;
+		cf.submit();
+	}
+	else if ( updateLanguage == 0 && updateFirmware == 1 ){
+		cf.submit_flag.value="download_image";
+		cf.action="/func.cgi?/download_image_process.htm timestamp="+ts;
+		cf.submit();
+	}
+	else if ( updateLanguage == 1 && updateFirmware == 1 ){
+		cf.submit_flag.value="download_all";
+		cf.action="/func.cgi?/download_image_process.htm timestamp="+ts;
+		cf.submit();
+	}
+	
+}
+function loadvalue()
+{
+	str_lang=getObj("show_lang").innerHTML;
+	str_firm=getObj("show_firm").innerHTML;	
+	getObj("show_lang").innerHTML="";
+	getObj("show_firm").innerHTML="";
+	
+	if( updateLanguage == 1 )
+		getObj("lang").innerHTML=str_lang;
+	if( updateFirmware == 1 )
+		getObj("firm").innerHTML=str_firm;
+}
+</script>
+<script>
+if(gui_region == "English" || gui_region == "Italian" )
+	document.write('<div class="page_title">');
+else
+	document.write('<div class="page_title_big">');
+	
+	document.write("$wait_upg_head");
+	document.write('</div>');
+if(gui_region == "English" || gui_region == "Italian" )
+	document.write('<div id="main" class="main">');
+else
+	document.write('<div id="main" class="main_big">');
+</script>
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<tr><td><img src="/liteblue.gif" width=100% height="12"></td></tr>
+<tr><td nowrap colspan=2><b>$wait_new_version</b><br><br></td></tr>
+</table>
+<div id=lang>
+</div>
+<div align="center" ID="show_lang" style="position:absolute;top:0;left:0;visibility:hidden">
+<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+<tr><td nowrap colspan=2><b>$info_language_ver:</b></td></tr>
+<tr><td nowrap width="50%"><b>$old_ver:<% get_language_version() %></b></td>
+&nbsp;&nbsp;<td nowrap><b>$new_ver:<% cat_file("/tmp/lang_version") %></b></td>
+</tr>
+</table>
+</div>
+<div id=firm>
+</div>
+<div align="center" ID="show_firm" style="position:absolute;top:0;left:0;visibility:hidden">
+<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+<tr><td nowrap colspan=2><b>$info_mark_ver:</b></td></tr>
+<tr><td nowrap width="50%"><b>$old_ver:<% cat_file("/firmware_version") %></b></td>
+<td nowrap><b>$new_ver:<% cat_file("/tmp/auto_version") %></b></td>
+</tr>
+</table>
+</div>
+<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+$bluebar
+<tr><td colspan=2><% cat_file("/tmp/upd_firm_info") %></td></tr>
+<tr>
+<tr><td nowrap colspan=2 align=center><br><br>
+<input class="short_common_bt" type="button" name="yes" value="$yes_mark" onClick="clickYes();">&nbsp;
+<input class="short_common_bt" type="button" name="no" value="$no_mark" onclick="location.href='upgrade.htm';"><br><br></td></tr>
+</table>
+</div>
+</form>
+</body>
+</html>
+
+
+

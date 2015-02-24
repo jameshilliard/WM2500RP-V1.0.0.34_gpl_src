@@ -1,0 +1,373 @@
+#------------------------------------------------------------------------------
+# Example File Format of "/etc/clink/en0/sapm.conf"
+#
+# sapmprofileid nn  // nn = profile id
+#                           -1 = disable SAPM
+#                           0  = use first SAPM profile
+# Profile p         // p = Identifier for profile.
+# threshold t       // t = Additional bitloading margin is to be added
+#                          when receive level is at this level and lower.
+# carrier s m       // s = Subcarrier number to add additional bitloading margin.
+#                          255 = fc + 49.8046875 MHz (MoCA2 no spectral inversion)
+#                          243 = fc + 47.4609375 MHz
+#                          004 = fc + 00.7812500 MHz
+#                          000 = fc
+#                          508 = fc - 00.7812500 MHz
+#                          269 = fc - 47.4609375 MHz
+#                          256 = fc - 50.0000000 MHz
+#                   // m = Amount of additional bitloading margin to be added.
+#                          0   = no adjustment
+#                          255 = carrier disabled
+#------------------------------------------------------------------------------
+sapmprofileid 0
+#-------------------------------------------------
+# MoCA2 fc = 825 MHz
+# Verizon LTE 1MHz, Other Region LTE, GSM, Taper
+#-------------------------------------------------
+# |carrier| SC | TotalAPM |
+Profile 0
+threshold 35
+carrier 256 28
+carrier 257 28
+carrier 258 28
+carrier 259 28
+carrier 260 28
+carrier 261 28
+carrier 262 28
+carrier 263 28
+carrier 264 28
+carrier 265 28
+carrier 266 28
+carrier 267 28
+carrier 268 28
+carrier 269 28
+carrier 270 28
+carrier 271 28
+carrier 272 28
+carrier 273 28
+carrier 274 28
+carrier 275 28
+carrier 276 28
+carrier 277 28
+carrier 278 28
+carrier 279 28
+carrier 280 28
+carrier 281 28
+carrier 282 28
+carrier 283 28
+carrier 284 28
+carrier 285 28
+carrier 286 28
+carrier 287 28
+carrier 288 28
+carrier 289 28
+carrier 290 28
+carrier 291 28
+carrier 292 28
+carrier 293 28
+carrier 294 28
+carrier 295 28
+carrier 296 28
+carrier 297 28
+carrier 298 28
+carrier 299 28
+carrier 300 28
+carrier 301 28
+carrier 302 28
+carrier 303 28
+carrier 304 28
+carrier 305 28
+carrier 306 28
+carrier 307 28
+carrier 308 28
+carrier 309 28
+carrier 310 28
+carrier 311 28
+carrier 312 28
+carrier 313 28
+carrier 314 28
+carrier 315 28
+carrier 316 28
+carrier 317 28
+carrier 318 28
+carrier 319 18
+carrier 320 14
+carrier 321 12
+carrier 322 10
+carrier 323 8
+carrier 324 7
+carrier 325 6
+carrier 326 6
+carrier 327 4
+carrier 328 4
+carrier 329 4
+carrier 330 4
+carrier 484 4
+carrier 485 4
+carrier 486 4
+carrier 487 4
+carrier 488 4
+carrier 489 4
+carrier 490 6
+carrier 491 6
+carrier 492 6
+carrier 493 6
+carrier 494 6
+carrier 495 6
+carrier 496 6
+carrier 497 6
+carrier 498 6
+carrier 499 6
+carrier 500 6
+carrier 501 6
+carrier 502 8
+carrier 503 10
+carrier 504 15
+carrier 505 20
+carrier 506 23
+carrier 507 23
+carrier 508 23
+carrier 509 23
+carrier 510 23
+carrier 511 23
+carrier 0 23
+carrier 1 23
+carrier 2 23
+carrier 3 23
+carrier 4 23
+carrier 5 23
+carrier 6 23
+carrier 7 23
+carrier 8 23
+carrier 9 23
+carrier 10 23
+carrier 11 23
+carrier 12 23
+carrier 13 23
+carrier 14 23
+carrier 15 23
+carrier 16 23
+carrier 17 23
+carrier 18 23
+carrier 19 23
+carrier 20 23
+carrier 21 23
+carrier 22 23
+carrier 23 23
+carrier 24 23
+carrier 25 23
+carrier 26 23
+carrier 27 23
+carrier 28 23
+carrier 29 23
+carrier 30 23
+carrier 31 23
+carrier 32 23
+carrier 33 23
+carrier 34 23
+carrier 35 23
+carrier 36 23
+carrier 37 23
+carrier 38 23
+carrier 39 23
+carrier 40 23
+carrier 41 23
+carrier 42 23
+carrier 43 23
+carrier 44 23
+carrier 45 23
+carrier 46 23
+carrier 47 23
+carrier 48 23
+carrier 49 23
+carrier 50 23
+carrier 51 23
+carrier 52 23
+carrier 53 23
+carrier 54 23
+carrier 55 23
+carrier 56 23
+carrier 57 23
+carrier 58 23
+carrier 59 23
+carrier 60 23
+carrier 61 23
+carrier 62 23
+carrier 63 23
+carrier 64 23
+carrier 65 23
+carrier 66 23
+carrier 67 23
+carrier 68 23
+carrier 69 23
+carrier 70 23
+carrier 71 23
+carrier 72 23
+carrier 73 23
+carrier 74 23
+carrier 75 23
+carrier 76 23
+carrier 77 23
+carrier 78 23
+carrier 79 23
+carrier 80 23
+carrier 81 23
+carrier 82 23
+carrier 83 23
+carrier 84 23
+carrier 85 23
+carrier 86 23
+carrier 87 23
+carrier 88 23
+carrier 89 23
+carrier 90 23
+carrier 91 23
+carrier 92 23
+carrier 93 23
+carrier 94 23
+carrier 95 23
+carrier 96 23
+carrier 97 23
+carrier 98 23
+carrier 99 23
+carrier 100 23
+carrier 101 23
+carrier 102 23
+carrier 103 23
+carrier 104 23
+carrier 105 23
+carrier 106 23
+carrier 107 23
+carrier 108 23
+carrier 109 23
+carrier 110 23
+carrier 111 23
+carrier 112 23
+carrier 113 23
+carrier 114 23
+carrier 115 23
+carrier 116 23
+carrier 117 23
+carrier 118 23
+carrier 119 23
+carrier 120 23
+carrier 121 23
+carrier 122 23
+carrier 123 23
+carrier 124 20
+carrier 125 15
+carrier 126 10
+carrier 127 8
+carrier 128 6
+carrier 129 6
+carrier 130 6
+carrier 131 6
+carrier 132 6
+carrier 133 6
+carrier 134 6
+carrier 135 6
+carrier 136 6
+carrier 137 6
+carrier 138 6
+carrier 139 6
+carrier 140 4
+carrier 141 4
+carrier 142 4
+carrier 143 4
+carrier 144 4
+carrier 145 4
+#
+#-------------------------------------------------
+# MoCA2 fc = 700 MHz
+# AT+T LTE 1MHz, Taper
+#-------------------------------------------------
+# |carrier| SC | TotalAPM |
+Profile 1
+threshold 35
+carrier 8 4
+carrier 9 4
+carrier 10 4
+carrier 11 4
+carrier 12 6
+carrier 13 6
+carrier 14 7
+carrier 15 8
+carrier 16 10
+carrier 17 12
+carrier 18 14
+carrier 19 18
+carrier 20 28
+carrier 21 28
+carrier 22 28
+carrier 23 28
+carrier 24 28
+carrier 25 28
+carrier 26 28
+carrier 27 28
+carrier 28 28
+carrier 29 28
+carrier 30 28
+carrier 31 28
+carrier 32 28
+carrier 33 28
+carrier 34 28
+carrier 35 28
+carrier 36 28
+carrier 37 28
+carrier 38 28
+carrier 39 28
+carrier 40 28
+carrier 41 28
+carrier 42 28
+carrier 43 28
+carrier 44 28
+carrier 45 28
+carrier 46 28
+carrier 47 28
+carrier 48 28
+carrier 49 28
+carrier 50 28
+carrier 51 28
+carrier 52 28
+carrier 53 28
+carrier 54 28
+carrier 55 28
+carrier 56 28
+carrier 57 28
+carrier 58 28
+carrier 59 28
+carrier 60 28
+carrier 61 28
+carrier 62 28
+carrier 63 28
+carrier 64 28
+carrier 65 28
+carrier 66 28
+carrier 67 28
+carrier 68 28
+carrier 69 28
+carrier 70 28
+carrier 71 28
+carrier 72 28
+carrier 73 28
+carrier 74 28
+carrier 75 28
+carrier 76 28
+carrier 77 28
+carrier 78 28
+carrier 79 28
+carrier 80 28
+carrier 81 28
+carrier 82 28
+carrier 83 18
+carrier 84 14
+carrier 85 12
+carrier 86 10
+carrier 87 8
+carrier 88 7
+carrier 89 6
+carrier 90 6
+carrier 91 4
+carrier 92 4
+carrier 93 4
+carrier 94 4

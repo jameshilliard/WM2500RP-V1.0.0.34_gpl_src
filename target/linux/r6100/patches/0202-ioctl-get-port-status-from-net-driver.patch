@@ -1,0 +1,204 @@
+diff -Nur linux-2.6.30.old//drivers/net/rtl819x/rtl_nic.c linux-2.6.30/drivers/net/rtl819x/rtl_nic.c
+--- linux-2.6.30.old//drivers/net/rtl819x/rtl_nic.c	2012-11-29 03:48:30.688065256 -0500
++++ linux-2.6.30/drivers/net/rtl819x/rtl_nic.c	2012-11-29 03:56:31.248063829 -0500
+@@ -12,6 +12,7 @@
+  *
+  */
+ #define DNI_LINK_CHANGE_NOTIFY 1
++#define DNI_GET_ALL_LINK_INFO 1
+ 
+ #define DRV_RELDATE		"Mar 25, 2004"
+ #include <linux/config.h>
+@@ -262,6 +263,10 @@
+ #ifdef DNI_LINK_CHANGE_NOTIFY
+ static void check_phy_change(void);
+ #endif
++#ifdef DNI_GET_ALL_LINK_INFO
++static int32 get_all_port_info(struct ifreq *rq);
++#endif
++
+ 
+ #ifdef CONFIG_RTL8196C_GREEN_ETHERNET
+ static void power_save_timer(unsigned long task_priv);
+@@ -5383,6 +5388,167 @@
+ }
+ #endif
+ 
++#ifdef DNI_GET_ALL_LINK_INFO
++static int32 get_all_port_info(struct ifreq *rq)
++{
++	struct mii_ioctl_data {
++		int32 unit0;//LAN0 index
++		int32 unit1;//LAN1 index
++		int32 unit2;//LAN2 index
++		int32 unit3;//LAN3 index
++		int32 unit4;//WAN index
++		int32 addr;
++		int32 data0;//LAN0 link status
++		int32 data1;//LNA1 link status
++		int32 data2;//LAN2 link status
++		int32 data3;//LAN3 link status
++		int32 data4;//WAN link status
++		int32 lan0_speed;
++		int32 lan1_speed;
++		int32 lan2_speed;
++		int32 lan3_speed;
++		int32 wan_speed;
++		int32 lan0_isFullDuplex;
++		int32 lan1_isFullDuplex;
++		int32 lan2_isFullDuplex;
++		int32 lan3_isFullDuplex;
++		int32 wan_isFullDuplex;
++	} *pReq;
++
++	extern int rtk_port_phyStatus_get(uint32 port, uint32 *pLinkStatus, uint32 *pSpeed, uint32 *pDuplex);
++	uint32 linkStatus, speed, duplex;
++	pReq = (struct mii_ioctl_data*)rq->ifr_data;
++
++
++	/*      get wan link status , speed , duplex */
++	if(rtk_port_phyStatus_get(4,&linkStatus,&speed,&duplex) == SUCCESS)
++		pReq->data4 = (linkStatus == 1? 1: 0);
++	else{
++		//printk("ioctl: failed to get wan port status!!!\n");
++		goto lan0;
++	}
++
++	switch(speed & PortStatusLinkSpeed_MASK)
++	{
++		case PortStatusLinkSpeed10M:
++			pReq->wan_speed = 10;
++			break;
++		case PortStatusLinkSpeed100M:
++			pReq->wan_speed = 100;
++			break;
++		case  PortStatusLinkSpeed1000M:
++			pReq->wan_speed = 1000;
++			break;
++		default:
++			break;
++	}
++	pReq->wan_isFullDuplex = (duplex == 1? 1: 0);
++	//printk("wan_port_status[%d][%d][%d]\n", pReq->data4, pReq->wan_speed, pReq->wan_isFullDuplex);
++lan0:
++	/*      get lan0 link status , speed , duplex */
++	if(rtk_port_phyStatus_get(0,&linkStatus,&speed,&duplex) == SUCCESS)
++		pReq->data0 = (linkStatus == 1? 1: 0);
++	else{
++		//printk("ioctl: failed to get lan0 port status!!!\n");
++		goto lan1;
++	}
++
++	switch(speed & PortStatusLinkSpeed_MASK)
++	{
++		case PortStatusLinkSpeed10M:
++			pReq->lan0_speed = 10;
++			break;
++		case PortStatusLinkSpeed100M:
++			pReq->lan0_speed = 100;
++			break;
++		case  PortStatusLinkSpeed1000M:
++			pReq->lan0_speed = 1000;
++			break;
++		default:
++			break;
++	}
++	pReq->lan0_isFullDuplex = (duplex == 1? 1: 0);
++	//printk("lan0_port_status[%d][%d][%d]\n", pReq->data0, pReq->lan0_speed, pReq->lan0_isFullDuplex);
++lan1:
++	/*      get lan1 link status , speed , duplex */
++	if(rtk_port_phyStatus_get(1,&linkStatus,&speed,&duplex) == SUCCESS)
++		pReq->data1 = (linkStatus == 1? 1: 0);
++	else{
++		//printk("ioctl: failed to get lan1 port status!!!\n");
++		goto lan2;
++	}
++
++	switch(speed & PortStatusLinkSpeed_MASK)
++	{
++		case PortStatusLinkSpeed10M:
++			pReq->lan1_speed = 10;
++			break;
++		case PortStatusLinkSpeed100M:
++			pReq->lan1_speed = 100;
++			break;
++		case  PortStatusLinkSpeed1000M:
++			pReq->lan1_speed = 1000;
++			break;
++		default:
++			break;
++	}
++	pReq->lan1_isFullDuplex = (duplex == 1? 1: 0);
++	//printk("lan1_port_status[%d][%d][%d]\n", pReq->data1, pReq->lan1_speed, pReq->lan1_isFullDuplex);
++lan2:
++	/*      get lan2 link status , speed , duplex */
++	if(rtk_port_phyStatus_get(2,&linkStatus,&speed,&duplex) == SUCCESS)
++		pReq->data2 = (linkStatus == 1? 1: 0);
++	else{
++		//printk("ioctl: failed to get lan2 port status!!!\n");
++		goto lan3;
++	}
++
++	switch(speed & PortStatusLinkSpeed_MASK)
++	{
++		case PortStatusLinkSpeed10M:
++			pReq->lan2_speed = 10;
++			break;
++		case PortStatusLinkSpeed100M:
++			pReq->lan2_speed = 100;
++			break;
++		case  PortStatusLinkSpeed1000M:
++			pReq->lan2_speed = 1000;
++			break;
++		default:
++			break;
++	}
++	pReq->lan2_isFullDuplex = (duplex == 1? 1: 0);
++	//printk("lan2_port_status[%d][%d][%d]\n", pReq->data2, pReq->lan2_speed, pReq->lan2_isFullDuplex);
++lan3:
++	/*      get lan3 link status , speed , duplex */
++	if(rtk_port_phyStatus_get(3,&linkStatus,&speed,&duplex) == SUCCESS)
++		pReq->data3 = (linkStatus == 1? 1: 0);
++	else{
++		//printk("ioctl: failed to get lan3 port status!!!\n");
++		goto out;
++	}
++
++	switch(speed & PortStatusLinkSpeed_MASK)
++	{
++		case PortStatusLinkSpeed10M:
++			pReq->lan3_speed = 10;
++			break;
++		case PortStatusLinkSpeed100M:
++			pReq->lan3_speed = 100;
++			break;
++		case  PortStatusLinkSpeed1000M:
++			pReq->lan3_speed = 1000;
++			break;
++		default:
++			break;
++	}
++	pReq->lan3_isFullDuplex = (duplex == 1? 1: 0);
++out:
++	//printk("lan3_port_status[%d][%d][%d]\n", pReq->data3, pReq->lan3_speed, pReq->lan3_isFullDuplex);
++	return SUCCESS;
++}
++#endif  //#ifdef DNI_GET_ALL_LINK_INFO
++
+ int re865x_ioctl (struct net_device *dev, struct ifreq *rq, int cmd)
+ {
+ 	int32 rc = 0;
+@@ -5398,6 +5564,13 @@
+ 	uint32 linkStatus, speed, duplex;
+ #endif
+ 
++#ifdef DNI_GET_ALL_LINK_INFO
++	if (cmd == SIOCGMIIREG){
++		rc = get_all_port_info(rq);
++		return rc;
++	}
++#endif  //#ifdef DNI_GET_ALL_LINK_INFO
++
+ 	if (cmd != SIOCDEVPRIVATE)
+ 	{
+ 		#if defined(RTL819X_PRIV_IOCTL_ENABLE)

@@ -1,0 +1,152 @@
+diff -Nurp linux-2.6.31.orig//arch/mips/atheros/gpio.c linux-2.6.31/arch/mips/atheros/gpio.c
+--- linux-2.6.31.orig//arch/mips/atheros/gpio.c	2013-01-20 13:15:06.595238103 -0500
++++ linux-2.6.31/arch/mips/atheros/gpio.c	2013-01-20 13:31:11.685232800 -0500
+@@ -15,11 +15,11 @@
+ #include <asm/irq.h>
+ #include <asm/delay.h>
+ #include <asm/system.h>
+-
+ #include <atheros.h>
++#include <linux/delay.h>
+ 
+ #define ATH_FACTORY_RESET		0x89ABCDEF
+-
++void serial_print(char *fmt,...);
+ static atomic_t ath_fr_status = ATOMIC_INIT(0);
+ static volatile int ath_fr_opened = 0;
+ static wait_queue_head_t ath_fr_wq;
+@@ -39,22 +39,26 @@ struct timer_list os_diswps_t; /* WPS LE
+                                    like push button is pressed if WPS was disabled */
+ 
+ /* AR9344 GPIOs */
++#define WLAN_LED_GPIO		0
++#define WLAN_BUTTON_GPIO        1
++#define WPS_BUTTON_GPIO         3
+ #define USB_LED_GPIO            11
+ #define RESET_BUTTON_GPIO       12
+ #define WAN_GREEN_LED_GPIO      13
+ #define STATUS_LED_GPIO         14
+ #define WAN_AMBER_LED_GPIO      15
++#define USB_5V_GPIO		16
+ #define POWER_LED_GPIO          17
+ 
+ /* AR9380 GPIOs */
+ 
+-#define WLAN_5G_LED_GPIO        0
+-#define WLAN_2G_LED_GPIO	1
+-#define WPS_BUTTON_GPIO         2
+-#define WLAN_BUTTON_GPIO        3
++//#define WLAN_5G_LED_GPIO        0
++//#define WLAN_2G_LED_GPIO	  1
++//#define WPS_BUTTON_GPIO         2
++//#define WLAN_BUTTON_GPIO        3
+ #define WPS_GREEN_LED_GPIO	7
+ #define WPS_AMBER_LED_GPIO	9
+-#define USB_5V_GPIO		13
++//#define USB_5V_GPIO		13
+ 
+ #define frdbg printk
+ 
+@@ -913,9 +917,9 @@ static int usb5v_enable_write (struct fi
+ 	if (sscanf(buf, "%d", &val) != 1)
+ 		return -EINVAL;
+ 	if (!val) {
+-		ar9380GpioSet(USB_5V_GPIO, 0);
++		ath_gpio_out_val(USB_5V_GPIO, 0);
+ 	} else {
+-		ar9380GpioSet(USB_5V_GPIO, 1);
++		ath_gpio_out_val(USB_5V_GPIO, 1);
+ 	}
+ 	return count;
+ }
+@@ -963,7 +967,7 @@ static OS_TIMER_FUNC(button_detect)
+         static int wlan_count = 0;
+ 
+         /* AR9380 GPIO3: WIRELESS ON/OFF(Input Pin / Active LOW) */
+-        if (!ar9380GpioGet(WLAN_BUTTON_GPIO)) {
++        if (!ath_gpio_in_val(WLAN_BUTTON_GPIO)) {
+                 wlan_count++;
+                 /* [Bug 24969]According to NTGR's requirement, it should only trigger enabling or
+                  * disabling the wireless radio after the WLAN switch button is pressed and held
+@@ -984,7 +988,7 @@ static OS_TIMER_FUNC(button_detect)
+                 }
+         }
+         /* AR9344 GPIO16: JUMPSTART (Input Pin / Active LOW) */
+-        if (!ar9380GpioGet(WPS_BUTTON_GPIO)) {
++        if (!ath_gpio_in_val(WPS_BUTTON_GPIO)) {
+                 if (!pushbut_s) {
+                         pushbut_s = 1;
+                         pushbut = push;
+@@ -1110,20 +1114,29 @@ void ap_status_led_off(void)
+ }
+ EXPORT_SYMBOL(ap_status_led_off);
+ 
++void ap_wlan_led_on_off(int status)
++{
++#ifdef WLAN_LED_GPIO
++	ath_gpio_config_output(WLAN_LED_GPIO);
++	ath_gpio_out_val(WLAN_LED_GPIO, status);
++#endif
++}
++EXPORT_SYMBOL(ap_wlan_led_on_off);
++
+ void ap_wlan_2g_led_on_off(int status)
+ {
+-#ifdef WLAN_2G_LED_GPIO
+-	ar9380GpioCfgOutput(WLAN_2G_LED_GPIO);
+-	ar9380GpioSet(WLAN_2G_LED_GPIO, status); 
++#ifdef WLAN_LED_GPIO
++	ath_gpio_config_output(WLAN_LED_GPIO);
++	ath_gpio_out_val(WLAN_LED_GPIO, status); 
+ #endif
+ }
+ EXPORT_SYMBOL(ap_wlan_2g_led_on_off);
+ 
+ void ap_wlan_5g_led_on_off(int status)
+ {
+-#ifdef WLAN_5G_LED_GPIO
+-       ar9380GpioCfgOutput(WLAN_5G_LED_GPIO);
+-       ar9380GpioSet(WLAN_5G_LED_GPIO, status);
++#ifdef WLAN_LED_GPIO
++       ath_gpio_config_output(WLAN_LED_GPIO);
++       ath_gpio_out_val(WLAN_LED_GPIO, status);
+ #endif
+ }
+ EXPORT_SYMBOL(ap_wlan_5g_led_on_off);
+@@ -1243,26 +1256,28 @@ static int create_simple_config_led_proc
+ 	ath_gpio_config_output(STATUS_LED_GPIO);
+ 	ath_gpio_config_output(WAN_GREEN_LED_GPIO);
+ 	ath_gpio_config_output(POWER_LED_GPIO);
++	ath_gpio_config_output(WLAN_LED_GPIO);
+ 	ar9380GpioCfgOutput(WPS_AMBER_LED_GPIO);
+-	ar9380GpioCfgOutput(WLAN_2G_LED_GPIO);
++	//ar9380GpioCfgOutput(WLAN_2G_LED_GPIO);
+ 	ar9380GpioCfgOutput(WPS_GREEN_LED_GPIO);
+-	ar9380GpioCfgOutput(WLAN_5G_LED_GPIO);
+-	ar9380GpioCfgOutput(USB_5V_GPIO);
++	//ar9380GpioCfgOutput(WLAN_5G_LED_GPIO);
++	ath_gpio_config_output(USB_5V_GPIO);
+ 
+ 	/* configure gpio as inputs */
+-	ar9380GpioCfgInput(WPS_BUTTON_GPIO);
+-	ar9380GpioCfgInput(WLAN_BUTTON_GPIO);
++	ath_gpio_config_input(WPS_BUTTON_GPIO);
++	ath_gpio_config_input(WLAN_BUTTON_GPIO);
+ 	ath_gpio_config_input(RESET_BUTTON_GPIO);
+ 
+ 	/* switch off the led */
+ 	ath_gpio_out_val(WAN_AMBER_LED_GPIO, LED_OFF);
+ 	ath_gpio_out_val(USB_LED_GPIO, LED_OFF);
+-	ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
++	ath_gpio_out_val(STATUS_LED_GPIO, LED_ON);
+ 	ath_gpio_out_val(WAN_GREEN_LED_GPIO, LED_OFF);
+ 	ath_gpio_out_val(POWER_LED_GPIO, LED_OFF);
+-	ar9380GpioSet(WLAN_5G_LED_GPIO, LED_OFF);
++	ath_gpio_out_val(WLAN_LED_GPIO, LED_OFF);
++	//ar9380GpioSet(WLAN_5G_LED_GPIO, LED_OFF);
+ 	ar9380GpioSet(WPS_AMBER_LED_GPIO, LED_OFF);
+-	ar9380GpioSet(WLAN_2G_LED_GPIO, LED_OFF);
++	//ar9380GpioSet(WLAN_2G_LED_GPIO, LED_OFF);
+ 	ar9380GpioSet(WPS_GREEN_LED_GPIO, LED_OFF);
+ 
+ #ifdef POWER_ON_RLED_GPIO

@@ -1,0 +1,131 @@
+#!/bin/sh /etc/rc.common
+START=20
+
+print_dhcpd_conf(){
+    cat <<EOF
+pidfile /var/run/udhcpd.pid
+start $2
+end $3
+interface $1
+remaining yes
+auto_time 5
+lease_file /tmp/udhcpd.leases
+option subnet $4
+option router $5
+option dns $5
+option lease $6
+EOF
+}
+ 
+pull_down_eth() {
+	for i in 1 2 3 4 ; do
+		old_val=`et-tool phyrd $i 0x1e`
+		let gt3bit=old_val/16
+		let lt3bit=old_val%16%8
+		let new_val=gt3bit*16+8+lt3bit
+		et-tool phywr $i 0x1e $new_val
+	done
+}
+pull_up_eth() {
+	for i in 1 2 3 4 ; do
+		old_val=`et-tool phyrd $i 0x1e`
+		let gt3bit=old_val/16
+		let lt3bit=old_val%16%8
+		let new_val=gt3bit*16+lt3bit
+		et-tool phywr $i 0x1e $new_val
+	done
+}
+
+start_dhcpd() {
+    [ ! -f /tmp/udhcpd.leases ] && touch /tmp/udhcpd.leases
+    print_dhcpd_conf "$BR_IF" "$($CONFIG get dhcp_start)" "$($CONFIG get dhcp_end)" "$($CONFIG get lan_netmask)" "$($CONFIG get lan_ipaddr)" "$($CONFIG get lan_lease)" > /tmp/udhcpd.conf
+
+    count=1
+    while :
+    do
+	lease="$($CONFIG get reservation$count)"
+	if [ "x$lease" = "x" ]; then
+	    break;
+	fi
+	count=`expr $count + 1`
+	echo "static_lease $lease" >> /tmp/udhcpd.conf
+    done
+
+    udhcpd /tmp/udhcpd.conf
+
+    # Fix bug 34562: [LOG]There is no log for the router assigns a DHCP to a LAN client while DUT boot up.
+    # Should restart the ethernet phy.
+
+    # Pull down the Ethernet PHY
+    pull_down_eth
+    sleep 6
+    # Up the Ethernet PHY
+    pull_up_eth
+}
+
+start() {
+	local lan_ip lan_mask
+
+	lan_default_mac=$(ifconfig $LAN_IF | grep $LAN_IF | sed 's/.*HWaddr//')
+	lan_default_mac=$(echo -n $lan_default_mac)
+	ifconfig $BR_IF hw ether $lan_default_mac
+	#echo "NET-LAN: Default LAN MAC is : $lan_default_mac"
+
+	lan_ip=$($CONFIG get lan_ipaddr)
+	lan_mask=$($CONFIG get lan_netmask)
+	ifconfig $BR_IF ${lan_ip:-192.168.1.1} netmask ${lan_mask:-255.255.255.0}
+	
+	ifconfig $LAN_IF up
+
+	if [ "$($CONFIG get lan_dhcp)" = "1" ]; then
+		if [ "$($CONFIG get wds_endis_fun)" = "1" -a "$($CONFIG get wds_repeater_basic)" = "0" ]; then
+			echo "Wireless Repeater mode"
+		else
+			start_dhcpd
+		fi
+	fi
+
+	# Attach Device
+	mkdir -p /tmp/netscan
+	/usr/sbin/net-scan
+
+#	# Restart UPnP
+#	[ ! -f /tmp/boot_status ] && /sbin/cmdupnp restart
+
+	# Start Router Debugging Mode ...
+	. /lib/network/RtDebug.sh
+	start_RtDebugMode
+
+#	# Apply static route    
+#	/sbin/cmdroute start
+
+	# Start lld2d
+#	echo "$($CONFIG get netbiosname)" > /proc/sys/kernel/hostname
+#	/usr/sbin/lld2d $($CONFIG get lan_ifname)
+	
+	sleep 2
+	#For ipv6 ready log test , fixed ip setting do not enable radvd and dhcpv6s
+	local wan6_type=$($CONFIG get ipv6_type)
+	local logo_test=$($CONFIG get endis_ipv6_logo_test)
+	if [ "x$logo_test" = "x1" -a "x$wan6_type" = "xfixed" ];then
+		/etc/net6conf/6fixed lan
+	fi
+
+}
+
+stop() {
+	killall udhcpd
+	killall net-scan
+	killall lld2d
+	ifdown $LAN_IF	
+
+	# PHY link will be pulled low some seconds to force transition to reboot state 
+	# and generating DHCP request and Discovery protocol and address refresh in the 
+	# devices connected to the NETGEAR Local Area Network ports.
+	echo -n 9 > /proc/switch_phy
+}
+
+restart() {
+	stop
+	start
+}

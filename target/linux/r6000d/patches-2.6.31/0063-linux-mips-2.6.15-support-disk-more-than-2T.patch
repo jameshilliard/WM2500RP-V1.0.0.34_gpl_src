@@ -1,0 +1,13 @@
+--- linux-2.6.15/fs/partitions/msdos.c.orig	2011-07-06 11:29:05.000000000 +0800
++++ linux-2.6.15/fs/partitions/msdos.c	2011-07-06 11:29:32.000000000 +0800
+@@ -428,8 +428,8 @@
+ 
+ 	state->next = 5;
+ 	for (slot = 1 ; slot <= 4 ; slot++, p++) {
+-		u32 start = START_SECT(p)*sector_size;
+-		u32 size = NR_SECTS(p)*sector_size;
++		sector_t start = (sector_t)START_SECT(p)*(sector_t)sector_size;
++		sector_t size = (sector_t)NR_SECTS(p)*(sector_t)sector_size;
+ 		if (!size)
+ 			continue;
+ 		if (is_extended_partition(p)) {

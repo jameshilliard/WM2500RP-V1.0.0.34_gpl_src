@@ -1,0 +1,92 @@
+#------------------------------------------------------------------------------
+# Example File Format of "/etc/clink/en0/rlapm.conf"
+#
+# Depends upon etc/clink/en0/clink.conf phyMargin = 10 (2dB).
+#
+# rlapmprofileid nn     // nn = -1 disables RLAPM, nn=0 specifies first profile.
+# rxLevel L m           // L  = Receive level to add the indicated additional
+#                               bitloading margin.
+#                       // m  = Amount of additional bitloading margin to be added.
+#------------------------------------------------------------------------------
+rlapmprofileid 0
+#------------------------------------------------------------------------------
+# MoCA2 fc = 825 MHz
+# Verizon LTE 1MHz, Other Region LTE 1MHz, GSM , Power line interference -91dBm/200KHz
+#------------------------------------------------------------------------------
+Profile 0
+rxLevel 26 2
+rxLevel 27 0
+rxLevel 28 0
+rxLevel 29 0
+rxLevel 30 0
+rxLevel 31 0
+rxLevel 32 0
+rxLevel 33 0
+rxLevel 34 0
+rxLevel 35 0
+rxLevel 36 0
+rxLevel 37 0
+rxLevel 38 0
+rxLevel 39 0
+rxLevel 40 0
+rxLevel 41 2
+rxLevel 42 2
+rxLevel 43 4
+rxLevel 44 6
+rxLevel 45 8
+rxLevel 46 10
+rxLevel 47 14
+rxLevel 48 14
+rxLevel 49 16
+rxLevel 50 20
+rxLevel 51 22
+rxLevel 52 22
+rxLevel 53 24
+rxLevel 54 24
+rxLevel 55 26
+rxLevel 56 26
+rxLevel 57 26
+rxLevel 58 26
+rxLevel 59 28
+rxLevel 60 28
+rxLevel 61 28
+rxLevel 62 28
+rxLevel 63 28
+rxLevel 64 28
+rxLevel 65 28
+#------------------------------------------------------------------------------
+#
+# MoCA2 fc = 600 MHz and 700 MHz
+# Power line interference -91dBm/200KHz
+# Depends upon etc/clink.conf/phyMargin = 10 (2dB).
+#
+# rxLevel l m   // l = Receive level to add the indicated additional bitloading
+#                      margin.
+#               // m = Amount of additional bitloading margin to be added.
+#------------------------------------------------------------------------------
+Profile 1
+rxLevel 41 0
+rxLevel 42 2
+rxLevel 43 3
+rxLevel 44 5
+rxLevel 45 7
+rxLevel 46 8
+rxLevel 47 10
+rxLevel 48 11
+rxLevel 49 13
+rxLevel 50 15
+rxLevel 51 16
+rxLevel 52 18
+rxLevel 53 19
+rxLevel 54 20
+rxLevel 55 20
+rxLevel 56 21
+rxLevel 57 22
+rxLevel 58 23
+rxLevel 59 23
+rxLevel 60 24
+rxLevel 61 25
+rxLevel 62 26
+rxLevel 63 26
+rxLevel 64 27
+rxLevel 65 28

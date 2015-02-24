@@ -1,0 +1,15 @@
+diff -Nur linux-2.6.30-old//rtkload/hfload.c linux-2.6.30/rtkload/hfload.c
+--- linux-2.6.30-old//rtkload/hfload.c	2011-09-07 05:04:38.608269605 -0400
++++ linux-2.6.30/rtkload/hfload.c	2011-09-07 04:57:36.518262841 -0400
+@@ -84,7 +84,10 @@
+ #if defined(CONFIG_RTL_819X)
+  	set_io_port_base(BASE_ADDR);
+ #endif
+-
++//turn on the sysled 
++	REG32(0xb8003500) = REG32(0xb8003500) & (~0x00000040);
++	REG32(0xb8003508) = REG32(0xb8003508) | (0x00000040);
++	REG32(0xb800350C) = REG32(0xb800350C) & (~0x00000040);
+ #ifndef __DO_QUIET__
+ 	printf("decompressing kernel:\n");
+ #endif

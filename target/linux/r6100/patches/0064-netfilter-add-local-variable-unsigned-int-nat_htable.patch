@@ -1,0 +1,33 @@
+From d16c3519d280467ac2bd81c84ab40004ad5e73e8 Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:46 +0800
+Subject: [PATCH 064/137] netfilter: add local variable unsigned int nat_htable_size in __net_init nf_nat_net_init()
+
+Modift the conntrack and nat modules to support SNATP2P
+
+Patch as referring to bellowing link:
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-January/023084.html
+http://lists.netfilter.org/pipermail/netfilter-devel/2006-March/023585.html
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_core.c |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_core.c b/net/ipv4/netfilter/nf_nat_core.c
+index 551c4b7..6b7c1bf 100644
+--- a/net/ipv4/netfilter/nf_nat_core.c
++++ b/net/ipv4/netfilter/nf_nat_core.c
+@@ -825,6 +825,8 @@ nfnetlink_parse_nat_setup(struct nf_conn *ct,
+ 
+ static int __net_init nf_nat_net_init(struct net *net)
+ {
++	unsigned int nat_htable_size;
++
+ 	net->ipv4.nat_bysource = nf_ct_alloc_hashtable(&nf_nat_htable_size,
+ 						      &net->ipv4.nat_vmalloced, 0);
+ 	if (!net->ipv4.nat_bysource)
+-- 
+1.7.4.1
+

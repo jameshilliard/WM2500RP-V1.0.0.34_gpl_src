@@ -1,0 +1,72 @@
+From ff05528c0f663078bc1c1307d25e977e7a5ba2bb Mon Sep 17 00:00:00 2001
+From: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Date: Wed, 11 May 2011 15:20:33 +0800
+Subject: [PATCH 027/137] ipv6_fragment: add a proc entry called ip6frag_single_max
+
+ip6frag_single_max will be put under /proc/sys/net/ipv6/
+with initial value 0.
+When ip6frag_single_max <= 0, kernel process as usual.
+
+When ip6frag_single_max > 0 (eq: 10, 20, or Netgear defined 32),
+kernel process as Netgear SPEC's request.
+
+As Netgear SPEC 2.0 this value should be 32.
+Product should changes /proc/sys/net/ipv6/ip6frag_single_max to 32
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv6/reassembly.c |    8 ++++++++
+ 1 files changed, 8 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv6/reassembly.c b/net/ipv6/reassembly.c
+index 93bf6a8..a85bdbe 100644
+--- a/net/ipv6/reassembly.c
++++ b/net/ipv6/reassembly.c
+@@ -661,6 +661,14 @@ static struct ctl_table ip6_frags_ns_ctl_table[] = {
+ 		.proc_handler	= proc_dointvec_jiffies,
+ 		.strategy	= sysctl_jiffies,
+ 	},
++	{
++		.ctl_name	= CTL_UNNUMBERED,
++		.procname	= "ip6frag_single_max",
++		.data		= &init_net.ipv6.frags.single_max,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec
++	},
+ 	{ }
+ };
+ 
+-- 
+1.7.4.1
+

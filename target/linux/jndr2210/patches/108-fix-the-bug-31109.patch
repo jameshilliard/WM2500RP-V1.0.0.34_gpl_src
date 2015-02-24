@@ -1,0 +1,36 @@
+diff -Nur linux-2.6.30.org//drivers/net/rtl819x/rtl_nic.c linux-2.6.30/drivers/net/rtl819x/rtl_nic.c
+--- linux-2.6.30.org//drivers/net/rtl819x/rtl_nic.c	2012-03-09 06:07:38.931449724 -0500
++++ linux-2.6.30/drivers/net/rtl819x/rtl_nic.c	2012-03-09 06:09:53.101450207 -0500
+@@ -1995,7 +1995,7 @@
+ 					/*igmp packet*/
+ 				#if defined (CONFIG_NETFILTER)
+ 					if(rtl_MulticastRxFilterOff(skb, 4) == true)
+-						return 0;//filter by iptables
++//						return 0;//filter by iptables
+ 				#endif
+ 					rtl_igmpMldProcess(nicIgmpModuleIndex, skb->data, pid, &vlanRelayPortMask);
+ 					vlanRelayPortMask=rtl865x_getVlanPortMask(vid) & vlanRelayPortMask & ((1<<RTL8651_MAC_NUMBER)-1);
+diff -Nur linux-2.6.30.org//net/bridge/br_forward.c linux-2.6.30/net/bridge/br_forward.c
+--- linux-2.6.30.org//net/bridge/br_forward.c	2012-03-09 06:07:38.131449723 -0500
++++ linux-2.6.30/net/bridge/br_forward.c	2012-03-09 06:09:09.621449582 -0500
+@@ -398,7 +398,7 @@
+ 
+ 			//printk("%s:%d,br0SwFwdPortMask is 0x%x,multicastFwdInfo.fwdPortMask is 0x%x\n",__FUNCTION__,__LINE__,br0SwFwdPortMask,multicastFwdInfo.fwdPortMask);
+ 			#if defined (CONFIG_RTL_HARDWARE_MULTICAST)
+-			if((skb->srcVlanId!=0) && (skb->srcPort!=0xFFFF))
++			if((skb->srcVlanId!=0) && (skb->srcPort!=0xFFFF) && (skb->srcVlanId!=RTL_WANVLANID))
+ 			{
+ 				/*multicast data comes from ethernet port*/
+ 				if( (br0SwFwdPortMask & multicastFwdInfo.fwdPortMask)==0)
+diff -Nur linux-2.6.30.org//net/bridge/br_input.c linux-2.6.30/net/bridge/br_input.c
+--- linux-2.6.30.org//net/bridge/br_input.c	2012-03-09 06:07:38.131449723 -0500
++++ linux-2.6.30/net/bridge/br_input.c	2012-03-09 06:09:34.291449954 -0500
+@@ -618,7 +618,7 @@
+ 					if(IgmpRxFilter_Hook(skb, NF_INET_PRE_ROUTING,  skb->dev, NULL,dev_net(skb->dev)->ipv4.iptable_filter) !=NF_ACCEPT)
+ 					{
+ 						DEBUG_PRINT(" filter a pkt:%d %s:% \n", k, skb->dev->name, &(dev_net(skb->dev)->ipv4.iptable_filter->name[0]));
+-						goto drop;
++				//		goto drop;
+ 					}
+ 				}else
+ 					DEBUG_PRINT("IgmpRxFilter_Hook is NULL\n");

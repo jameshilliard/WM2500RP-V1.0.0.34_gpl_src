@@ -1,0 +1,90 @@
+--- linux-2.6.30.old/drivers/char/rtl_gpio.c	2012-02-14 11:18:09.036460505 -0500
++++ linux-2.6.30/drivers/char/rtl_gpio.c	2012-02-14 13:02:42.616462003 -0500
+@@ -417,6 +417,10 @@
+ 		/* for 8196d  PABCD_CNR PABCD_DIR PABCD_DAT*/
+ 		#define POWER_LED_PIN			2
+ 		#define SYS_LED_PIN 			6
++		#define LAN_P4_PIN			13
++		#define LAN_P3_PIN			12
++		#define LAN_P2_PIN			11
++		#define LAN_P1_PIN			10
+ 		#define WAN_AMBER_LED_PIN		14
+ 		/* for 8192dr  P8192D_GPIO_0_7_CRTL  P8192D_GPIO_8_11_CRTL */
+ 		#define WAN_GREEN_LED_PIN		3
+@@ -1115,6 +1119,76 @@
+ }
+ #endif
+ 
++#define LED_ON 1
++#define LED_OFF 0
++
++#define AMBER 0
++#define GREEN 1
++
++#define WAN	0
++#define LAN1	1
++#define LAN2	2
++#define LAN3	3
++#define LAN4	4
++
++void turn_led_on_off(int led,int status,int color)
++{
++	switch(led)
++	{
++		case LAN1: //LAN1
++			if(color != GREEN)
++				break;
++			if(status == 1)
++				RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) & (~(1 << LAN_P1_PIN))));
++			if(status == 0)
++				RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) | (1 << LAN_P1_PIN)));
++			break;
++		case LAN2: //LAN2
++			if(color != GREEN)
++				break;
++			if(status == 1)
++				RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) & (~(1 << LAN_P2_PIN))));
++			if(status == 0)
++				RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) | (1 << LAN_P2_PIN)));
++			break;
++		case LAN3: //LAN3
++			if(color != GREEN)
++				break;
++			if(status == 1)
++				RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) & (~(1 << LAN_P3_PIN))));
++			if(status == 0)
++				RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) | (1 << LAN_P3_PIN)));
++			break;
++		case LAN4: //LAN4
++			if(color != GREEN)
++				break;
++			if(status == 1)
++				RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) & (~(1 << LAN_P4_PIN))));
++			if(status == 0)
++				RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) | (1 << LAN_P4_PIN)));
++			break;
++		case WAN:
++			if(status == 1)
++			{
++				if(color == AMBER)
++					RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) & (~(1 << WAN_AMBER_LED_PIN))));
++				if(color == GREEN)
++					RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) & (~(1 << (WAN_GREEN_LED_PIN +8)))));
++			}
++			if(status == 0)
++			{
++				if(color == AMBER)
++					RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) | (1 << WAN_AMBER_LED_PIN)));
++				if(color == GREEN)
++					RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << (WAN_GREEN_LED_PIN + 8))));
++			}
++			break;
++		default:
++			break;
++	}
++}
++EXPORT_SYMBOL(turn_led_on_off);
++
+ // the function to read the status of the leds
+ static int read_proc_wps(char *page, char **start, off_t off,
+ 				int count, int *eof, void *data)

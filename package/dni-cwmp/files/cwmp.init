@@ -1,0 +1,22 @@
+#!/bin/sh /etc/rc.common
+START=99
+
+start() {
+	if [ "x1" = "x$(/bin/config get cwmp_tr069_enable)" ]; then
+		/usr/bin/sync-tncrl.sh >/dev/null 2>&1 &
+		/usr/bin/telenet-certs.sh getcerts && /usr/bin/cwmprun.sh restart &
+	fi
+}
+
+stop() {
+	if [ "x1" != "x$(/bin/config get cwmp_tr069_enable)" ]; then
+		killall sync-tncrl.sh
+	fi
+	/usr/bin/cwmprun.sh stop &
+}
+
+restart() {
+	stop
+	sleep 2
+	start
+}

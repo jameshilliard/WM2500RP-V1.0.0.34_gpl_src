@@ -1,0 +1,22 @@
+#!/bin/sh
+
+P2P_CONF_FILE=/tmp/aow_p2pdev.conf
+
+# Check if the conf file exists
+if [ ! -e "${P2P_CONF_FILE}" ]; then
+    echo "P2P config file not present"
+    echo "Run cp_p2pconf first"
+    exit
+fi    
+
+killVap all
+sleep 5
+/etc/ath/p2p/p2pload &
+sleep 10
+wpa_supplicant -Dathr -iwlan1 -c /tmp/aow_p2pdev.conf &
+sleep 5
+wpa_cli -i wlan1 p2p_find 30
+sleep 30
+wpa_cli -i wlan1 p2p_peers
+echo "Connect to the above P2P GO network"
+

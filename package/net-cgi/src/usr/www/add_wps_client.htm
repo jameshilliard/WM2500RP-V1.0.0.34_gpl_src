@@ -1,0 +1,46 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% body_header("_wps", "", "") %>
+
+<input type="hidden" name="select_edit">
+<input type="hidden" name="select_del">
+<div class="page_title">$add_wps_client_header</div>
+<div id="main" class="main">
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<TR><TD colSpan=3></TD></TR><TR><td colspan=3><img src=/liteblue.gif width=100% height=12></td></TR>
+<script>
+var wps_choice=0;
+var wps_pin_num="";
+var security_mode="<% cfg_get("wl_sectype") %>";
+parent.wps_endis_configured="<% cfg_get("wla_wps_status") %>";
+function loadvalue()
+{
+
+}
+function go2url()
+{
+	/*if ( security_mode != 5 )
+	{
+		alert('Warning: WPS only works for WPA-PSK [TKIP] + WPA2-PSK [AES] security mode! ');
+		location.href="/cgi-bin/wlan.htm";
+	}
+	else*/
+		location.href="wps.htm";
+}
+</script>
+<tr><td colspan=2><b>$add_wps_client_p</b></td></tr>
+<tr><td><br>$add_wps_client_text1</td></tr>
+<tr><td>$add_wps_client_text2</td></tr>
+<tr><td>$add_wps_client_text3</td></tr>
+$bluebar
+<tr>
+	
+<TR>
+<td nowrap colspan=2 align=center>
+<input class="short_common_bt" type="button" value="$wps_next_mark" onClick="go2url();">&nbsp;&nbsp;</TD>
+</TR>
+</TABLE>
+</div>
+<% help_box("1","_wps") %>
+</FORM>
+</body>
+</html>

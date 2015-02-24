@@ -1,0 +1,11 @@
+--- linux-2.6.31/arch/mips/include/asm/setup.h	2011-07-05 11:45:46.000000000 +0800
++++ linux-2.6.31/arch/mips/include/asm/setup.h	2011-12-16 15:30:33.107004273 +0800
+@@ -1,7 +1,7 @@
+ #ifndef _MIPS_SETUP_H
+ #define _MIPS_SETUP_H
+ 
+-#define COMMAND_LINE_SIZE	256
++#define COMMAND_LINE_SIZE	512
+ 
+ #ifdef  __KERNEL__
+ extern void setup_early_printk(void);

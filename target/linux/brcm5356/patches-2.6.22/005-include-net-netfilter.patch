@@ -1,0 +1,94 @@
+diff --git a/include/net/netfilter/nf_conntrack.h b/include/net/netfilter/nf_conntrack.h
+index 4732432..9856941 100644
+--- a/include/net/netfilter/nf_conntrack.h
++++ b/include/net/netfilter/nf_conntrack.h
+@@ -46,6 +46,7 @@ union nf_conntrack_expect_proto {
+ #include <linux/netfilter/nf_conntrack_pptp.h>
+ #include <linux/netfilter/nf_conntrack_h323.h>
+ #include <linux/netfilter/nf_conntrack_sane.h>
++#include <linux/netfilter/nf_conntrack_autofw.h>
+ 
+ /* per conntrack: application helper private data */
+ union nf_conntrack_help {
+@@ -54,6 +55,7 @@ union nf_conntrack_help {
+ 	struct nf_ct_h323_master ct_h323_info;
+ 	struct nf_ct_sane_master ct_sane_info;
+	struct nf_ct_sip_master ct_sip_info;
++	struct nf_ct_autofw_master ct_autofw_info;
+ };
+ 
+ #include <linux/types.h>
+@@ -86,6 +88,12 @@ struct nf_conn_help {
+ 	unsigned int expecting;
+ };
+ 
++#ifdef	HNDCTF
++#define CTF_FLAGS_CACHED	(1 << 31)	/* Indicates cached connection */
++#define CTF_FLAGS_EXCLUDED	(1 << 30)
++#define CTF_FLAGS_REPLY_CACHED	(1 << 1)
++#define CTF_FLAGS_ORG_CACHED	(1 << 0)
++#endif
+ 
+ #include <net/netfilter/ipv4/nf_conntrack_ipv4.h>
+ #include <net/netfilter/ipv6/nf_conntrack_ipv6.h>
+@@ -96,7 +104,6 @@ struct nf_conn
+            plus 1 for any connection(s) we are `master' for */
+ 	struct nf_conntrack ct_general;
+ 
+-	/* XXX should I move this to the tail ? - Y.K */
+ 	/* These are my tuples; original and reply */
+ 	struct nf_conntrack_tuple_hash tuplehash[IP_CT_DIR_MAX];
+ 
+@@ -128,6 +135,14 @@ struct nf_conn
+ 	u_int32_t secmark;
+ #endif
+ 
++#ifdef HNDCTF
++	/* Timeout for the connection */
++	u_int32_t expire_jiffies;
++
++	/* Flags for connection attributes */
++	u_int32_t ctf_flags;
++#endif /* HNDCTF */
++
+ 	/* Storage reserved for other modules: */
+ 	union nf_conntrack_proto proto;
+ 
+diff --git a/include/net/netfilter/nf_conntrack_ecache.h b/include/net/netfilter/nf_conntrack_ecache.h
+index 811c907..2761ec7 100644
+--- a/include/net/netfilter/nf_conntrack_ecache.h
++++ b/include/net/netfilter/nf_conntrack_ecache.h
+@@ -74,4 +74,3 @@ static inline void nf_ct_event_cache_flush(void) {}
+ #endif /* CONFIG_NF_CONNTRACK_EVENTS */
+ 
+ #endif /*_NF_CONNTRACK_ECACHE_H*/
+-
+diff --git a/include/net/netfilter/nf_conntrack_expect.h b/include/net/netfilter/nf_conntrack_expect.h
+index 173c7c1..894ff48 100644
+--- a/include/net/netfilter/nf_conntrack_expect.h
++++ b/include/net/netfilter/nf_conntrack_expect.h
+@@ -77,4 +77,3 @@ void nf_conntrack_expect_put(struct nf_conntrack_expect *exp);
+ int nf_conntrack_expect_related(struct nf_conntrack_expect *expect);
+ 
+ #endif /*_NF_CONNTRACK_EXPECT_H*/
+-
+diff --git a/include/net/netfilter/nf_nat.h b/include/net/netfilter/nf_nat.h
+index a7beae6..c336120 100644
+--- a/include/net/netfilter/nf_nat.h
++++ b/include/net/netfilter/nf_nat.h
+@@ -56,9 +56,15 @@ struct nf_nat_multi_range_compat
+ struct nf_nat_info
+ {
+ 	struct list_head bysource;
++
+ #if defined(CONFIG_IP_NF_TARGET_SNATP2P)
+ 	struct list_head by_modified_source;
+ #endif
++
++	/* cone NAT or Symmetric NAT */
++	struct list_head bycone;
++	u_int32_t nat_type;
++
+ 	struct nf_nat_seq seq[IP_CT_DIR_MAX];
+ };
+ 

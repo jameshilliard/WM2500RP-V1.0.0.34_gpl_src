@@ -1,0 +1,130 @@
+diff -Nur linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/8192cd_cfg.h linux-2.6.30/drivers/net/wireless/rtl8192cd/8192cd_cfg.h
+--- linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/8192cd_cfg.h	2012-02-24 05:55:17.686662401 -0500
++++ linux-2.6.30/drivers/net/wireless/rtl8192cd/8192cd_cfg.h	2012-02-24 05:59:40.306662462 -0500
+@@ -1039,7 +1039,7 @@
+ #endif
+ 
+ #ifdef EVENT_LOG
+-	#undef EVENT_LOG
++	//#undef EVENT_LOG
+ #endif
+ 
+ #ifdef BR_SHORTCUT
+@@ -1356,7 +1356,7 @@
+ 				priv->pmib->dot11RFEntry.dot11channel, \
+ 				tmpbuf, priv->pmib->dot11StationConfigEntry.dot11DesiredSSID); \
+ 	}
+-#elif defined(CONFIG_RTL8196B_TLD)
++#elif defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_DNI_WLAN_LOG)
+ 	#define LOG_MSG_DEL(fmt, args...)	_LOG_MSG(fmt, ## args)
+ 	#define LOG_MSG(fmt, args...)	{}
+ #else
+diff -Nur linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/8192cd_psk.c linux-2.6.30/drivers/net/wireless/rtl8192cd/8192cd_psk.c
+--- linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/8192cd_psk.c	2012-02-24 05:55:17.686662401 -0500
++++ linux-2.6.30/drivers/net/wireless/rtl8192cd/8192cd_psk.c	2012-02-24 05:59:40.316662462 -0500
+@@ -2672,7 +2672,7 @@
+ 							pstat->hwaddr[3],
+ 							pstat->hwaddr[4],
+ 							pstat->hwaddr[5]);
+-#elif defined(CONFIG_RTL8196B_TLD)
++#elif defined(CONFIG_RTL8196B_TLD) || defined (CONFIG_DNI_WLAN_DNI)
+ 					LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 							pstat->hwaddr[0],
+ 							pstat->hwaddr[1],
+@@ -2758,7 +2758,7 @@
+ 							pstat->hwaddr[3],
+ 							pstat->hwaddr[4],
+ 							pstat->hwaddr[5]);
+-#elif defined(CONFIG_RTL8196B_TLD)
++#elif defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_DNI_WLAN_LOG)
+ 					LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 							pstat->hwaddr[0],
+ 							pstat->hwaddr[1],
+@@ -2784,7 +2784,7 @@
+ 						pstat->hwaddr[3],
+ 						pstat->hwaddr[4],
+ 						pstat->hwaddr[5]);
+-#elif defined(CONFIG_RTL8196B_TLD)
++#elif defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_DNI_WLAN_LOG)
+ 				if (!list_empty(&priv->wlan_acl_list)) {
+ 					LOG_MSG_DEL("[WLAN access allowed] from MAC: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 							pstat->hwaddr[0],
+@@ -2952,7 +2952,7 @@
+ 							pstat->hwaddr[3],
+ 							pstat->hwaddr[4],
+ 							pstat->hwaddr[5]);
+-#elif defined(CONFIG_RTL8196B_TLD)
++#elif defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_DNI_WLAN_LOG)
+ 					LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 							pstat->hwaddr[0],
+ 							pstat->hwaddr[1],
+diff -Nur linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/8192cd_sme.c linux-2.6.30/drivers/net/wireless/rtl8192cd/8192cd_sme.c
+--- linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/8192cd_sme.c	2012-02-24 05:55:17.686662401 -0500
++++ linux-2.6.30/drivers/net/wireless/rtl8192cd/8192cd_sme.c	2012-02-24 05:59:40.306662462 -0500
+@@ -2258,7 +2258,7 @@
+ 				LOG_MSG_DROP("Unauthorized wireless PC try to connect;note:%02X:%02X:%02X:%02X:%02X:%02X;\n",
+ 					priv->acLog[i].addr[0], priv->acLog[i].addr[1], priv->acLog[i].addr[2],
+ 					priv->acLog[i].addr[3], priv->acLog[i].addr[4], priv->acLog[i].addr[5]);
+-#elif defined(CONFIG_RTL8196B_TLD)
++#elif defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_DNI_WLAN_LOG)
+ 				LOG_MSG_DEL("[WLAN access denied] from MAC: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 					priv->acLog[i].addr[0], priv->acLog[i].addr[1], priv->acLog[i].addr[2],
+ 					priv->acLog[i].addr[3], priv->acLog[i].addr[4], priv->acLog[i].addr[5]);
+@@ -10013,7 +10013,7 @@
+ 			LOG_MSG_NOTICE("Wireless PC connected;note:%02x-%02x-%02x-%02x-%02x-%02x;\n",
+ 				*GetAddr2Ptr(pframe), *(GetAddr2Ptr(pframe)+1), *(GetAddr2Ptr(pframe)+2),
+ 				*(GetAddr2Ptr(pframe+3)), *(GetAddr2Ptr(pframe)+4), *(GetAddr2Ptr(pframe)+5));
+-#elif defined(CONFIG_RTL8196B_TLD)
++#elif defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_DNI_WLAN_LOG)
+ 	if (!IEEE8021X_FUN &&
+ 			!(priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _TKIP_PRIVACY_ ||
+ 			 priv->pmib->dot1180211AuthEntry.dot11PrivacyAlgrthm == _CCMP_PRIVACY_)) {
+@@ -10973,7 +10973,7 @@
+ 		if (status == FALSE)
+ 		{
+ 			SAVE_INT_AND_CLI(flags);
+-#ifdef CONFIG_RTL8196B_TLD
++#if defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_DNI_WLAN_LOG)
+ 			LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 				sa[0], sa[1], sa[2], sa[3], sa[4], sa[5]);
+ #endif
+@@ -11009,7 +11009,7 @@
+ 		SAVE_INT_AND_CLI(flags);
+ 		DEBUG_ERR("auth rejected due to bad alg [alg=%d, auth_mib=%d] %02X%02X%02X%02X%02X%02X\n",
+ 			algorithm, privacy, sa[0], sa[1], sa[2], sa[3], sa[4], sa[5]);
+-#ifdef CONFIG_RTL8196B_TLD
++#if defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_DNI_WLAN_LOG)
+ 		LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 			sa[0], sa[1], sa[2], sa[3], sa[4], sa[5]);
+ #endif
+@@ -11072,7 +11072,7 @@
+ #elif defined(CONFIG_RTL865X_AC) || defined(CONFIG_RTL865X_KLD) || defined(CONFIG_RTL8196B_KLD) || defined(CONFIG_RTL8196C_KLD)
+ 				LOG_MSG_DROP("Unauthorized wireless PC try to connect;note:%02x:%02x:%02x:%02x:%02x:%02x;\n",
+ 					*sa, *(sa+1), *(sa+2), *(sa+3), *(sa+4), *(sa+5));
+-#elif defined(CONFIG_RTL8196B_TLD)
++#elif defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_DNI_WLAN_LOG)
+ 				LOG_MSG_DEL("[WLAN access denied] from MAC: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 					*sa, *(sa+1), *(sa+2), *(sa+3), *(sa+4), *(sa+5));
+ #else
+@@ -11303,7 +11303,7 @@
+ 			{
+ 				DEBUG_ERR("auth rejected because challenge failure!\n");
+ 				status = _STATS_CHALLENGE_FAIL_;
+-#ifdef CONFIG_RTL8196B_TLD
++#if defined(CONFIG_RTL8196B_TLD) || defined(CONFIG_DNI_WLAN_LOG)
+ 				LOG_MSG_DEL("[WLAN access rejected: incorrect security] from MAC address: %02x:%02x:%02x:%02x:%02x:%02x,\n",
+ 					sa[0], sa[1], sa[2], sa[3], sa[4], sa[5]);
+ #endif
+diff -Nur linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/Kconfig linux-2.6.30/drivers/net/wireless/rtl8192cd/Kconfig
+--- linux-2.6.30.orig/drivers/net/wireless/rtl8192cd/Kconfig	2012-02-24 05:55:17.686662401 -0500
++++ linux-2.6.30/drivers/net/wireless/rtl8192cd/Kconfig	2012-02-24 05:59:40.306662462 -0500
+@@ -129,6 +129,9 @@
+ config RTL_WPS2_SUPPORT
+ 	bool "Realtek wps2.0 support " 
+ 	default y
++config DNI_WLAN_LOG
++	bool "Enable DNI wireless access log"
++	default y
+ config PHY_EAT_40MHZ
+ 	bool "Clock Source, Select is 40MHz, otherwise 25MHz" 
+ 	default y

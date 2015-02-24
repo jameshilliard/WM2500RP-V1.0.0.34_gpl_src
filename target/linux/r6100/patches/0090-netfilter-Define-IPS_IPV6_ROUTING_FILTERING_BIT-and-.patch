@@ -1,0 +1,64 @@
+From 3d80bc126cf039044b3fd5969a550f14f172f7f5 Mon Sep 17 00:00:00 2001
+From: anderson <anderson@dniserver.dnish.net>
+Date: Thu, 4 Feb 2010 15:50:24 +0800
+Subject: [PATCH 090/137] netfilter: Define IPS_IPV6_ROUTING_FILTERING_BIT and IPS_IPV6_ROUTING_FILTERING for IPv6
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: anderson <anderson@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/linux/netfilter/nf_conntrack_common.h |   10 ++++++++++
+ 1 files changed, 10 insertions(+), 0 deletions(-)
+
+diff --git a/include/linux/netfilter/nf_conntrack_common.h b/include/linux/netfilter/nf_conntrack_common.h
+index ac30ae8..017d691 100644
+--- a/include/linux/netfilter/nf_conntrack_common.h
++++ b/include/linux/netfilter/nf_conntrack_common.h
+@@ -110,6 +110,16 @@ enum ip_conntrack_status {
+ 
+ 	/* Both together. */
+ 	IPS_SNATP2P_DONE_MASK = (IPS_SNATP2P_DST_DONE | IPS_SNATP2P_SRC_DONE),
++
++	/*
++	 * In Netgear's unofficial "Home Wireless Router IPv6 Spec"
++	 * (it will be merged into Home Wireless Router Spec V1.10
++	 * according to Netgear), IPv6 SPI Firewall does not have NAT on IPv6,
++	 * and there are two routing filtering modes:
++	 * Secured Mode (default) and Open Mode.
++	 */
++	IPS_IPV6_ROUTING_FILTERING_BIT = 20,
++	IPS_IPV6_ROUTING_FILTERING = (1 << IPS_IPV6_ROUTING_FILTERING_BIT),
+ };
+ 
+ /* Connection tracking event bits */
+-- 
+1.7.4.1
+

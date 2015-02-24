@@ -1,0 +1,3 @@
+#!/bin/sh
+# remark 802.1p
+ebtables -t nat -A MYSHAPER-OUT -p 0x0800 --ip-proto 6 --ip-dport 5004 -j vlans --vlan-set-priority 4  

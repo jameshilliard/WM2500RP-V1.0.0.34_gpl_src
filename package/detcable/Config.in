@@ -1,0 +1,4 @@
+# kmod-e2fs configuration
+config DETCABLE_PLATFORM_PATCH
+	bool "Apply platform specific patches"
+	default n

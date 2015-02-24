@@ -1,0 +1,31 @@
+#!/bin/bash
+
+##############################################################################
+# Copyright (c) 2001-2012 Entropic Communications, Inc. All rights reserved. #
+##############################################################################
+##############################################################################
+# This file is licensed under the terms of your license agreement(s) with    #
+# Entropic covering this file. Redistribution, except as permitted by the    #
+# terms of your license agreement(s) with Entropic, is strictly prohibited.  #
+##############################################################################
+##############################################################################
+# \note This file is subject to the \ref EntropicLicenseAgreement "Entropic" #
+# licenses.                                                                  #
+##############################################################################
+
+echo =====================
+echo Setting up the bridge
+echo =====================
+
+sudo ifconfig en0 up
+
+sudo brctl addbr br0
+sudo brctl addif br0 eth1
+sudo brctl addif br0 en0
+
+sudo ifconfig br0 10.1.1.27 netmask 255.255.255.0
+
+sudo ifconfig br0
+
+echo All done.
+

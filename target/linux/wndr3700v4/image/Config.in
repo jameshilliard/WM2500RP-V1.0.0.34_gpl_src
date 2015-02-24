@@ -1,0 +1,39 @@
+config TARGET_MODELNAME
+    string "Define the model name for wndr3700v4"
+    depends TARGET_wndr3700v4
+    default "WNDR3700v4"
+
+config TARGET_BOARD_HW_ID
+    string "Define the board hw id for wndr3700v4"
+    depends TARGET_wndr3700v4
+    default "29763948+128+128"
+
+config TARGET_FW_VERSION
+    string "Define the firmware version"
+    depends TARGET_wndr3700v4
+    default "V1.0.1.32"
+
+config TARGET_LG_VERSION
+    string "Define the language table version"
+    depends TARGET_wndr3700v4
+    default "V1.0.0.119"
+
+config TARGET_HEAD_LENGTH
+    string "Define the length of wndr3700v4's firmware header."
+    depends TARGET_wndr3700v4
+    default "128"
+
+config TARGET_KERNEL_SIZE
+    string "Define the kernel size of wndr3700v4's firmware"
+    depends TARGET_wndr3700v4
+    default "1152k"
+
+config TARGET_MAX_KERNEL_SIZE
+    string "Define the max kernel size of wndr3700v4's firmware"
+    depends TARGET_wndr3700v4
+    default "1179648"
+
+config TARGET_MAX_IMAGE_SIZE
+    string "Define the max image size of wndr3700v4's firmware"
+    depends TARGET_wndr3700v4
+    default "25034752"

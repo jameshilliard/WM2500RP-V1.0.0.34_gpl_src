@@ -1,0 +1,14 @@
+<% http_header("style/wizard.css", "/funcs.js", "top.js" ) %> 
+
+<% cfg_set("mobile_tag", "1") %>
+<% cfg_set("refresh_url", "") %>
+<% cfg_set("continue_ca_settings", "") %>
+<FRAMESET rows=130,*>
+<FRAME name=topframe marginWidth=0 marginHeight=0 src="mobile_ca_top.htm" frameBorder=0 noResize scrolling=no>
+<FRAME name=formframe marginWidth=0 marginHeight=0 src="ca_continue.htm" frameBorder=0>
+</FRAMESET>
+<NOFRAMES>
+<BODY>
+<p>$alert_browser
+</BODY></NOFRAMES>
+</html>

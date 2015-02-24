@@ -1,0 +1,26 @@
+From 5509f24afbdf57115cad0a0e511fab2f9aa4f95e Mon Sep 17 00:00:00 2001
+From: stone.liu <stone.liu@dniserver.dnish.net>
+Date: Tue, 1 Nov 2011 11:07:29 -0400
+Subject: [PATCH 135/137] add ip_rt_send_first_redirect_anyway define in net/ipv4/route.c
+
+Signed-off-by: stone.liu <stone.liu@dniserver.dnish.net>
+---
+ net/ipv4/route.c |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/route.c b/net/ipv4/route.c
+index f8ebe1c..38e7018 100644
+--- a/net/ipv4/route.c
++++ b/net/ipv4/route.c
+@@ -136,6 +136,8 @@ static int ip_rt_secret_interval __read_mostly	= 10 * 60 * HZ;
+ //static int rt_chain_length_max __read_mostly	= 20;
+ static int rt_chain_length_max __read_mostly	= 128;
+ 
++static int ip_rt_send_first_redirect_anyway     = 0;
++
+ static void rt_worker_func(struct work_struct *work);
+ static DECLARE_DELAYED_WORK(expires_work, rt_worker_func);
+ 
+-- 
+1.7.4.1
+

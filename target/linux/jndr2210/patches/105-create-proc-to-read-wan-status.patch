@@ -1,0 +1,71 @@
+--- linux-2.6.30/drivers/net/rtl819x/rtl_nic.c.old	2012-02-16 04:18:54.046495797 -0500
++++ linux-2.6.30/drivers/net/rtl819x/rtl_nic.c	2012-02-16 04:20:35.066495821 -0500
+@@ -3380,7 +3380,7 @@
+ 				       }
+ 			       }
+ 			       else{ //led should turn on
+-				       if(i == 4){//WAN LED
++				       if(i == 4 && first_time){//WAN LED
+ 					       turn_led_on_off(WAN,LED_ON,AMBER);
+ 					       turn_led_on_off(WAN,LED_OFF,GREEN);
+ 				       }
+@@ -5738,6 +5738,37 @@
+ };
+ #endif
+ 
++static int read_proc_wan_status(char *page, char **start, off_t off,
++				int count, int *eof, void *data)
++{
++       int len;
++       char flag;
++       unsigned char wan_status=0;
++       if(READ_MEM32(PSRP0 + (4) * 4) & PortStatusLinkUp)
++               wan_status |= (PHY_LINK_UP <<4);
++       if (wan_status == 0 )
++               flag = '0';
++       else
++               flag = '1';
++
++       len = sprintf(page, "%c\n", flag);
++
++       if (len <= off+count) *eof = 1;
++       *start = page + off;
++       len -= off;
++       if (len > count) len = count;
++       if (len < 0) len = 0;
++       return len;
++}
++
++static int write_proc_wan_status(struct file *file, const char *buffer,
++                               unsigned long count, void *data)
++{
++	if (count < 2)
++                return -EFAULT;
++        return count;
++}
++
+ int  __init re865x_probe (void)
+ {
+ /*2007-12-19*/
+@@ -5785,6 +5816,7 @@
+ #endif
+ 
+ 	int port;
++	struct proc_dir_entry *p;
+ 	//WRITE_MEM32(PIN_MUX_SEL_2, 0x7<<21);
+ 
+ 	rtlglue_printf("\n\n\nProbing RTL8186 10/100 NIC-kenel stack size order[%d]...\n", THREAD_SIZE_ORDER);
+@@ -6306,6 +6338,13 @@
+ 		else
+ 			RTL_W32(PABCD_DAT, RTL_R32(PABCD_DAT) | ((0x1 <<port)<<10));
+ 	}
++	if( (p = create_proc_entry("wan_status",0,NULL)) != NULL)
++	{
++		p->read_proc = read_proc_wan_status;
++		p->write_proc = write_proc_wan_status;
++	}
++	else
++		printk("Realtek Eth Driver, create wan status proc failed!\n");
+ 
+ #if defined(PATCH_GPIO_FOR_LED)
+ 	for (port=0; port<RTL8651_PHY_NUMBER; port++)

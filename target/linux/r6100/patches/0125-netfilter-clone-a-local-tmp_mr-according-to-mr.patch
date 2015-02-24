@@ -1,0 +1,69 @@
+From bf5759cbc9fea6042822e43b7a6e2da8a0759743 Mon Sep 17 00:00:00 2001
+From: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Date: Mon, 28 Mar 2011 16:19:44 +0800
+Subject: [PATCH 125/137] netfilter: clone a local tmp_mr according to mr
+
+Linux kernel 2.6.31 support new port forwarding function following spec 2.0
+
+Modified for adding the new feature of port forwarding in spec 2.0.
+Support transforming port range to another port range.
+
+Solution: When nat port transforming,make port correspond one by one.
+Adding min match port into target struct, then the increase number
+can be calculated when nat port transforming.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/netfilter/nf_nat_rule.c |    4 +++-
+ 1 files changed, 3 insertions(+), 1 deletions(-)
+
+diff --git a/net/ipv4/netfilter/nf_nat_rule.c b/net/ipv4/netfilter/nf_nat_rule.c
+index e769a15..3c6ea1a 100644
+--- a/net/ipv4/netfilter/nf_nat_rule.c
++++ b/net/ipv4/netfilter/nf_nat_rule.c
+@@ -91,9 +91,11 @@ ipt_dnat_target(struct sk_buff *skb, const struct xt_target_param *par)
+ 	struct nf_conn *ct;
+ 	enum ip_conntrack_info ctinfo;
+ 	const struct nf_nat_multi_range_compat *mr = par->targinfo;
++	struct nf_nat_multi_range_compat tmp_mr;
+ 	struct nf_nat_multi_range_compat *tmp_mr_ptr;
+ 
+-	tmp_mr_ptr = mr;
++	tmp_mr_ptr = &tmp_mr;
++	memcpy(tmp_mr_ptr, mr, sizeof(struct nf_nat_multi_range_compat));
+ 
+ 	NF_CT_ASSERT(par->hooknum == NF_INET_PRE_ROUTING ||
+ 		     par->hooknum == NF_INET_LOCAL_OUT);
+-- 
+1.7.4.1
+

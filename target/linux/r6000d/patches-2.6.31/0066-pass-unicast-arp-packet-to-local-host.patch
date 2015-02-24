@@ -1,0 +1,14 @@
+--- linux-2.6.31.org/net/bridge/br_input.c	2013-05-21 13:09:08.000000000 +0800
++++ linux-2.6.31/net/bridge/br_input.c	2013-05-21 13:10:42.000000000 +0800
+@@ -177,6 +177,11 @@
+ 	if (br->dev->flags & IFF_PROMISC)
+ 		skb2 = skb;
+ 
++	/* Pass unicast arp packet to the local host */
++	if (skb->protocol == 0x0806 && !is_broadcast_ether_addr(dest)){
++		skb2 = skb;
++	}
++
+ 	dst = NULL;
+ 
+ 	if (is_multicast_ether_addr(dest) 

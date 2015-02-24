@@ -1,0 +1,89 @@
+--- linux-2.6.30/drivers/net/rtl819x/rtl_nic.old	2011-12-06 09:06:54.283460199 -0500
++++ linux-2.6.30/drivers/net/rtl819x/rtl_nic.c	2011-12-06 09:10:09.553455705 -0500
+@@ -304,6 +304,75 @@
+ static int32 rtl865x_initPhyPowerCtrl(void);
+ #endif
+ 
++/*support phy reset by using command "echo 1 > /proc/switch_phy"*/
++#define RTL8366S_PHY_RESET 1
++
++#ifdef RTL8366S_PHY_RESET
++#define SWITCH_PHY  "switch_phy"
++#define ADM_LAN_PHY_MAX 4
++struct switch_timer {
++        struct timer_list timer;
++        int loops;
++};
++
++static void do_switch_phy_timer(unsigned long arg)
++{
++  int phyUnit;
++  struct switch_timer *switch_timer = (struct switch_timer *)arg;
++
++  for(phyUnit = 0; phyUnit <  ADM_LAN_PHY_MAX; phyUnit++){
++    rtl8651_setAsicEthernetPHYPowerDown(phyUnit,0);
++  }
++
++  kfree(switch_timer);
++}
++
++int switch_phy_read( char *page, char **start, off_t offset, int count, int *eof, void *data)
++{
++  return 0;
++}
++
++int switch_phy_write( struct file *file, const char *buffer, unsigned long count, void *unused_data)
++{
++  struct switch_timer *switch_timer;
++  int phyUnit;
++
++  switch_timer = kmalloc(sizeof(struct switch_timer), GFP_KERNEL);
++  if(!switch_timer)
++    return -ENOMEM;
++
++  init_timer(&switch_timer->timer);
++
++  // there port 0, 1, 2, 3 are lan ports, 4 is wan port.
++  for(phyUnit = 0; phyUnit <  ADM_LAN_PHY_MAX; phyUnit++){
++    rtl8651_setAsicEthernetPHYPowerDown(phyUnit,1);
++  }
++
++  // buf is the time(second) link down, should be 0-9,
++  switch_timer->timer.data = (unsigned long)switch_timer;
++  switch_timer->timer.function = do_switch_phy_timer;
++  switch_timer->timer.expires = jiffies + ((int)(buffer[0] - '0')*HZ);
++  add_timer(&switch_timer->timer);
++
++  if(signal_pending(current))
++    return -ERESTARTSYS;
++
++  return count;
++}
++static void switch_phy_init(void)
++{
++  struct proc_dir_entry *switch_phy;
++
++  switch_phy = create_proc_entry(SWITCH_PHY, 0666, NULL);
++
++  if(switch_phy) {
++    switch_phy->read_proc = switch_phy_read;
++    switch_phy->write_proc = switch_phy_write;
++    switch_phy->nlink = 1;
++  }
++}
++#endif
++
+ #if defined(RX_TASKLET)
+ __DRAM_GEN int rtl_rx_tasklet_running;
+ #endif
+@@ -6145,6 +6214,10 @@
+ 	}
+ #endif	//#if defined(CONFIG_819X_PHY_RW)
+ 
++#ifdef RTL8366S_PHY_RESET
++    switch_phy_init();
++#endif
++
+ #if defined (CONFIG_RTL_LOCAL_PUBLIC)
+ 	rtl865x_initLocalPublic(NULL);
+ 

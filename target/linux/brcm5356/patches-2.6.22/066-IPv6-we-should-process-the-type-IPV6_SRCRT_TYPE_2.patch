@@ -1,0 +1,70 @@
+diff -Nur linux-2.6.22.old//include/linux/sysctl.h linux-2.6.22/include/linux/sysctl.h
+--- linux-2.6.22.old//include/linux/sysctl.h	2012-06-11 12:30:23.318897695 -0400
++++ linux-2.6.22/include/linux/sysctl.h	2012-06-11 12:31:02.078897703 -0400
+@@ -546,6 +546,7 @@
+ 	NET_IPV6_MLD_MAX_MSF=25,
+ 	NET_IPV6_6TO4_FORCE_IP4FRAGOFF_ZERO=26,
+ 	NET_IPV6_PING6_INTERFACE=27,
++	NET_IPV6_SRCRT_TYPE_2=28,
+ };
+ 
+ enum {
+diff -Nur linux-2.6.22.old//include/net/ipv6.h linux-2.6.22/include/net/ipv6.h
+--- linux-2.6.22.old//include/net/ipv6.h	2012-06-11 12:30:23.348897695 -0400
++++ linux-2.6.22/include/net/ipv6.h	2012-06-11 12:31:44.408897713 -0400
+@@ -571,6 +571,7 @@
+ extern int sysctl_ip6frag_secret_interval;
+ extern int sysctl_ipv6_6to4_force_ip4fragoff_zero;
+ extern int sysctl_ipv6_ping6_interface;
++extern int sysctl_ipv6_srcrt_type_2;
+ 
+ extern const struct proto_ops inet6_stream_ops;
+ extern const struct proto_ops inet6_dgram_ops;
+diff -Nur linux-2.6.22.old//net/ipv6/exthdrs.c linux-2.6.22/net/ipv6/exthdrs.c
+--- linux-2.6.22.old//net/ipv6/exthdrs.c	2012-06-11 12:30:23.278897695 -0400
++++ linux-2.6.22/net/ipv6/exthdrs.c	2012-06-11 12:40:27.578897839 -0400
+@@ -48,6 +48,8 @@
+ 
+ #include <asm/uaccess.h>
+ 
++int sysctl_ipv6_srcrt_type_2 = 0;
++
+ int ipv6_find_tlv(struct sk_buff *skb, int offset, int type)
+ {
+ 	const unsigned char *nh = skb_network_header(skb);
+@@ -463,7 +465,7 @@
+ 			return -1;
+ 		}
+ 		break;
+-#ifdef CONFIG_IPV6_MIP6
++//#ifdef CONFIG_IPV6_MIP6
+ 	case IPV6_SRCRT_TYPE_2:
+ 		/* Silently discard invalid RTH type 2 */
+ 		if (hdr->hdrlen != 2 || hdr->segments_left != 1) {
+@@ -473,7 +475,7 @@
+ 			return -1;
+ 		}
+ 		break;
+-#endif
++//#endif
+ 	}
+ 
+ 	/*
+diff -Nur linux-2.6.22.old//net/ipv6/sysctl_net_ipv6.c linux-2.6.22/net/ipv6/sysctl_net_ipv6.c
+--- linux-2.6.22.old//net/ipv6/sysctl_net_ipv6.c	2012-06-11 12:30:23.278897695 -0400
++++ linux-2.6.22/net/ipv6/sysctl_net_ipv6.c	2012-06-11 12:32:12.968897721 -0400
+@@ -96,6 +96,14 @@
+ 		.mode           = 0644,
+ 		.proc_handler   = &proc_dointvec
+ 	},
++	{
++		.ctl_name       = NET_IPV6_SRCRT_TYPE_2,
++		.procname       = "ipv6_srcrt_type_2",
++		.data           = &sysctl_ipv6_srcrt_type_2,
++		.maxlen         = sizeof(int),
++		.mode           = 0644,
++		.proc_handler   = &proc_dointvec
++	},
+ 	{ .ctl_name = 0 }
+ };
+ 

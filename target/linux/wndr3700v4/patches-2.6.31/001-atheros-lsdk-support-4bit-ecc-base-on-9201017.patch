@@ -1,0 +1,1032 @@
+--- mips-linux-2.6.31.orig/drivers/mtd/nand/ath_nand.c	2011-12-01 03:10:28.000000000 +0800
++++ mips-linux-2.6.31/drivers/mtd/nand/ath_nand.c	2011-12-22 15:17:28.521140209 +0800
+@@ -69,8 +69,8 @@
+ #define ATH_NF_GENERIC_SEQ_CTRL	(ATH_NAND_FLASH_BASE + 0x2b4u)
+ 
+ #define ATH_NF_TIMING_ASYN	0x11
+-#define ATH_NF_STATUS_OK	0xc0
+-#define ATH_NF_RD_STATUS_MASK	0xc7
++#define ATH_NF_STATUS_OK	0x40	//0xc0
++#define ATH_NF_RD_STATUS_MASK	0x47	//0xc7
+ 
+ #define ATH_NF_CTRL_SMALL_BLOCK_EN	(1 << 21)
+ 
+@@ -113,6 +113,7 @@
+ #define ATH_NF_CTRL_ADDR_CYCLE0_3	(3 <<  0)
+ #define ATH_NF_CTRL_ADDR_CYCLE0_4	(4 <<  0)
+ #define ATH_NF_CTRL_ADDR_CYCLE0_5	(5 <<  0)
++#define ATH_NF_CTRL_ADDR_CYCLE0(c)	((c) << 0)
+ 
+ 
+ #define ATH_NF_DMA_CTRL_DMA_START	(1 << 7)
+@@ -120,12 +121,12 @@
+ #define ATH_NF_DMA_CTRL_DMA_DIR_READ	(1 << 6)
+ #define ATH_NF_DMA_CTRL_DMA_MODE_SG	(1 << 5)
+ /*
+- * 000 ­ incrementing precise burst of precisely four transfers
+- * 001 ­ stream burst (address const)
+- * 010 ­ single transfer (address increment)
+- * 011 ­ burst of unspecified length (address increment)
+- * 100 ­ incrementing precise burst of precisely eight transfers
+- * 101 ­ incrementing precise burst of precisely sixteen transfers
++ * 000 - incrementing precise burst of precisely four transfers
++ * 001 - stream burst (address const)
++ * 010 - single transfer (address increment)
++ * 011 - burst of unspecified length (address increment)
++ * 100 - incrementing precise burst of precisely eight transfers
++ * 101 - incrementing precise burst of precisely sixteen transfers
+  */
+ #define ATH_NF_DMA_CTRL_DMA_BURST_0	(0 << 2)
+ #define ATH_NF_DMA_CTRL_DMA_BURST_1	(1 << 2)
+@@ -138,9 +139,20 @@
+ 
+ #define ATH_NF_ECC_CTRL_ERR_THRESH(x)	((x << 8) & (0x1fu << 8))
+ #define ATH_NF_ECC_CTRL_ECC_CAP(x)	((x << 5) & (0x07u << 5))
++#define ATH_NF_ECC_CTRL_ECC_2_BITS	ATH_NF_ECC_CTRL_ECC_CAP(0)
++#define ATH_NF_ECC_CTRL_ECC_4_BITS	ATH_NF_ECC_CTRL_ECC_CAP(1)
++#define ATH_NF_ECC_CTRL_ECC_6_BITS	ATH_NF_ECC_CTRL_ECC_CAP(2)
++#define ATH_NF_ECC_CTRL_ECC_8_BITS	ATH_NF_ECC_CTRL_ECC_CAP(3)
++#define ATH_NF_ECC_CTRL_ECC_10_BITS	ATH_NF_ECC_CTRL_ECC_CAP(4)
++#define ATH_NF_ECC_CTRL_ECC_12_BITS	ATH_NF_ECC_CTRL_ECC_CAP(5)
++#define ATH_NF_ECC_CTRL_ECC_14_BITS	ATH_NF_ECC_CTRL_ECC_CAP(6)
++#define ATH_NF_ECC_CTRL_ECC_16_BITS	ATH_NF_ECC_CTRL_ECC_CAP(7)
++
+ #define ATH_NF_ECC_CTRL_ERR_OVER	(1 << 2)
+ #define ATH_NF_ECC_CTRL_ERR_UNCORR	(1 << 1)
+ #define ATH_NF_ECC_CTRL_ERR_CORR	(1 << 0)
++#	define ATH_NF_ECC_ERROR		(ATH_NF_ECC_CTRL_ERR_UNCORR | \
++					 ATH_NF_ECC_CTRL_ERR_OVER)
+ 
+ #define ATH_NF_CMD_END_INT		(1 << 1)
+ 
+@@ -152,7 +164,26 @@
+ 
+ #define ath_nand_clear_int_status()	ath_reg_wr(ATH_NF_INT_STATUS, 0)
+ 
+-static int ath_nand_hw_init(void *);
++#define ATH_NAND_BLK_DONT_KNOW	0x0
++#define ATH_NAND_BLK_GOOD	0x1
++#define ATH_NAND_BLK_BAD	0x2
++#define ATH_NAND_BLK_ERASED	0x3
++
++/*
++ * Note: The byte positions might not match the spec.
++ * It is to handle the endianness issues.
++ */
++#define ONFI_NUM_ADDR_CYCLES	102	/* see note */
++#define ONFI_DEV_DESC		32
++#define ONFI_DEV_DESC_SZ	32
++#define ONFI_PAGE_SIZE		80
++#define ONFI_SPARE_SIZE		86	/* see note */
++#define ONFI_PAGES_PER_BLOCK	92
++#define ONFI_BLOCKS_PER_LUN	96
++#define ONFI_NUM_LUNS		103	/* see note */
++#define ONFI_RD_PARAM_PAGE_SZ	128
++#define READ_PARAM_STATUS_OK	0x40
++#define READ_PARAM_STATUS_MASK	0x41
+ 
+ #define ATH_NAND_IO_DBG		0
+ #define ATH_NAND_OOB_DBG	0
+@@ -224,16 +255,37 @@
+ 	 8 << 30
+ };
+ 
++typedef struct {
++	uint8_t vid,
++		did,
++		b3,
++		addrcyc,
++		pgsz,
++		blk,
++		spare;
++} ath_nand_vend_data_t;
++
++ath_nand_vend_data_t ath_nand_arr[] = {
++	{ 0x20, 0xda, 0x10, 5, 3, 1, 1 },	// NU2g3B2D
++	{ 0x20, 0xf1, 0x00, 4, 3, 1, 1 },	// NU1g3B2C
++	{ 0x20, 0xdc, 0x10, 5, 3, 1, 1 },	// NU4g3B2D
++	{ 0x20, 0xd3, 0x10, 5, 4, 1, 1 },	// NU8g3F2A
++	{ 0x20, 0xd3, 0x14, 5, 3, 2, 1 },	// NU8g3C2B
++	{ 0xad, 0xf1, 0x00, 4, 3, 1, 1 },	// HY1g2b
++	{ 0xad, 0xda, 0x10, 5, 3, 1, 1 },	// HY2g2b
++	{ 0xec, 0xf1, 0x00, 4, 3, 1, 1 },	// Samsung 3,3V 8-bit [128MB]
++	{ 0x98, 0xd1, 0x90, 4, 3, 1, 1 },	// Toshiba
++	//{ 0x2c, 0x48, 0x04, 5, 4, 3, 1 },	// Micron 16GBit MLC
++};
++
++#define NUM_ARRAY_ENTRIES(a)	(sizeof((a)) / sizeof((a)[0]))
++#define NUM_ATH_NAND		NUM_ARRAY_ENTRIES(ath_nand_arr)
+ 
+ /* ath nand info */
+ typedef struct {
+ 	/* mtd info */
+ 	struct mtd_info		mtd;
+ 
+-	/* platform info */
+-	unsigned short		page_size,
+-				data_width;
+-
+ 	/* NAND MTD partition information */
+ 	int			nr_partitions;
+ 	struct mtd_partition	*partitions;
+@@ -244,12 +296,15 @@
+ 				ba1,
+ 				cmd;	// Current command
+ 	ath_nand_id_t		__id;	// for readid
++	uint8_t			onfi[ONFI_RD_PARAM_PAGE_SZ];
+ #if ATH_NF_HW_ECC
+ 	uint32_t		ecc_offset;
+ #endif
++	uint32_t		nf_ctrl;
+ } ath_nand_sc_t;
+ 
+ ath_nand_sc_t *ath_nand_sc;
++static int ath_nand_hw_init(ath_nand_sc_t *, void *);
+ 
+ #define	nid	__id.__details
+ #define	bid	__id.byte_id
+@@ -258,8 +313,83 @@
+ 
+ static const char *part_probes[] __initdata = { "cmdlinepart", "RedBoot", NULL };
+ 
++/* max page size (16k) + oob buf size */
++uint8_t	ath_nand_io_buf[24 << 10] __attribute__((aligned(4096)));
++#define get_ath_nand_io_buf()	ath_nand_io_buf
++
++void ath_nand_dump_buf(loff_t addr, void *v, unsigned count);
++
++#define micron_debug		0
++
++#if micron_debug
++#define ATH_DEBUG_FS_SIZE	(7 << 20)
++#define ATH_DEBUG_PG_SIZE	(2 << 10)
++#define ATH_DEBUG_SP_SIZE	(64)
++#define ATH_DEBUG_NUM_PAGES	(ATH_DEBUG_FS_SIZE / ATH_DEBUG_PG_SIZE)
++
++#define fs_offset(o)		((o) - 0xa80000u)
++#define off_to_page(o)		((fs_offset(o) / ATH_DEBUG_PG_SIZE) * ATH_DEBUG_SP_SIZE)
++uint8_t	ath_dbg_fs[ATH_DEBUG_FS_SIZE],
++	ath_dbg_fs_spare[ATH_DEBUG_NUM_PAGES * ATH_DEBUG_SP_SIZE];
++
++loff_t	ath_dbg_last, ath_dbg_last_spare;
++
++static void inline
++ath_dbg_dump_to_fs(loff_t ofs, uint8_t *buf)
++{
++	ath_dbg_last = ofs;
++	memcpy(ath_dbg_fs + fs_offset(ofs), buf, ATH_DEBUG_PG_SIZE);
++	printk(KERN_DEBUG "===== 0x%llx %p %p\n", ofs, ath_dbg_fs + fs_offset(ofs), buf);
++}
++
++static void inline
++ath_dbg_dump_to_fs_spare(loff_t ofs, uint8_t *buf)
++{
++	ath_dbg_last_spare = ofs;
++	memcpy(ath_dbg_fs_spare + off_to_page(ofs), buf, ATH_DEBUG_SP_SIZE);
++	//printk("----- 0x%llx %p %p\n", ofs, ath_dbg_fs_spare + off_to_page(ofs), buf);
++}
++#else
++#define ath_dbg_dump_to_fs(...)		/* nothing */
++#define ath_dbg_dump_to_fs_spare(...)	/* nothing */
++#endif
++
++#define	bbt_index	(sizeof(*sc->bbt) * 8 / 2)
++
++inline unsigned
++ath_nand_get_blk_state(struct mtd_info *mtd, loff_t b)
++{
++	unsigned		x, y;
++	ath_nand_sc_t		*sc = mtd->priv;
++
++	if (!sc->bbt)	return ATH_NAND_BLK_DONT_KNOW;
++
++	b = b >> mtd->erasesize_shift;
++
++	x = b / bbt_index;
++	y = b % bbt_index;
++
++	return (sc->bbt[x] >> (y * 2)) & 0x3;
++}
++
++inline void
++ath_nand_set_blk_state(struct mtd_info *mtd, loff_t b, unsigned state)
++{
++	unsigned		x, y;
++	ath_nand_sc_t		*sc = mtd->priv;
++
++	if (!sc->bbt)	return;
++
++	b = b >> mtd->erasesize_shift;
++
++	x = b / bbt_index;
++	y = b % bbt_index;
++
++	sc->bbt[x] = (sc->bbt[x] & ~(3 << (y * 2))) | (state << (y * 2));
++}
++
+ static unsigned
+-ath_nand_status(void)
++ath_nand_status(ath_nand_sc_t *sc, unsigned *ecc)
+ {
+ 	unsigned	rddata, i, j, dmastatus;
+ 
+@@ -277,9 +407,12 @@
+ 
+ 	if ((i == ATH_NF_STATUS_RETRY) || (j == ATH_NF_STATUS_RETRY)) {
+ 		//printk("ath_nand_status: i = %u j = %u\n", i, j);
+-		ath_nand_hw_init(NULL);
++		ath_nand_hw_init(sc, NULL);
+ 		return -1;
+ 	}
++	if (ecc) {
++		*ecc = ath_reg_rd(ATH_NF_ECC_CTRL);
++	}
+ 	ath_nand_clear_int_status();
+ 	ath_reg_wr(ATH_NF_COMMAND, 0x07024);	// READ STATUS
+ 	while (ath_nand_get_cmd_end_status() == 0);
+@@ -289,12 +422,65 @@
+ }
+ 
+ static unsigned
+-ath_nand_rw_page(ath_nand_sc_t *sc, int rd, unsigned addr0, unsigned addr1, unsigned count, unsigned char *buf)
++ath_check_all_0xff(ath_nand_sc_t *sc, unsigned addr0, unsigned addr1)
++{
++	uint8_t		*pa, *buf = ath_nand_io_buf, *end;
++	struct mtd_info	*mtd = &sc->mtd;
++	unsigned	i, count = mtd->writesize + mtd->oobsize;
++
++	/*
++	 * The same buf is being dma_(un)map_singled.
++	 * Hope that is ok!
++	 */
++	ath_nand_clear_int_status();
++	ath_reg_wr(ATH_NF_ADDR0_0, addr0);
++	ath_reg_wr(ATH_NF_ADDR0_1, addr1);
++	ath_reg_wr(ATH_NF_DMA_COUNT, count);
++	ath_reg_wr(ATH_NF_DMA_CTRL, ATH_NF_DMA_CTRL_DMA_START |
++				ATH_NF_DMA_CTRL_DMA_DIR_READ |
++				ATH_NF_DMA_CTRL_DMA_BURST_3);
++	ath_reg_wr(ATH_NF_ECC_OFFSET, 0);
++	ath_reg_wr(ATH_NF_ECC_CTRL, 0);
++	ath_reg_wr(ATH_NF_CTRL, sc->nf_ctrl | ATH_NF_CTRL_CUSTOM_SIZE_EN);
++	ath_reg_wr(ATH_NF_PG_SIZE, count);
++	pa = (uint8_t *)dma_map_single(NULL, buf, count, DMA_FROM_DEVICE);
++	ath_reg_wr(ATH_NF_DMA_ADDR, (unsigned)pa);
++	ath_reg_wr(ATH_NF_COMMAND, 0x30006a);	// Read page
++	while (ath_nand_get_cmd_end_status() == 0);
++	udelay(1000);
++	i = ath_nand_status(sc, NULL) & ATH_NF_RD_STATUS_MASK;
++	dma_unmap_single(NULL, (dma_addr_t)pa, count, DMA_FROM_DEVICE);
++	if (i != ATH_NF_STATUS_OK) {
++		return 0;
++	}
++	end = buf + count;
++	for (buf += sc->ecc_offset; (*buf == 0xff) && buf != end; buf ++);
++
++	if (buf == end) {
++		/* This page was read without ECC. From the spare area
++		 * content we see that it a blank page (i.e. full 0xff).
++		 * To take care of bit flips if any, force 0xff on it.
++		 */
++		memset(ath_nand_io_buf, 0xff, mtd->writesize);
++	} else {
++		printk("%p %p %p 0x%x\n", ath_nand_io_buf, buf, end, count);
++		ath_nand_dump_buf(addr0, ath_nand_io_buf, mtd->writesize + mtd->oobsize);
++	}
++	return (buf == end);
++}
++
++static unsigned
++ath_nand_rw_page(ath_nand_sc_t *sc, int rd, unsigned addr0, unsigned addr1, unsigned count, unsigned char *buf, unsigned ecc_needed)
+ {
+-	unsigned	i = 0, tmp, rddata;
++	unsigned	ecc, i = 0, tmp, rddata, all_0xff = 0;
++#if ATH_NF_HW_ECC
++	unsigned	mlc_retry = 0;
++#endif
+ 	char		*err[] = { "Write", "Read" };
+ #define ATH_MAX_RETRY	25
++#define ATH_MLC_RETRY	3
+ retry:
++	ecc = 0;
+ 	ath_nand_clear_int_status();
+ 	ath_reg_wr(ATH_NF_ADDR0_0, addr0);
+ 	ath_reg_wr(ATH_NF_ADDR0_1, addr1);
+@@ -314,29 +500,23 @@
+ 			panic("Register writes to NAND failed\n");
+ 		}
+ 	}
+-
+-
+ #if ATH_NF_HW_ECC
+-	if (sc->ecc_offset && (count & sc->mtd.writesize_mask) == 0) {
++	if (ecc_needed && sc->ecc_offset && (count & sc->mtd.writesize_mask) == 0) {
+ 		/*
+ 		 * ECC can operate only on the device's pages.
+ 		 * Cannot be used for non-page-sized read/write
+ 		 */
+ 		ath_reg_wr(ATH_NF_ECC_OFFSET, sc->ecc_offset);
+-		ath_reg_wr(ATH_NF_ECC_CTRL, 0x20e0);
+-		ath_reg_wr(ATH_NF_CTRL,	ATH_NF_CTRL_ADDR_CYCLE0_5 |
+-				ATH_NF_CTRL_BLOCK_SIZE_64 |
+-				ATH_NF_CTRL_PAGE_SIZE_2048 |
+-				ATH_NF_CTRL_ECC_EN);
++		ath_reg_wr(ATH_NF_ECC_CTRL, ATH_NF_ECC_CTRL_ERR_THRESH(4) |
++						ATH_NF_ECC_CTRL_ECC_4_BITS);
++		ath_reg_wr(ATH_NF_CTRL, sc->nf_ctrl | ATH_NF_CTRL_ECC_EN);
++		ath_reg_wr(ATH_NF_SPARE_SIZE, sc->mtd.oobsize);
+ 	} else
+ #endif
+ 	{
+-		//ath_reg_wr(ATH_NF_ECC_OFFSET, 0);
+-		//ath_reg_wr(ATH_NF_ECC_CTRL, 0);
+-		ath_reg_wr(ATH_NF_CTRL,	ATH_NF_CTRL_ADDR_CYCLE0_5 |
+-				ATH_NF_CTRL_BLOCK_SIZE_64 |
+-				ATH_NF_CTRL_PAGE_SIZE_2048 |
+-				ATH_NF_CTRL_CUSTOM_SIZE_EN);
++		ath_reg_wr(ATH_NF_ECC_OFFSET, 0);
++		ath_reg_wr(ATH_NF_ECC_CTRL, 0);
++		ath_reg_wr(ATH_NF_CTRL, sc->nf_ctrl | ATH_NF_CTRL_CUSTOM_SIZE_EN);
+ 		ath_reg_wr(ATH_NF_PG_SIZE, count);
+ 	}
+ 
+@@ -347,6 +527,7 @@
+ 					ATH_NF_DMA_CTRL_DMA_BURST_3);
+ 		ath_reg_wr(ATH_NF_COMMAND, 0x30006a);
+ 	} else {	// Write Page
++		ath_reg_wr(ATH_NF_MEM_CTRL, 0xff00);	// Remove write protect
+ 		ath_reg_wr(ATH_NF_DMA_CTRL,
+ 					ATH_NF_DMA_CTRL_DMA_START |
+ 					ATH_NF_DMA_CTRL_DMA_DIR_WRITE |
+@@ -359,7 +540,7 @@
+ 	//printk(KERN_DEBUG "%s(%c): 0x%x 0x%x 0x%x 0x%p\n", __func__,
+ 	//	rd ? 'r' : 'w', addr0, addr1, count, buf);
+ 	udelay(1000);
+-	rddata = (tmp = ath_nand_status()) & ATH_NF_RD_STATUS_MASK;
++	rddata = (tmp = ath_nand_status(sc, &ecc)) & ATH_NF_RD_STATUS_MASK;
+ 	if ((rddata != ATH_NF_STATUS_OK)) { // && (i < ATH_MAX_RETRY))
+ 		i++;
+ 		if ((i % 100) == 0) {
+@@ -368,24 +549,40 @@
+ 		goto retry;
+ 	}
+ 
++	ath_reg_wr(ATH_NF_MEM_CTRL, 0x0000);	// Enable write protect
++	ath_reg_wr(ATH_NF_FIFO_INIT, 1);
++	ath_reg_wr(ATH_NF_FIFO_INIT, 0);
++
+ 	if (rddata != ATH_NF_STATUS_OK) {
+ 		printk("%s: %s Failed. tmp = 0x%x, status = 0x%x 0x%x retries = %d\n", __func__,
+ 			err[rd], tmp, rddata, ath_reg_rd(ATH_NF_DMA_CTRL), i);
+ 	}
+ #if ATH_NF_HW_ECC
+ 	else {
+-		uint32_t	r = ath_reg_rd(ATH_NF_ECC_CTRL);
+-
+ #define DDR_WB_FLUSH_USB_ADDRESS		0x180000a4
+ 
+ 		ath_reg_wr(DDR_WB_FLUSH_USB_ADDRESS, 1);
+ 		while (ath_reg_rd(DDR_WB_FLUSH_USB_ADDRESS) & 1);
+ 		udelay(50);
+ 
+-		if (r & ATH_NF_ECC_CTRL_ERR_UNCORR) {
+-			printk("%s: %s uncorrectable errors. ecc = 0x%x\n",
+-				__func__, err[rd], r);
+-			return -1;
++		if (ecc_needed && (ecc & ATH_NF_ECC_ERROR)) {
++			if (rd && all_0xff == 0) {
++				all_0xff = 1;
++				//printk("------- ath_check_all_0xff called for 0x%x 0x%x\n", addr1, addr0);
++				if (ath_check_all_0xff(sc, addr0, addr1)) {
++					return ATH_NF_STATUS_OK;
++				}
++			}
++
++			if (mlc_retry < ATH_MLC_RETRY) {
++				mlc_retry ++;
++				i = 0;
++				goto retry;
++			} else {
++				printk("%s: %s uncorrectable errors. 0x%x %x ecc = 0x%x\n",
++					__func__, err[rd], addr0, addr1, ecc);
++				return -1;
++			}
+ 		}
+ 	}
+ #endif
+@@ -408,11 +605,6 @@
+ 	//while(1);
+ }
+ 
+-
+-/* max page size + oob buf size */
+-uint8_t	ath_nand_io_buf[4096 + 256] __attribute__((aligned(4096)));
+-#define get_ath_nand_io_buf()	ath_nand_io_buf
+-
+ static int
+ ath_nand_rw_buff(struct mtd_info *mtd, int rd, uint8_t *buff,
+ 		loff_t addr, size_t len, size_t *iodone)
+@@ -427,7 +619,7 @@
+ 	dir = rd ? DMA_FROM_DEVICE : DMA_TO_DEVICE;
+ 
+ 	while (len) {
+-		unsigned b, p, c, ba0, ba1;
++		unsigned c, ba0, ba1;
+ 
+ 		if (ath_nand_block_isbad(mtd, addr)) {
+ 			//printk("Skipping bad block[0x%x]\n", (unsigned)addr);
+@@ -435,8 +627,6 @@
+ 			continue;
+ 		}
+ 
+-		b = (addr >> mtd->erasesize_shift);
+-		p = (addr & mtd->erasesize_mask) >> mtd->writesize_shift;
+ 		c = (addr & mtd->writesize_mask);
+ 
+ 		/*
+@@ -445,8 +635,9 @@
+ 		 * a28 - a31 - xxxxxxxxxxxxxxxx == 4 bits, will be in ba1 in lsb
+ 		 */
+ 
+-		ba0 = (b << 22) | (p << 16);
+-		ba1 = (b >>  9) & 0xf;
++		ba0 = ((addr >> mtd->writesize_shift) << 16);
++		ba1 = ((addr >> (mtd->writesize_shift + 16)) & 0xf);
++
+ 		if (c) {
+ 			iolen = mtd->writesize - c;
+ 		} else {
+@@ -458,17 +649,29 @@
+ 		}
+ 
+ 		if (!rd) {
++			int i;
++
++			for (i = 0; (i < mtd->writesize) && (buff[i] == 0xff); i++);
++			if (i == mtd->writesize) {
++				ret = ATH_NF_STATUS_OK;
++				printk("Skipping write for 0x%llx\n", addr);
++				goto skip_write_for_all_0xff;
++			}
++
+ 			/* FIXME for writes FIXME */
+ 			memcpy(buf, buff, iolen);
+ 		}
+ 
+-		pa = (unsigned char *)dma_map_single(NULL, buf,
+-					mtd->writesize, dir);
++		if (!rd) {
++			//ath_nand_dump_buf(ATH_NF_COMMAND, (unsigned *)KSEG1ADDR(ATH_NF_COMMAND), 0xb8);
++			ath_dbg_dump_to_fs(addr, buf);
++		}
++		pa = (unsigned char *)dma_map_single(NULL, buf, mtd->writesize, dir);
+ 
+ 		//printk("%s(%c): 0x%x 0x%x 0x%x 0x%p\n", __func__,
+ 		//	rd ? 'r' : 'w', ba0, ba1, iolen, pa);
+ 
+-		ret = ath_nand_rw_page(sc, rd, ba0, ba1, mtd->writesize, pa);
++		ret = ath_nand_rw_page(sc, rd, ba0, ba1, mtd->writesize, pa, 1);
+ 
+ 		dma_unmap_single(NULL, (dma_addr_t)pa, mtd->writesize, dir);
+ 
+@@ -476,7 +679,7 @@
+ 			memcpy(buff, buf + c, iolen);
+ 		}
+ 
+-		//	ath_nand_dump_buf(addr, buff, iolen);
++skip_write_for_all_0xff:
+ 
+ 		if (ret != ATH_NF_STATUS_OK) {
+ 			return 1;
+@@ -559,20 +762,24 @@
+ }
+ 
+ static inline int
+-ath_nand_block_erase(unsigned addr0, unsigned addr1)
++ath_nand_block_erase(ath_nand_sc_t *sc, unsigned addr0, unsigned addr1)
+ {
+ 	unsigned	rddata;
+ 
+ 	indbg("0x%x 0x%x", addr1, addr0);
+ 
+ 	ath_nand_clear_int_status();
++	ath_reg_wr(ATH_NF_MEM_CTRL, 0xff00);	// Remove write protect
+ 	ath_reg_wr(ATH_NF_ADDR0_0, addr0);
+ 	ath_reg_wr(ATH_NF_ADDR0_1, addr1);
+ 	ath_reg_wr(ATH_NF_COMMAND, 0xd0600e);	// BLOCK ERASE
+ 
+ 	while (ath_nand_get_cmd_end_status() == 0);
+ 
+-	rddata = ath_nand_status() & ATH_NF_RD_STATUS_MASK;
++	rddata = ath_nand_status(sc, NULL) & ATH_NF_RD_STATUS_MASK;
++
++	ath_reg_wr(ATH_NF_MEM_CTRL, 0x0000);	// Enable write protect
++
+ 	if (rddata != ATH_NF_STATUS_OK) {
+ 		printk("Erase Failed. status = 0x%x", rddata);
+ 		return 1;
+@@ -587,6 +794,7 @@
+ 	uint64_t	s_first, i;
+ 	unsigned	n, j;
+ 	int		ret = 0, bad = 0;
++	ath_nand_sc_t	*sc = mtd->priv;
+ 
+ 	if (instr->addr + instr->len > mtd->size) {
+ 		return (-EINVAL);
+@@ -598,24 +806,23 @@
+ 	indbg("0x%llx 0x%llx 0x%x", instr->addr, s_last, mtd->erasesize);
+ 
+ 	for (j = 0, i = s_first; j < n; j++, i += mtd->erasesize) {
+-		ulong b, ba0, ba1;
++		ulong ba0, ba1;
+ 
+ 		if (ath_nand_block_isbad(mtd, i)) {
+ 			bad ++;
+ 			continue;
+ 		}
+ 
+-		b = (i >> mtd->erasesize_shift);
++		ba0 = ((i >> mtd->writesize_shift) << 16);
++		ba1 = ((i >> (mtd->writesize_shift + 16)) & 0xf);
+ 
+-		ba0 = (b << 22);
+-		ba1 = (b >>  9) & 0xf;
+-
+-		if ((ret = ath_nand_block_erase(ba0, ba1)) != 0) {
++		if ((ret = ath_nand_block_erase(sc, ba0, ba1)) != 0) {
+ 			iodbg("%s: erase failed 0x%llx 0x%llx 0x%x %llu "
+ 				"%lx %lx\n", __func__, instr->addr, s_last,
+ 				mtd->erasesize, i, ba1, ba0);
+ 			break;
+ 		}
++		ath_nand_set_blk_state(mtd, i, ATH_NAND_BLK_ERASED);
+ #if inject_failure
+ 		if (ath_nand_inject & 4 && ((ath_nand_inject & ~4u) == i)) {
+ 			printk("Forcing erase failure at 0x%llx\n", i);
+@@ -643,17 +850,13 @@
+ {
+ 	unsigned	dir, ret = ATH_NF_STATUS_OK;
+ 	unsigned char	*pa;
+-	unsigned	b, p, c, ba0, ba1;
++	unsigned	ba0, ba1;
+ 	uint8_t		*buf = get_ath_nand_io_buf();
+ 	uint8_t		*oob = buf + mtd->writesize;
+ 	ath_nand_sc_t	*sc = mtd->priv;
+ 
+-	b = (addr >> mtd->erasesize_shift);
+-	p = (addr & mtd->erasesize_mask) >> mtd->writesize_shift;
+-	c = (addr & mtd->writesize_mask);
+-
+-	ba0 = (b << 22) | (p << 16);
+-	ba1 = (b >>  9) & 0xf;
++	ba0 = ((addr >> mtd->writesize_shift) << 16);
++	ba1 = ((addr >> (mtd->writesize_shift + 16)) & 0xf);
+ 
+ 	dir = rd ? DMA_FROM_DEVICE : DMA_TO_DEVICE;
+ 
+@@ -680,16 +883,20 @@
+ 		memcpy(oob, ops->oobbuf, ops->ooblen);
+ 	}
+ 
++	if (!rd) {
++		ath_dbg_dump_to_fs(addr, buf);
++		ath_dbg_dump_to_fs_spare(addr, buf + mtd->writesize);
++	}
++
+ 	pa = (unsigned char *)dma_map_single(NULL, buf,
+ 				mtd->writesize + mtd->oobsize, dir);
+ 
+ 	//printk("%s(%c): 0x%x 0x%x 0x%x 0x%p\n", __func__,
+ 	//	rd ? 'r' : 'w', ba0, ba1, mtd->writesize + mtd->oobsize, pa);
+ 
+-	ret = ath_nand_rw_page(sc, rd, ba0, ba1, mtd->writesize + mtd->oobsize, pa);
++	ret = ath_nand_rw_page(sc, rd, ba0, ba1, mtd->writesize + mtd->oobsize, pa, 0);
+ 
+-	dma_unmap_single(NULL, (dma_addr_t)pa, mtd->writesize + mtd->oobsize,
+-				dir);
++	dma_unmap_single(NULL, (dma_addr_t)pa, mtd->writesize + mtd->oobsize, dir);
+ 
+ 	//ath_nand_dump_buf(addr, buf, iolen);
+ 
+@@ -715,7 +922,6 @@
+ 	//	ath_nand_dump_buf(addr, ops->oobbuf, ops->ooblen);
+ 	//}
+ 
+-
+ 	if (ops->datbuf) {
+ 		ops->retlen = ops->len;
+ 	}
+@@ -786,48 +992,10 @@
+ 	return ret;
+ }
+ 
+-#define	bbt_index	(sizeof(*sc->bbt) * 8 / 2)
+-
+-#define ATH_NAND_BLK_DONT_KNOW	0x0
+-#define ATH_NAND_BLK_GOOD	0x1
+-#define ATH_NAND_BLK_BAD	0x2
+-
+-inline unsigned
+-ath_nand_get_blk_state(struct mtd_info *mtd, loff_t b)
+-{
+-	unsigned		x, y;
+-	ath_nand_sc_t		*sc = mtd->priv;
+-
+-	if (!sc->bbt)	return ATH_NAND_BLK_DONT_KNOW;
+-
+-	b = b >> mtd->erasesize_shift;
+-
+-	x = b / bbt_index;
+-	y = b % bbt_index;
+-
+-	return (sc->bbt[x] >> (y * 2)) & 0x3;
+-}
+-
+-inline void
+-ath_nand_set_blk_state(struct mtd_info *mtd, loff_t b, unsigned state)
+-{
+-	unsigned		x, y;
+-	ath_nand_sc_t		*sc = mtd->priv;
+-
+-	if (!sc->bbt)	return;
+-
+-	b = b >> mtd->erasesize_shift;
+-
+-	x = b / bbt_index;
+-	y = b % bbt_index;
+-
+-	sc->bbt[x] = (sc->bbt[x] & ~(3 << (y * 2))) | (state << (y * 2));
+-}
+-
+ static int
+ ath_nand_block_isbad(struct mtd_info *mtd, loff_t ofs)
+ {
+-	unsigned char		oob[128];
++	unsigned char		oob[256];
+ 	unsigned		bs, i;
+ 	struct mtd_oob_ops	ops = {
+ 		.mode	= MTD_OOB_RAW,
+@@ -837,8 +1005,12 @@
+ 
+ 	bs = ath_nand_get_blk_state(mtd, ofs);
+ 
+-	if (bs != ATH_NAND_BLK_DONT_KNOW) {
+-		return (bs - ATH_NAND_BLK_GOOD);
++	if ((bs == ATH_NAND_BLK_ERASED) || (bs == ATH_NAND_BLK_GOOD)) {
++		return 0;
++	}
++
++	if (bs == ATH_NAND_BLK_BAD) {
++		return 1;
+ 	}
+ 
+ 	/*
+@@ -903,7 +1075,13 @@
+ 		}
+ 	}
+ 
+-	ath_nand_set_blk_state(mtd, ofs, ATH_NAND_BLK_GOOD);
++	for (i = 0; (i < mtd->oobsize) && (oob[i] == 0xff); i++);
++
++	if (i == mtd->oobsize) {
++		ath_nand_set_blk_state(mtd, ofs, ATH_NAND_BLK_ERASED);
++	} else {
++		ath_nand_set_blk_state(mtd, ofs, ATH_NAND_BLK_GOOD);
++	}
+ 
+ 	return 0;
+ }
+@@ -966,11 +1144,93 @@
+ 	return 0;
+ }
+ 
++ath_nand_vend_data_t *
++nand_get_entry(ath_nand_id_t *nand_id, ath_nand_vend_data_t *tbl, int count)
++{
++	int     i;
++
++	for (i = 0; i < count; i++, tbl ++) {
++		if ((nand_id->__details.vid == tbl->vid) &&
++		    (nand_id->__details.did == tbl->did) &&
++		    (nand_id->byte_id[1] == tbl->b3)) {
++			return tbl;
++		}
++	}
++
++	return NULL;
++}
++
++static inline void
++ath_nand_onfi_endian_convert(uint8_t *buf)
++{
++	uint32_t        i, *u = (uint32_t *)(buf + ONFI_DEV_DESC);
++
++	for (i = 0; i < (ONFI_DEV_DESC_SZ / sizeof(*u)); i++) {
++		u[i] = __le32_to_cpu(u[i]);
++	}
++
++	// Hope nobody has a 20 character device description
++	buf[ONFI_DEV_DESC + ONFI_DEV_DESC_SZ - 1] = 0;
++}
++
++int
++nand_param_page(ath_nand_sc_t *sc, uint8_t *buf, unsigned count)
++{
++	unsigned int	tries, rddata;
++	uint8_t		*pa;
++
++	pa = (uint8_t *)dma_map_single(NULL, buf, count, DMA_FROM_DEVICE);
++
++	for (tries = 3; tries; tries --) {
++		// ADDR0_0 Reg Settings
++		ath_reg_wr(ATH_NF_ADDR0_0, 0x0);
++
++		// ADDR0_1 Reg Settings
++		ath_reg_wr(ATH_NF_ADDR0_1, 0x0);
++
++		// DMA Start Addr
++		ath_reg_wr(ATH_NF_DMA_ADDR, (unsigned)pa);
++
++		// DMA count
++		ath_reg_wr(ATH_NF_DMA_COUNT, count);
++
++		// Custom Page Size
++		ath_reg_wr(ATH_NF_PG_SIZE, count);
++
++		// DMA Control Reg
++		ath_reg_wr(ATH_NF_DMA_CTRL, 0xcc);
++
++		ath_nand_clear_int_status();
++		// READ PARAMETER PAGE
++		ath_reg_wr(ATH_NF_COMMAND, 0xec62);
++		while (ath_nand_get_cmd_end_status() == 0);
++
++		rddata = ath_nand_status(sc, NULL) & READ_PARAM_STATUS_MASK;
++		if (rddata == READ_PARAM_STATUS_OK) {
++			break;
++		} else {
++			printk("\nParam Page Failure: 0x%x", rddata);
++			ath_nand_hw_init(sc, NULL);
++		}
++	}
++
++	dma_unmap_single(NULL, (dma_addr_t)pa, count, DMA_FROM_DEVICE);
++
++	if ((rddata == READ_PARAM_STATUS_OK) &&
++	    (buf[3] == 'O' && buf[2] == 'N' && buf[1] == 'F' && buf[0] == 'I')) {
++		ath_nand_onfi_endian_convert(buf);
++		printk("ONFI %s\n", buf + ONFI_DEV_DESC);
++		return 0;
++	}
++
++	return 1;
++}
++
+ /*
+  * System initialization functions
+  */
+ static int
+-ath_nand_hw_init(void *p)
++ath_nand_hw_init(ath_nand_sc_t *sc, void *p)
+ {
+ 	uint8_t		id[8];
+ 	unsigned char	*pa;
+@@ -991,6 +1251,7 @@
+ 
+ 	// NAND Mem Control Reg
+ 	ath_reg_wr(ATH_NF_MEM_CTRL, 0xff00);
++	//ath_reg_wr(ATH_NF_MEM_CTRL, 0x0000);
+ 
+ 	// Reset Command
+ 	ath_reg_wr(ATH_NF_COMMAND, 0xff00);
+@@ -1011,10 +1272,12 @@
+ 	}
+ 
+ 	if (p) {
++		ath_nand_vend_data_t *entry;
++
+ 		ath_nand_clear_int_status();
+ 		pa = (unsigned char *)dma_map_single(NULL, p ? p : id,
+ 						8, DMA_FROM_DEVICE);
+-		ath_reg_wr(ATH_NF_DMA_ADDR, (unsigned)virt_to_phys(p));
++		ath_reg_wr(ATH_NF_DMA_ADDR, (unsigned)p);
+ 		ath_reg_wr(ATH_NF_ADDR0_0, 0x0);
+ 		ath_reg_wr(ATH_NF_ADDR0_1, 0x0);
+ 		ath_reg_wr(ATH_NF_DMA_COUNT, 0x8);
+@@ -1023,15 +1286,30 @@
+ 		ath_reg_wr(ATH_NF_COMMAND, 0x9061);	// READ ID
+ 		while (ath_nand_get_cmd_end_status() == 0);
+ 
+-		rddata = ath_nand_status();
++		rddata = ath_nand_status(sc, NULL);
+ 		if ((rddata & ATH_NF_RD_STATUS_MASK) != ATH_NF_STATUS_OK) {
+-			printk("%s: ath nand status = 0x%x\n", __func__, rddata);
++			printk("%s: failed\nath nand status = 0x%x\n",
++				__func__, rddata);
+ 		}
+ 		dma_unmap_single(NULL, (dma_addr_t)pa, 8, DMA_FROM_DEVICE);
+ 
+ 		pa = p;
+ 		printk("Ath Nand ID[%p]: %02x:%02x:%02x:%02x:%02x\n",
+-				pa, pa[0], pa[1], pa[2], pa[3], pa[4]);
++				pa, pa[3], pa[2], pa[1], pa[0], pa[7]);
++
++		sc->onfi[0] = 0;
++
++		entry = nand_get_entry((ath_nand_id_t *)p, ath_nand_arr, NUM_ATH_NAND);
++		if (entry) {
++			sc->nf_ctrl = ATH_NF_CTRL_ADDR_CYCLE0(entry->addrcyc);
++		} else if (nand_param_page(sc, sc->onfi, sizeof(sc->onfi)) == 0) {
++			rddata = sc->onfi[ONFI_NUM_ADDR_CYCLES];
++			rddata = ((rddata >> 4) & 0xf) + (rddata & 0xf);
++			sc->nf_ctrl = ATH_NF_CTRL_ADDR_CYCLE0(rddata);
++		} else {
++			printk("Attempting to use unknown device\n");
++			sc->nf_ctrl = ATH_NF_CTRL_ADDR_CYCLE0(5);
++		}
+ 
+ 		iodbg("******* %s done ******\n", __func__);
+ 	}
+@@ -1049,61 +1327,30 @@
+  * | data    |  |          |         |
+  * +---...---+--+----------+---------+
+  * cm -> clean marker (2 bytes)
+- * FS Spare -> 38 bytes available for jffs2
++ * FS Spare -> bytes available for jffs2
+  */
+-static struct nand_ecclayout nand_oob_64 = {
+-	.eccbytes = 24,
+-	.eccpos = {
+-		   40, 41, 42, 43, 44, 45, 46, 47,
+-		   48, 49, 50, 51, 52, 53, 54, 55,
+-		   56, 57, 58, 59, 60, 61, 62, 63},
+-	.oobfree = {
+-		{.offset = 2,
+-		 .length = 38}}
+-};
+-
+-static struct nand_ecclayout nand_oob_128 = {
+-	.eccbytes = 48,
+-	.eccpos = {
+-		   80, 81, 82, 83, 84, 85, 86, 87,
+-		   88, 89, 90, 91, 92, 93, 94, 95,
+-		   96, 97, 98, 99, 100, 101, 102, 103,
+-		   104, 105, 106, 107, 108, 109, 110, 111,
+-		   112, 113, 114, 115, 116, 117, 118, 119,
+-		   120, 121, 122, 123, 124, 125, 126, 127},
+-	.oobfree = {
+-		{.offset = 2,
+-		 .length = 78}}
++static struct nand_ecclayout ath_nand_oob = {
++	.oobfree = { {.offset = 2, .length = 18} }
+ };
+ 
+ static void
+ ath_nand_ecc_init(struct mtd_info *mtd)
+ {
+-	ath_nand_sc_t *sc = mtd->priv;
++#if ATH_NF_HW_ECC
++	ath_nand_sc_t		*sc = mtd->priv;
++	int			i, off;
+ 
++	for (off = i = 0; ath_nand_oob.oobfree[i].length
++                	&& i < ARRAY_SIZE(ath_nand_oob.oobfree); i++) {
++		ath_nand_oob.oobavail += ath_nand_oob.oobfree[i].length;
++		off += ath_nand_oob.oobfree[i].offset;
++	}
++	mtd->ecclayout = &ath_nand_oob;
++	sc->ecc_offset = mtd->writesize + ath_nand_oob.oobavail + off;
++#else
+ 	mtd->ecclayout	= NULL;
+ 	sc->ecc_offset = 0;
+-
+-	if (mtd->oobsize == 128) {
+-		mtd->ecclayout	= &nand_oob_128;
+-#if ATH_NF_HW_ECC
+-		sc->ecc_offset = mtd->writesize + 80;
+ #endif
+-	} else if (mtd->oobsize == 64) {
+-		mtd->ecclayout	= &nand_oob_64;
+-#if ATH_NF_HW_ECC
+-		sc->ecc_offset = mtd->writesize + 40;
+-#endif
+-	}
+-
+-	if (mtd->ecclayout) {
+-		int i;
+-		for (i = 0; mtd->ecclayout->oobfree[i].length
+-                        && i < ARRAY_SIZE(mtd->ecclayout->oobfree); i++) {
+-			mtd->ecclayout->oobavail +=
+-				mtd->ecclayout->oobfree[i].length;
+-		}
+-	}
+ }
+ 
+ /*
+@@ -1146,7 +1393,26 @@
+ {
+ 	ath_nand_sc_t	*sc = NULL;
+ 	struct mtd_info	*mtd = NULL;
+-	int		err = 0, bbt_size;
++	int		i, err = 0, bbt_size;
++	unsigned	nf_ctrl_pg[][2] = {
++		/* page size in bytes, register val */
++		{   256, ATH_NF_CTRL_PAGE_SIZE_256	},
++		{   512, ATH_NF_CTRL_PAGE_SIZE_512	},
++		{  1024, ATH_NF_CTRL_PAGE_SIZE_1024	},
++		{  2048, ATH_NF_CTRL_PAGE_SIZE_2048	},
++		{  4096, ATH_NF_CTRL_PAGE_SIZE_4096	},
++		{  8192, ATH_NF_CTRL_PAGE_SIZE_8192	},
++		{ 16384, ATH_NF_CTRL_PAGE_SIZE_16384	},
++		{     0, ATH_NF_CTRL_PAGE_SIZE_0	},
++		};
++	unsigned	nf_ctrl_blk[][2] = {
++		/* no. of pages, register val */
++		{  32, ATH_NF_CTRL_BLOCK_SIZE_32	},
++		{  64, ATH_NF_CTRL_BLOCK_SIZE_64	},
++		{ 128, ATH_NF_CTRL_BLOCK_SIZE_128	},
++		{ 256, ATH_NF_CTRL_BLOCK_SIZE_256	},
++		{   0, 0				},
++		};
+ 
+ 	sc = kzalloc(sizeof(*sc), GFP_KERNEL);
+ 	if (sc == NULL) {
+@@ -1156,7 +1422,7 @@
+ 	}
+ 
+ 	/* initialise the hardware */
+-	err = ath_nand_hw_init(&sc->nid);
++	err = ath_nand_hw_init(sc, &sc->nid);
+ 	if (err) {
+ 		goto out_err_hw_init;
+ 	}
+@@ -1171,16 +1437,48 @@
+ 		mtd->size	= ath_plane_size[sc->nid.pls] << sc->nid.pn;
+ 	}
+ 
+-	mtd->writesize_shift	= 10 + sc->nid.ps;
+-	mtd->writesize		= (1 << mtd->writesize_shift);
+-	mtd->writesize_mask	= (mtd->writesize - 1);
+-
+-	mtd->erasesize_shift	= 16 + sc->nid.bs;
+-	mtd->erasesize		= (1 << mtd->erasesize_shift);
+-	mtd->erasesize_mask	= (mtd->erasesize - 1);
++	if (!sc->onfi[0]) {
++		mtd->writesize_shift	= 10 + sc->nid.ps;
++		mtd->writesize		= (1 << mtd->writesize_shift);
++		mtd->writesize_mask	= (mtd->writesize - 1);
++
++		mtd->erasesize_shift	= 16 + sc->nid.bs;
++		mtd->erasesize		= (1 << mtd->erasesize_shift);
++		mtd->erasesize_mask	= (mtd->erasesize - 1);
++
++		mtd->oobsize		= (mtd->writesize / 512) * (8 << sc->nid.ss);
++		mtd->oobavail		= mtd->oobsize;
++	} else {
++		mtd->writesize		= *(uint32_t *)(&sc->onfi[ONFI_PAGE_SIZE]);
++		mtd->writesize_shift	= ffs(mtd->writesize) - 1;
++		mtd->writesize_mask	= (mtd->writesize - 1);
++
++		mtd->erasesize		= *(uint32_t *)(&sc->onfi[ONFI_PAGES_PER_BLOCK]) *
++					  mtd->writesize;
++		mtd->erasesize_shift	= ffs(mtd->erasesize) - 1;
++		mtd->erasesize_mask	= (mtd->erasesize - 1);
++
++		mtd->oobsize		= *(uint16_t *)(&sc->onfi[ONFI_SPARE_SIZE]);
++		mtd->oobavail		= mtd->oobsize;
++
++		mtd->size		= mtd->erasesize *
++					  (*(uint32_t *)(&sc->onfi[ONFI_BLOCKS_PER_LUN])) *
++					  sc->onfi[ONFI_NUM_LUNS];
++	}
++
++	for (i = 0; nf_ctrl_pg[i][0]; i++) {
++		if (nf_ctrl_pg[i][0] == mtd->writesize) {
++			sc->nf_ctrl |= nf_ctrl_pg[i][1];
++			break;
++		}
++	}
+ 
+-	mtd->oobsize		= (mtd->writesize / 512) * (8 << sc->nid.ss);
+-	mtd->oobavail		= mtd->oobsize;
++	for (i = 0; nf_ctrl_blk[i][0]; i++) {
++		if (nf_ctrl_blk[i][0] == (mtd->erasesize / mtd->writesize)) {
++			sc->nf_ctrl |= nf_ctrl_blk[i][1];
++			break;
++		}
++	}
+ 
+ 	mtd->type		= MTD_NANDFLASH;
+ 	mtd->flags		= MTD_CAP_NANDFLASH;
+@@ -1211,6 +1509,11 @@
+ 	}
+ 
+ 	ath_nand_sc = sc;
++	printk(	"====== NAND Parameters ======\n"
++		"sc = 0x%p bbt = 0x%p bbt_size = 0x%x nf_ctrl = 0x%x\n"
++		"page = 0x%x block = 0x%x oob = 0x%x\n", sc, sc->bbt, bbt_size,
++		sc->nf_ctrl, mtd->writesize, mtd->erasesize, mtd->oobsize);
++
+ 
+ 	return 0;
+ 

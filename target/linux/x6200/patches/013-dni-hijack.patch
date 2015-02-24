@@ -1,0 +1,180 @@
+diff -Nru linux-2.6.36/include/net/tcp.h linux-2.6.36/include-new/net/tcp.h
+--- linux-2.6.36/include/net/tcp.h	2012-11-29 22:21:30.000000000 -0500
++++ linux-2.6.36/include-new/net/tcp.h	2013-01-06 08:48:34.776044852 -0500
+@@ -238,6 +238,7 @@
+ extern int sysctl_tcp_moderate_rcvbuf;
+ extern int sysctl_tcp_tso_win_divisor;
+ extern int sysctl_tcp_abc;
++extern int sysctl_dns_hijack;
+ extern int sysctl_tcp_mtu_probing;
+ extern int sysctl_tcp_base_mss;
+ extern int sysctl_tcp_workaround_signed_windows;
+diff -Nru linux-2.6.36/net/bridge/br.c linux-2.6.36/net-new/bridge/br.c
+--- linux-2.6.36/net/bridge/br.c	2012-11-29 22:21:30.000000000 -0500
++++ linux-2.6.36/net-new/bridge/br.c	2013-01-06 08:51:59.806044964 -0500
+@@ -20,9 +20,11 @@
+ #include <net/llc.h>
+ #include <net/stp.h>
+ 
++#include <linux/rtnetlink.h>
+ #include "br_private.h"
+ 
+ int (*br_should_route_hook)(struct sk_buff *skb);
++struct sock *dnsnl;
+ 
+ static const struct stp_proto br_stp_proto = {
+ 	.rcv	= br_stp_rcv,
+@@ -62,6 +64,7 @@
+ 	if (err)
+ 		goto err_out4;
+ 
++	dnsnl =  netlink_kernel_create(&init_net,NETLINK_NFLOG,32,NULL, NULL,THIS_MODULE);
+ 	brioctl_set(br_ioctl_deviceless_stub);
+ 
+ #if defined(CONFIG_ATM_LANE) || defined(CONFIG_ATM_LANE_MODULE)
+@@ -76,6 +79,7 @@
+ err_out2:
+ 	unregister_pernet_subsys(&br_net_ops);
+ err_out1:
++	sock_release(dnsnl);
+ 	br_fdb_fini();
+ err_out:
+ 	stp_proto_unregister(&br_stp_proto);
+diff -Nru linux-2.6.36/net/bridge/br_input.c linux-2.6.36/net-new/bridge/br_input.c
+--- linux-2.6.36/net/bridge/br_input.c	2012-11-29 22:21:30.000000000 -0500
++++ linux-2.6.36/net-new/bridge/br_input.c	2013-01-06 08:58:37.316045151 -0500
+@@ -18,9 +18,103 @@
+ #include <linux/netfilter_bridge.h>
+ #include "br_private.h"
+ 
++#include <linux/udp.h>
++#include <linux/ip.h>
++#include <linux/if_ether.h>
++#include <linux/netlink.h>
++#include <linux/skbuff.h>
++
+ /* Bridge group multicast address 802.1d (pg 51). */
+ const u8 br_group_address[ETH_ALEN] = { 0x01, 0x80, 0xc2, 0x00, 0x00, 0x00 };
+ 
++int sysctl_dns_hijack;
++extern struct sock *dnsnl;
++
++struct dns_nl_packet_msg {
++	size_t data_len;
++	char saddr[6];
++	unsigned char data[0]
++};
++typedef struct dns_nl_packet_msg dns_nl_packet_msg_t;
++
++static int findstring(char * source, char * dest,int length)
++{
++	if(source == NULL || dest == NULL )
++		return NULL;
++	char *s1 = source, *d1 = dest;
++	int i =0 ;
++	while ( i < (length - 10) )
++	{
++		if ( memcmp(s1,d1,14) == 0)
++			return 1;
++		s1 = ++source;
++		i++;
++	}
++	return 0;
++}
++int br_dns_netgear(struct sk_buff *skb)
++{
++	struct ethhdr                   *eth = (struct ethhdr *)skb->mac_header;
++	struct iphdr                    *iph;
++	struct udphdr                   *udph;
++	if (eth->h_proto != htons(ETH_P_IP))
++		return 1;
++	/* Check for possible (maliciously) malformed IP frame (thanks Dave) */
++	iph = (struct iphdr *) skb->data;
++	if(iph->protocol != 17)
++		return 1;
++	udph = (struct udphdr *)(((unsigned char *)iph) + (iph->ihl<<2));
++
++	if( udph->dest == 53)
++	{
++		static char domain[15], domain2[15];
++		domain[0] = 0x09;
++		domain2[0] = 0x09;
++		memcpy(domain + 1, "mywifiext.com",13);
++		memcpy(domain2 + 1, "mywifiext.net",13);
++		/*www.mywifiext.com .*/
++		domain[10] = 0x03;
++		domain[14]= '\0';
++		domain2[10] = 0x03;
++		domain2[14]= '\0';
++		if( sysctl_dns_hijack || findstring((unsigned char *)((unsigned char *)udph + 12),domain,udph->len - 12)
++				|| findstring((unsigned char *)((unsigned char *)udph + 12),domain2,udph->len - 12) )
++		{
++			dns_nl_packet_msg_t *pm;
++			struct nlmsghdr *nlh;
++			size_t size, copy_len;
++			copy_len = skb->len;
++			size = NLMSG_SPACE(sizeof(*pm)+copy_len);
++			struct sk_buff *skbnew =  alloc_skb(4096, GFP_ATOMIC);
++			if(!skbnew)
++			{
++				printk(KERN_ERR "boxlogin: can't alloc whole buffer " "of size %ub!\n", 4096);
++				skbnew = alloc_skb(size, GFP_ATOMIC);
++				if(!skbnew)
++				{
++					printk(KERN_ERR "boxlogin: can't alloc buffer " "of size %ub!\n", size);
++					return 1;
++				}
++			}
++			nlh = NLMSG_PUT(skbnew, 0, 0, 0, (size - NLMSG_ALIGN(sizeof(*nlh))));
++			nlh->nlmsg_len = sizeof(*pm)+skb->len;
++			pm = NLMSG_DATA(nlh);
++			pm->data_len = skb->len;
++			memcpy(pm->saddr,eth->h_source,6);
++			skb_copy_bits(skb, 0, pm->data, skb->len);
++			NETLINK_CB(skbnew).dst_group = 5;
++			netlink_broadcast(dnsnl, skbnew, 0, 5, GFP_ATOMIC);
++			return 0;
++		}
++	}
++	return 1;
++nlmsg_failure:
++	printk(KERN_CRIT "dns net link: error during NLMSG_PUT. This should "
++			"not happen, please report to author.\n");
++
++}
++
++
+ static int br_pass_frame_up(struct sk_buff *skb)
+ {
+ 	struct net_device *indev, *brdev = BR_INPUT_SKB_CB(skb)->brdev;
+@@ -172,6 +266,13 @@
+ forward:
+ 	switch (p->state) {
+ 	case BR_STATE_FORWARDING:
++		/*2007-6-25 stoneliu hijack routerlogin dns packet*/
++		if(br_dns_netgear(skb) == 0)
++		{
++			kfree_skb(skb);
++			return NULL;
++		}
++
+ 		rhook = rcu_dereference(br_should_route_hook);
+ 		if (rhook != NULL) {
+ 			if (rhook(skb))
+diff -Nru linux-2.6.36/net/ipv4/sysctl_net_ipv4.c linux-2.6.36/net-new/ipv4/sysctl_net_ipv4.c
+--- linux-2.6.36/net/ipv4/sysctl_net_ipv4.c	2012-11-29 22:21:30.000000000 -0500
++++ linux-2.6.36/net-new/ipv4/sysctl_net_ipv4.c	2013-01-06 09:00:26.686045210 -0500
+@@ -674,6 +674,13 @@
+ 		.mode		= 0644,
+ 		.proc_handler	= proc_dointvec
+ 	},
++	{
++		.procname       = "dns_hijack",
++		.data           = &sysctl_dns_hijack,
++		.maxlen         = sizeof(int),
++		.mode           = 0644,
++		.proc_handler   = &proc_dointvec
++	},
+ 	{ }
+ };
+ 

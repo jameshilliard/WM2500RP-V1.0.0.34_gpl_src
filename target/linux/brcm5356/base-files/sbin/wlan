@@ -1,0 +1,459 @@
+#!/bin/sh
+
+. /eth/common.conf
+
+set_second_channel()
+{
+	local pri_ch=$1
+	if [ "$pri_ch" -ge "1" ] && [ "$pri_ch" -le "5" ]; then
+		nvram set wl0_nctrlsb=lower
+	else
+		nvram set wl0_nctrlsb=upper
+	fi
+}
+
+endis_ssid_broadcast()
+{
+	if [ "x`config get endis_ssid_broadcast`" = "x0" ]; then
+		nvram set wl0_closed=1
+	else
+		nvram set wl0_closed=0
+	fi
+
+	if [ "x`config get wlg1_endis_guestSSIDbro`" = "x0" ] ; then
+		nvram set wl0.1_closed=1
+	else
+		nvram set wl0.1_closed=0
+	fi
+}
+
+config_wps()
+{
+	nvram set wps_status=0
+	nvram set wps_method=1
+	nvram set wps_config_command=0
+	nvram set wps_proc_mac=""
+
+	if [ "`nvram get wps_restart`" = "1" ]; then
+		nvram set wps_restart=0
+	else
+		nvram set wps_restart=0
+		nvram set wps_proc_status=0
+	fi
+
+	nvram set wps_sta_pin=00000000
+	nvram set wps_currentband=""
+
+	# Get WPS PIN
+	artmtd -r wpspin
+	nvram set wps_device_pin=`cat /tmp/wpspin-setted`
+
+	if [ "`config get endis_wl_wps`" = "0" ]; then
+		nvram set wl_wps_mode=disabled
+	else
+		nvram set wl_wps_mode=enabled
+	fi
+	nvram set wl0_wps_mode=`nvram get wl_wps_mode`
+
+	if [ "`config get endis_pin`" = "1" ]; then
+		nvram set wps_aplockdown_forceon=1
+	else
+		nvram set wps_aplockdown_forceon=0
+	fi
+
+	# Set the "Keep Existing Setting" check box
+	if [ "`config get wps_status`" = "1" ]; then
+		nvram set lan_wps_oob=enabled
+	else
+		nvram set lan_wps_oob=disabled
+	fi
+
+	# WPS 2.0, AP PIN lock down Setting
+	if [ "`config get wps_pin_attack_check`" = "1" ]; then
+		nvram set wps_aplockdown_cap=1
+		nvram set wps_aplockdown_count=`config get wps_pin_attack_num`
+		nvram set wps_aplockdown_duration=300	# 5 mins
+		nvram set wps_aplockdown_ageout=300		# 5 mins
+	else
+		nvram set wps_aplockdown_cap=0
+	fi
+}
+
+set_country_code()
+{
+	## country list:
+	## 0: Africa, 1: Asia, 2: Australia, 3: Canada, 4: Europe
+	## 5: Israel, 6: Japan, 7: Korea, 8: Mexico, 9: South America
+	## 10: North America, 11: China, 12: India, 13: Malaysia, 14: Middle East
+	## 15: Middle East, 16: Middle East, 17: Middle East, 18: Middle East, 19: Russia
+	## 20: Singapore, 21: Taiwan, 22: Middle East
+
+	local wl_country=`config get wl_country`
+	local country_list="ZA CN AU CA DE IL JP KR MX BR US CN IN MY DZ LB TR SA AE RU SG TW TR"
+	local num=0
+	local country_code=""
+	for country_code in $country_list ; do
+		if [ "$num" = "$wl_country" ] ; then
+			break
+		fi
+		let num++
+	done
+	nvram set wl0_country_code=$country_code
+	nvram set wl_country_code=$country_code
+}
+
+set_auth_type()
+{
+	# set wireless ssid authentication type
+	if [ "x`config get wl_auth`" = "x2" ] ; then
+		nvram set wl_auth=0
+		nvram set wl0_auth=0
+	else
+		nvram set wl_auth=1
+		nvram set wl0_auth=1
+	fi
+
+	# set guest ssid authentication type
+	if [ "x`config get wlg1_auth`" = "x2" ] ; then
+		nvram set wl0.1_auth=0
+	else
+		nvram set wl0.1_auth=1
+	fi
+}
+
+set_sec_type()
+{
+	# Set Security Type
+	# Useage: 1, set_sec_type wl wl0 (local network)
+	#	  2, set_sec_type wl wl0.1 (guest network)
+
+	if [ "$2" = "wl0" ] ; then
+		type=wl
+	else
+		type=wlg1
+	fi
+
+	WL=$1
+	WL0_1=$2
+
+	sectype=`config get "$type"_sectype`
+	case "$sectype" in
+		1)	# None Security
+			nvram set "$WL0_1"_wep=disabled
+			nvram set "$WL0_1"_akm=""
+			;;
+		2)	# WEP
+			nvram set "$WL0_1"_wep=enabled
+			nvram set "$WL0_1"_akm=""
+			nvram set "$WL0_1"_key=`config get "$type"_key`
+			nvram set "$WL0_1"_key1=`config get "$type"_key1`
+			nvram set "$WL0_1"_key2=`config get "$type"_key2`
+			nvram set "$WL0_1"_key3=`config get "$type"_key3`
+			nvram set "$WL0_1"_key4=`config get "$type"_key4`
+			# when set security type as WEP, it should set authentication type as "shared key" or "open system".
+			set_auth_type
+			;;
+		3)	# TKIP
+			nvram set "$WL"_wep=disabled
+			nvram set "$WL0_1"_wep=disabled
+			nvram set "$WL"_akm=psk
+			nvram set "$WL0_1"_akm=psk
+			nvram set "$WL"_crypto=tkip
+			nvram set "$WL0_1"_crypto=tkip
+			nvram set "$WL"_wpa_psk="$(config get "$type"_wpa1_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			nvram set "$WL0_1"_wpa_psk="$(config get "$type"_wpa1_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			;;
+		4)	# AES
+			nvram set "$WL"_wep=disabled
+			nvram set "$WL0_1"_wep=disabled
+			nvram set "$WL"_akm=psk2
+			nvram set "$WL0_1"_akm=psk2
+			nvram set "$WL"_crypto=aes
+			nvram set "$WL0_1"_crypto=aes
+			nvram set "$WL"_wpa_psk="$(config get "$type"_wpa2_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			nvram set "$WL0_1"_wpa_psk="$(config get "$type"_wpa2_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			;;
+		5)	# MIX Mode (TKIP+AES)
+			nvram set "$WL"_wep=disabled
+			nvram set "$WL0_1"_wep=disabled
+			nvram set "$WL"_akm="psk psk2"
+			nvram set "$WL0_1"_akm="psk psk2"
+			nvram set "$WL"_crypto="tkip+aes"
+			nvram set "$WL0_1"_crypto="tkip+aes"
+			nvram set "$WL"_wpa_psk="$(config get "$type"_wpas_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			nvram set "$WL0_1"_wpa_psk="$(config get "$type"_wpas_psk | sed 's/\\\\/\\/g' | sed 's/\\`/\`/g' | sed 's/\\"/\"/g')"
+			;;
+		6)	# 802.1X (Radius)
+			nvram set "$WL"_wep=disabled
+			nvram set "$WL0_1"_wep=disabled
+			nvram set "$WL"_radius_ipaddr=`config get "$type"_radiusSerIp`
+			nvram set "$WL0_1"_radius_ipaddr=`config get "$type"_radiusSerIp`
+			nvram set "$WL"_radius_port=`config get "$type"_radiusPort`
+			nvram set "$WL0_1"_radius_port=`config get "$type"_radiusPort`
+			nvram set "$WL"_radius_key=`config get "$type"_radiusSecret`
+			nvram set "$WL0_1"_radius_key=`config get "$type"_radiusSecret`
+
+			if [ "x`config get "$type"_wpae_mode`" = "xWPAE-TKIP" ]; then
+				nvram set "$WL"_akm="wpa"
+				nvram set "$WL"_crypto=tkip
+			elif [ "x`config get "$type"_wpae_mode`" = "xWPAE-AES" ]; then
+				nvram set "$WL"_akm="wpa2"
+				nvram set "$WL"_crypto=aes
+			else	# WPAE-TKIPAES
+				nvram set "$WL"_akm="wpa wpa2"
+				nvram set "$WL"_crypto="tkip+aes"
+			fi
+			nvram set "$WL0_1"_akm="`nvram get "$WL"_akm`"
+			nvram set "$WL0_1"_crypto=`nvram get "$WL"_crypto`
+			;;
+	esac
+}
+
+
+set_nvram_value()
+{
+	# set the guest network
+	nvram set wl0.1_bss_enabled=`config get wlg1_endis_guestNet`
+	nvram set wl0.1_ssid="$(config get wlg1_ssid | sed 's/\\\\\\\\/\\/g' | sed 's/\\\\\\`/\`/g' | sed 's/\\"/\"/g')"
+	nvram set wl0.1_ap_isolate=`config get endis_wlg_guest_wireless_isolation`
+	guestNet=`nvram get wl0.1_bss_enabled`
+	if [ "$guestNet" = "1" ] ; then
+		nvram set wl0.1_unit=0.1
+		nvram set wl0_vifs=wl0.1
+		nvram set wl0.1_mode=ap
+		nvram set wl0.1_radio=1
+	fi
+
+	# set wds
+	nvram set wl_mode=ap
+	nvram set wl0_mode=ap
+	nvram set wl_wds=""
+	nvram set wl0_wds=""
+	wds_enabled=`config get wds_endis_fun`
+	basic_sta=`config get wds_repeater_basic`
+	wds_associate_repeater=`config get wds_endis_ip_client`
+	wds_associate_station=`config get wds_endis_mac_client`
+	if [ "$wds_enabled" = "1" ] ; then
+		if [ "$basic_sta" = "1" ] ; then
+			repeater_mac1=`config get repeater_mac1`
+			repeater_mac2=`config get repeater_mac2`
+			repeater_mac3=`config get repeater_mac3`
+			repeater_mac4=`config get repeater_mac4`
+			nvram set wl_wds="$repeater_mac1 $repeater_mac2 $repeater_mac3 $repeater_mac4"
+			nvram set wl0_wds="$repeater_mac1 $repeater_mac2 $repeater_mac3 $repeater_mac4"
+
+		else 
+			nvram set wl_wds=`config get basic_station_mac`
+			nvram set wl0_wds=`config get basic_station_mac`
+
+		fi
+
+		if [ "$wds_associate_repeater" = "1" ] || [ "$wds_associate_station" = "1" ] ; then
+			nvram set wl_mode=wds
+			nvram set wl0_mode=wds
+		fi
+	fi
+
+	# Endis SSID Broadcast
+	endis_ssid_broadcast
+
+	# Endis Wireless Isolation
+	nvram set wl0_ap_isolate=`config get endis_wlg_wireless_isolation`
+
+	# Set SSID
+	nvram set wl0_ssid="$(config get wl_ssid | sed 's/\\\\\\\\/\\/g' | sed 's/\\\\\\`/\`/g' | sed 's/\\"/\"/g')"
+	nvram set wl_ssid="`nvram get wl0_ssid`"
+
+	# Set Channel
+	nvram set wl_channel=`config get wl_channel`
+	nvram set wl0_channel=`config get wl_channel`
+
+	# Set g/n Mode
+	wl_simple_mode=`config get wl_simple_mode`
+	case "$wl_simple_mode" in
+		1)	# 54 Mbps
+			nvram set wl0_nmode=0
+			;;
+		2)	# 150 Mbps
+			nvram set wl0_nmode=-1
+			nvram set wl0_nbw_cap=0
+			;;
+		*)	# 300 Mbps
+			nvram set wl0_nmode=-1
+			nvram set wl0_nbw_cap=2
+			set_second_channel `config get wl_channel`
+			;;
+	esac
+
+	# Set Security Type
+	# Local network
+	set_sec_type wl $WLAN_NG_NAME
+	# Guest network
+	set_sec_type wl $WLAN_NAME_2
+
+	# set wps nvram value
+	config_wps
+
+	# set country code 
+	set_country_code
+
+
+	# set beacon and dtim interval
+	if [ "`config get wlg1_endis_guestNet`" = "1" ] ; then
+		nvram set wl0_dtim=2
+		nvram set wl_dtim=2
+		nvram set wl0_bcn=200
+		nvram set wl_bcn=200
+	else
+		nvram set wl0_dtim=3
+		nvram set wl_dtim=3
+		nvram set wl0_bcn=100
+		nvram set wl_bcn=100
+	fi
+
+	# set CTS/RTS
+	nvram set wl0_rts=`config get wl_rts`
+	nvram set wl_rts=`nvram get wl0_rts`
+
+	# set WMM
+	if [ "`config get endis_wl_wmm`" = "1" ] ; then
+		nvram set wl0_wme=on
+		nvram set wl_wme=on
+	else
+		nvram set wl0_wme=off
+		nvram set wl_wme=off
+	fi
+
+	nvram commit
+}
+
+set_ebtables_rules()
+{
+	ETH_P_ARP=0x0806
+	ETH_P_RARP=0x8035
+	ETH_P_IP=0x0800
+	IPPROTO_ICMP=1
+	IPPROTO_UDP=17
+	DHCPS_DHCPC=67:68
+	PORT_DNS=53
+
+	APNAME=$1
+
+	if [ "$lan_restricted_access_init" = "no" ] ; then
+		ebtables -F
+		ebtables -P FORWARD ACCEPT
+		ebtables -A FORWARD -p $ETH_P_ARP -j ACCEPT
+		ebtables -A FORWARD -p $ETH_P_RARP -j ACCEPT
+		ebtables -A FORWARD -p $ETH_P_IP --ip-proto $IPPROTO_UDP --ip-dport $DHCPS_DHCPC -j ACCEPT
+		ebtables -P INPUT ACCEPT
+		ebtables -A INPUT -p $ETH_P_IP --ip-proto $IPPROTO_UDP --ip-dport $DHCPS_DHCPC -j ACCEPT
+		ebtables -A INPUT -p $ETH_P_IP --ip-proto $IPPROTO_UDP --ip-dport $PORT_DNS -j ACCEPT
+		
+		lan_restricted_access_init="yes"
+	fi
+
+	ebtables -A FORWARD -i $APNAME -j DROP
+	ebtables -A FORWARD -o $APNAME -j DROP
+	ebtables -A INPUT -i $APNAME -p $ETH_P_IP --ip-dst $(config get lan_ipaddr) -j DROP
+}
+
+wl_down()
+{
+	nvram unset acs_ifnames
+	killall wps_monitor
+	killall acsd
+	killall nas
+	killall eapd
+	wlconf $WLAN_NG_PHYNAME down
+	ifconfig $WLAN_NG_PHYNAME down
+	ifconfig $WLAN_NAME_2 down
+	brctl delif $BR_IF $WLAN_NAME_2
+	ebtables -F
+}
+
+wl_up()
+{
+	# if lan_restricted_access_init is no, it means that it has set the ebtables rules.
+	lan_restricted_access_init="no"
+
+	set_nvram_value
+	ifconfig $WLAN_NG_PHYNAME up
+	wlconf $WLAN_NG_PHYNAME up
+	wlconf $WLAN_NG_PHYNAME start
+
+	# set ebtalbes rules for wireless isolation
+	wireless_isolate=`config get endis_wlg_wireless_isolation`
+	if [ "$wireless_isolate" = "1" ] ; then
+		set_ebtables_rules $WLAN_NG_PHYNAME
+	fi
+
+	guestNet=`config get wlg1_endis_guestNet`
+	guestAcc=`config get wlg1_endis_allow_guest`
+
+	if [ "$guestNet" = "1" ] ; then
+		hwaddr=`nvram get wl0.1_hwaddr`
+		ifconfig $WLAN_NAME_2 hw ether $hwaddr
+		ifconfig $WLAN_NAME_2 up
+		brctl addif $BR_IF $WLAN_NAME_2
+		if [ "$guestAcc" = "0" ] ; then
+			set_ebtables_rules $WLAN_NAME_2
+		fi
+	fi
+
+	# setup wds
+	wds_enabled=`config get wds_endis_fun`
+	basic_sta=`config get wds_repeater_basic`
+	if [ "$wds_enabled" = "1" ] ; then
+		if [ "$basic_sta" = "1" ] ; then
+			local set i=1
+			for j in 1 2 3 4 ; do
+				repeater_mac=`config get repeater_mac$j`
+				if [ "x$repeater_mac" != "x" ] ; then
+					ifconfig wds0.$i up
+					brctl addif $BR_IF wds0.$i
+					let i++
+				fi
+			done
+		else
+			ifconfig wds0.1 up
+			brctl addif $BR_IF wds0.1
+		fi
+	fi
+
+	/bin/eapd
+	nas
+	/usr/sbin/acsd
+	if [ "`config get endis_wl_wps`" = "1" ]; then
+		/bin/wps_monitor &
+	fi
+}
+
+case "$1" in
+	down)
+		wl_down
+        ;;
+	*)
+		wl_down
+		sleep 1
+		wl_up
+
+		if [ "`config get endis_wl_radio`" = "0" ]; then
+		#	Fixed Bug 23256, When user add/delete/edit a period of schedule WiFi off,
+		#	DUT should check if WiFi should be turned off at the moment according to
+		#	existed periods.
+			sed -i -e '/wifi_schedule 11g/d' /tmp/etc/crontabs/root
+			ifconfig $WLAN_NG_PHYNAME down 2>&1 >&-
+			return
+		fi
+
+		#	check if wlan is in schedule period
+		if [ "`config get wladv_schedule_enable`" = "1" ]; then
+			/sbin/cmdsched_wlan_status 11g
+			if [ "`config get wlg_onoff_sched`" = "1" ]; then
+				/etc/ath/wifi_schedule 11g off
+			else
+				/etc/ath/wifi_schedule 11g on
+			fi
+		fi
+        ;;
+esac

@@ -1,0 +1,64 @@
+<% http_header("style/form.css", "/funcs.js") %>
+
+<% mobile_wait_for_search() %>
+<style type="text/css">
+H1 {
+	FONT-WEIGHT: bold; FONT-SIZE: 36px; BACKGROUND: white; COLOR: #9d98ff; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+TD {
+	FONT-SIZE: 30px; FONT-FAMILY: Arial, Helvetica, Geneva, Swiss, SunSans-Regular, sans-serif
+}
+</style>
+<script type="text/javascript">
+var gui_region="<% cfg_get("GUI_Region") %>";
+var maxchars = 100;
+var delay_time = 1800; // msecs
+var charcount = 0;
+var dns_hijack="<% cfg_get("dns_hijack") %>";
+var setup_wizard_tag="<% cfg_get("setup_wizard_tag") %>";
+
+var link_status="<% cat_file("/tmp/link_status" %>";
+var sta_list = "<% cat_file("/tmp/check_link") %>";
+pro1="<br><table border=0 cellpadding=0 cellspacing=0 height=30><tr bgcolor=#dddddd><td width="
+pro2="\% bgcolor=#0099cc align=right><font color=#0099cc>"
+pro3="%</font></td><td width="
+pro4="\%></td><td bgcolor=#ffffff>"
+pro5="%</td></tr></table>"
+
+function updateProgress()
+{   
+	var pro=charcount;
+	var progress=pro1+pro+pro2+pro+pro3+(100-pro)+pro4+"<b>"+charcount+"</b>"+pro5;
+    document.getElementById("view").innerHTML=progress;
+
+    if (charcount < maxchars)
+    {  
+        charcount=charcount+10;		
+        setTimeout("updateProgress()",delay_time);
+    }
+    else
+	    location.href="mobile_ca_wl_network.htm";
+} 
+document.write('<body bgcolor="#ffffff" onLoad="updateProgress()">');
+
+</script>
+<form>
+	<table align=left border=0 cellpadding=20 cellspacing=0 width=100%>
+		<tr>
+		
+		<td nowrap colspan=2>
+		<h1>
+		$mobile_wait_for_searching
+		</h1></td></tr>
+		$bluebar
+		<tr><td nowrap colspan=2></td></tr>
+		<tr>
+		<td align=left>
+		<div id="view">
+        </div></td></tr>
+		$bluebar
+	</table>
+<br>
+</div>
+</body>
+</html>

@@ -1,0 +1,64 @@
+#! /bin/sh
+
+#just guess the session finished o( ^^)o 
+sleep 10 
+
+ping_state=`config get IPPing_DiagnosticsState`
+block_size=`config get IPPing_DataBlockSize`
+host=`config get IPPing_Host`
+ping_count=`config get IPPing_NumberOfRepetitions`
+time_out=`config get IPPing_Timeout`
+[ "X$time_out" != "X" ] && time_out=$(($time_out/1000))
+
+[ "$ping_state" != "Requested" ] && exit
+[ "X$block_size" = "X" ] && block_size=56
+[ "X$host" = "X" ] && host="127.0.0.1"
+[ "X$ping_count" = "X" ] && ping_count=8
+[ "X$time_out" = "X" ] && time_out=$(($ping_count+5))
+
+cat /dev/null > /tmp/IPPing_result
+ping -c $ping_count -s $block_size $host > /tmp/IPPing_result &
+
+i=1
+need_sleep=0
+
+while [[ $i -le $time_out ]]; do
+	tmp=`cat /tmp/IPPing_result | grep "bytes from"`
+	if [ "X$tmp" = "X" ]; then
+		let i=$i+1
+		sleep 1
+	else
+		recv_num=`cat /tmp/IPPing_result | grep "bytes from" | wc -l`
+		if [ $recv_num -lt $ping_count ]; then
+			let i=$i+1
+			sleep 1
+		else
+			break
+		fi
+
+	fi
+done
+
+#make sure the ping stop
+killall -2 ping
+
+sleep 1 
+
+# test finished and set the DiagnosticsState ( #)~~)
+config set IPPing_DiagnosticsState="Complete"
+
+avr=`cat /tmp/IPPing_result | grep round-trip | cut -d / -f 4 | cut -d . -f 1`
+config set IPPing_AverageResponseTime="$avr"
+
+tx_count=`cat /tmp/IPPing_result | grep packets | awk '{print $1}'`
+rx_count=`cat /tmp/IPPing_result | grep packets | awk '{print $4}'`
+
+fail_count=$(($tx_count-$rx_count))
+config set IPPing_FailureCount="$fail_count"
+config set IPPing_SuccessCount="$rx_count"
+
+max=`cat /tmp/IPPing_result | grep round-trip | cut -d / -f 5 | awk '{print $1}' | cut -d . -f 1`
+config set IPPing_MaximumResponseTime="$max"
+
+min=`cat /tmp/IPPing_result | grep round-trip | cut -d / -f 3 | awk '{print $3}' | cut -d . -f 1`
+config set IPPing_minimumResponseTime="$min"

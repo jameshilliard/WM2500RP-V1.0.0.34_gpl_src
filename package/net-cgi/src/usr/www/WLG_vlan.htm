@@ -1,0 +1,118 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% body_header("_wlvlan", "WLG_vlan.htm", "wl_vlan") %>
+<div class="page_title">$wlan_vlan</div>
+<div class="fix_button">
+<TABLE width=100% border=0 cellpadding=0 cellspacing=2>
+<TR>
+        <TD nowrap colspan=2 align=center>
+        <input class='cancel_bt' type='button' name="Cancel" value='$cancel_mark' onClick='location.href="WLG_vlan.htm";'>&nbsp;&nbsp;
+        <input class="apply_bt" type="submit" name="Apply" value="$apply_mark" onClick="return check_vlan(document.forms[0]);">
+        </TD>
+</TR>
+</TABLE>
+
+</div>
+<div id="main" class="main_top_button">
+<% table_header() %>
+<script>
+var vlan_tag_enable="<% cfg_get("vlan_tag_enable") %>";
+var vlan_tag_id_1="<% cfg_get("vlan_tag_id_1") %>";
+var vlan_tag_id_2="<% cfg_get("vlan_tag_id_2") %>";
+
+function set_vlan(cf)
+{
+	if(cf.vlan_abled[0].checked == true)
+	{
+		cf.vlan_id1.disabled = true;
+		cf.vlan_id2.disabled = true;
+	}
+	else
+	{
+                cf.vlan_id1.disabled = false;
+                cf.vlan_id2.disabled = false;
+        }
+}
+
+function loadvalue()
+{
+	var cf = document.forms[0];
+	if(vlan_tag_enable == "1")
+		cf.vlan_abled[1].checked = true;
+	else
+		cf.vlan_abled[0].checked = true;
+	cf.vlan_id1.value = vlan_tag_id_1;
+	cf.vlan_id2.value = vlan_tag_id_2;
+
+	set_vlan(cf);
+}
+
+function check_vlan(cf)
+{
+	if(cf.vlan_id1.value == "")
+	{
+		alert("$vlan_id1_range");
+		return false;
+	}
+	if(!(cf.vlan_id1.value > 0 && cf.vlan_id1.value < 4095))
+	{
+                alert("$vlan_id1_range");
+                return false;
+        }
+	if(cf.vlan_id2.value == "")
+        {
+                alert("$vlan_id2_range");
+                return false;
+        }
+        if(!(cf.vlan_id2.value > 0 && cf.vlan_id2.value < 4095))
+        {
+                alert("$vlan_id2_range");
+                return false;
+        }
+	if(cf.vlan_abled[0].checked == true)
+		cf.hid_vlan_abled.value = 0;
+	else
+	{
+		if(!confirm("$vlan_enable_warning"))
+   	             return false;
+		cf.hid_vlan_abled.value = 1;
+	}
+	cf.hid_vlan_id1.value = cf.vlan_id1.value;
+	cf.hid_vlan_id2.value = cf.vlan_id2.value;	
+
+	if(cf.hid_vlan_abled.value == vlan_tag_enable)
+		cf.hid_vlan_abled_change.value = 0;
+	else
+		cf.hid_vlan_abled_change.value = 1;
+
+	return true;
+}
+</script>
+<input type="hidden" name="hid_vlan_abled">
+<input type="hidden" name="hid_vlan_abled_change">
+<input type="hidden" name="hid_vlan_id1">
+<input type="hidden" name="hid_vlan_id2">
+<input type="hidden" name="hid_old_vlan_id1" value="<% cfg_get("vlan_tag_id_1") %>">
+<input type="hidden" name="hid_old_vlan_id2" value="<% cfg_get("vlan_tag_id_2") %>">
+<tr><td nowrap colspan=2>
+<input type="radio" name="vlan_abled" value="0" onClick="set_vlan(document.forms[0])">$wlan_vlan_disabled</td></tr>
+<tr><td nowrap colspan=2>
+<input type="radio" name="vlan_abled" value="1" onClick="set_vlan(document.forms[0])">$wlan_vlan_abled</td></tr>
+<tr><td nowrap>
+<img src="image/spacer.gif" width=20 height=12 border=0>$wlan_vlan_id1</td>
+<td nowrap>
+<input type="text" maxLength=4 size=5 name="vlan_id1" value="4094" onFocus="this.select();" onKeyPress="return getkey('num', event)" style="ime-mode:disabled;" ondrop="return false;" ondragenter="return false;" onpaste="return false;" onkeyup="this.value=this.value.replace(/\D/g, '');" />
+        </TD>
+</TR>
+<tr><td nowrap>
+<img src="image/spacer.gif" width=20 height=12 border=0>$wlan_vlan_id2</td>
+<td nowrap>
+<input type="text" maxLength=4 size=5 name="vlan_id2" value="4094" onFocus="this.select();" onKeyPress="return getkey('num', event)" style="ime-mode:disabled;" ondrop="return false;" ondragenter="return false;" onpaste="return false;" onkeyup="this.value=this.value.replace(/\D/g, '');" />
+        </TD>
+</TR>
+$bluebar
+</TABLE>
+</div>
+<% help_box("0","_wlvlan") %>
+</FORM>
+</BODY>
+</HTML>

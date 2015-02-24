@@ -1,0 +1,14 @@
+# kmod-e2fs configuration
+config EBT_VERSION
+	string
+	prompt "ebtables version"
+	default "2.0.9-1"
+
+config EBT_MD5SUM
+	string
+	prompt "ebtables md5sum"
+	default 0e0c20adf2bba6d91dbd0b74a1a38c33
+
+config EBT_PLATFORM_PATCH
+	bool "Apply platform specific patches"
+	default n

@@ -1,0 +1,143 @@
+--- a/drivers/mtd/mtdchar.c	2012-06-15 19:50:38.000000000 +0800
++++ b/drivers/mtd/mtdchar.c	2012-07-19 10:48:55.000000000 +0800
+@@ -22,6 +22,8 @@
+ 
+ #include <asm/uaccess.h>
+ 
++#define DNI_REMAP_BADBLOCK 1
++
+ 
+ /*
+  * Data structure to hold the pointer to the mtd device as well
+@@ -147,12 +149,35 @@
+ 	int ret=0;
+ 	int len;
+ 	char *kbuf;
++#if DNI_REMAP_BADBLOCK
++	loff_t rppos=*ppos;
++	loff_t preblock_count;
++	loff_t test_off=0; /* maybe value 1 is better */
++	int badblock_count=0;
++#endif
+ 
+ 	DEBUG(MTD_DEBUG_LEVEL0,"MTD_read\n");
+ 
+ 	if (*ppos + count > mtd->size)
+ 		count = mtd->size - *ppos;
+ 
++#if DNI_REMAP_BADBLOCK
++	for (preblock_count=(rppos>>mtd->erasesize_shift) + 1; preblock_count > 0; preblock_count--) {
++		if (mtd->block_isbad && mtd->block_isbad(mtd, test_off)) {
++			preblock_count++;
++			badblock_count++;
++		}
++		test_off+=mtd->erasesize;
++		if (test_off > mtd->size)
++			return -ENOSPC;
++	}
++	rppos+=badblock_count*(mtd->erasesize);
++	if (rppos >= mtd->size)
++		return -ENOSPC;
++	if (rppos + count > mtd->size)
++		count = mtd->size - rppos;
++#endif
++
+ 	if (!count)
+ 		return 0;
+ 
+@@ -195,7 +220,11 @@
+ 			break;
+ 		}
+ 		default:
++#if DNI_REMAP_BADBLOCK
++			ret = mtd->read(mtd, rppos, len, &retlen, kbuf);
++#else
+ 			ret = mtd->read(mtd, *ppos, len, &retlen, kbuf);
++#endif
+ 		}
+ 		/* Nand returns -EBADMSG on ecc errors, but it returns
+ 		 * the data. For our userspace tools it is important
+@@ -240,6 +269,12 @@
+ 	size_t total_retlen=0;
+ 	int ret=0;
+ 	int len;
++#if DNI_REMAP_BADBLOCK
++	loff_t rppos=*ppos;
++	loff_t preblock_count;
++	loff_t test_off=0; /* maybe value 1 is better */
++	int badblock_count=0;
++#endif
+ 
+ 	DEBUG(MTD_DEBUG_LEVEL0,"MTD_write\n");
+ 
+@@ -249,6 +284,23 @@
+ 	if (*ppos + count > mtd->size)
+ 		count = mtd->size - *ppos;
+ 
++#if DNI_REMAP_BADBLOCK
++	for (preblock_count=(rppos>>mtd->erasesize_shift) + 1; preblock_count > 0; preblock_count--) {
++		if (mtd->block_isbad && mtd->block_isbad(mtd, test_off)) {
++			preblock_count++;
++			badblock_count++;
++		}
++		test_off+=mtd->erasesize;
++		if (test_off > mtd->size)
++			return -ENOSPC;
++	}
++	rppos+=badblock_count*(mtd->erasesize);
++	if (rppos >= mtd->size)
++		return -ENOSPC;
++	if (rppos + count > mtd->size)
++		count = mtd->size - rppos;
++#endif
++
+ 	if (!count)
+ 		return 0;
+ 
+@@ -299,7 +351,11 @@
+ 		}
+ 
+ 		default:
++#if DNI_REMAP_BADBLOCK
++			ret = (*(mtd->write))(mtd, rppos, len, &retlen, kbuf);
++#else
+ 			ret = (*(mtd->write))(mtd, *ppos, len, &retlen, kbuf);
++#endif
+ 		}
+ 		if (!ret) {
+ 			*ppos += retlen;
+@@ -460,6 +516,11 @@
+ 	int ret = 0;
+ 	u_long size;
+ 	struct mtd_info_user info;
++#if DNI_REMAP_BADBLOCK
++	loff_t preblock_count;
++	loff_t test_off=0; /* maybe value 1 is better */
++	int badblock_count=0;
++#endif
+ 
+ 	DEBUG(MTD_DEBUG_LEVEL0, "MTD_ioctl\n");
+ 
+@@ -553,6 +614,22 @@
+ 			erase->mtd = mtd;
+ 			erase->callback = mtdchar_erase_callback;
+ 			erase->priv = (unsigned long)&waitq;
++#if DNI_REMAP_BADBLOCK
++			for (preblock_count=((erase->addr)>>mtd->erasesize_shift) + 1; preblock_count > 0; preblock_count--) {
++				if (mtd->block_isbad && mtd->block_isbad(mtd, test_off)) {
++					preblock_count++;
++					badblock_count++;
++				}
++				test_off+=mtd->erasesize;
++				if (test_off > mtd-size)
++					return -EFAULT;
++			}
++			erase->addr+=badblock_count*(mtd->erasesize);
++			if (erase->addr >= mtd->size)
++				return -EFAULT;
++			if (erase->addr + erase->len > mtd->size)
++				erase->len=mtd->size - erase->addr;
++#endif
+ 
+ 			/*
+ 			  FIXME: Allow INTERRUPTIBLE. Which means

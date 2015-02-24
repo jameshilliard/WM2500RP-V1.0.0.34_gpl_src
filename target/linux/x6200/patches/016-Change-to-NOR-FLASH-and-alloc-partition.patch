@@ -1,0 +1,122 @@
+--- linux-2.6.36/arch/arm/mach-brcm-hnd/board_ns.c	2013-03-28 11:01:59.559483899 -0400
++++ linux-2.6.36/arch/arm/mach-brcm-hnd/board_ns.c.new	2013-03-28 11:01:20.179486500 -0400
+@@ -362,7 +362,7 @@
+ #define FAILSAFE_PARTS 0
+ #endif
+ /* boot;nvram;kernel;rootfs;empty */
+-#define FLASH_PARTS_NUM	(5+MTD_PARTS+PLC_PARTS+FAILSAFE_PARTS)
++#define FLASH_PARTS_NUM	(9+MTD_PARTS+PLC_PARTS+FAILSAFE_PARTS)
+ 
+ static struct mtd_partition bcm947xx_flash_parts[FLASH_PARTS_NUM] = {{0}};
+ 
+@@ -449,6 +449,12 @@
+ 	uint vmlz_off, knl_size;
+ 	uint32 top = 0;
+ 	uint32 bootsz;
++	
++	uint32 pot_space = 0x10000;
++	uint32 art_space = 0x10000;
++	uint32 langtb_space = 0x40000;
++	uint32 back_space = 0x10000;
++
+ #ifdef CONFIG_FAILSAFE_UPGRADE
+ 	char *img_boot = nvram_get(BOOTPARTITION);
+ 	char *imag_1st_offset = nvram_get(IMAGE_FIRST_OFFSET);
+@@ -483,9 +489,11 @@
+ 		vmlz_off = 0;
+ 		rfs_off = lookup_flash_rootfs_offset(mtd, &vmlz_off, size);
+ 
++		bootsz = boot_partition_size(sfl_info->base);
++		printk("Boot partition size = %d(0x%x)\n", bootsz, bootsz);
+ 		/* Size pmon */
+ 		bcm947xx_flash_parts[nparts].name = "boot";
+-		bcm947xx_flash_parts[nparts].size = vmlz_off;
++		bcm947xx_flash_parts[nparts].size = bootsz;
+ 		bcm947xx_flash_parts[nparts].offset = top;
+ 		bcm947xx_flash_parts[nparts].mask_flags = MTD_WRITEABLE; /* forces on read only */
+ 		nparts++;
+@@ -500,6 +508,19 @@
+ 
+ 			/* Reserve for NVRAM */
+ 			bcm947xx_flash_parts[nparts].size -= ROUNDUP(nvram_space, mtd->erasesize);
++
++			/* Reserve for ART */
++			bcm947xx_flash_parts[nparts].size -= ROUNDUP( art_space, mtd->erasesize);
++
++			/* Reserve for POT */
++			bcm947xx_flash_parts[nparts].size -= ROUNDUP( pot_space, mtd->erasesize);
++
++			/* Reserve for LT */
++			bcm947xx_flash_parts[nparts].size -= ROUNDUP( langtb_space, mtd->erasesize);
++
++			/* Reserve for BACK */
++			bcm947xx_flash_parts[nparts].size -= ROUNDUP( back_space, mtd->erasesize);
++
+ #ifdef PLC
+ 			/* Reserve for PLC */
+ 			bcm947xx_flash_parts[nparts].size -= ROUNDUP(0x1000, mtd->erasesize);
+@@ -519,6 +540,18 @@
+ 		/* Reserve for NVRAM */
+ 		bcm947xx_flash_parts[nparts].size -= ROUNDUP(nvram_space, mtd->erasesize);
+ 
++		/* Reserve for ART */
++		bcm947xx_flash_parts[nparts].size -= ROUNDUP( art_space, mtd->erasesize);
++
++		/* Reserve for POT */
++		bcm947xx_flash_parts[nparts].size -= ROUNDUP( pot_space, mtd->erasesize);
++
++		/* Reserve for LT */
++		bcm947xx_flash_parts[nparts].size -= ROUNDUP( langtb_space, mtd->erasesize);
++
++		/* Reserve for BACK */
++		bcm947xx_flash_parts[nparts].size -= ROUNDUP( back_space, mtd->erasesize);
++
+ #ifdef BCMCONFMTD
+ 		bcm947xx_flash_parts[nparts].size -= (mtd->erasesize *4);
+ #endif
+@@ -533,6 +566,7 @@
+ 		bcm947xx_flash_parts[nparts].size = knl_size - (rfs_off - vmlz_off);
+ 		bcm947xx_flash_parts[nparts].offset = rfs_off;
+ 		bcm947xx_flash_parts[nparts].mask_flags = MTD_WRITEABLE; /* forces on read only */
++		top = bcm947xx_flash_parts[nparts].offset + bcm947xx_flash_parts[nparts].size;
+ 		nparts++;
+ #ifdef CONFIG_FAILSAFE_UPGRADE
+ 		if (dual_image_on) {
+@@ -601,7 +635,36 @@
+ 	/* Setup nvram MTD partition */
+ 	bcm947xx_flash_parts[nparts].name = "nvram";
+ 	bcm947xx_flash_parts[nparts].size = ROUNDUP(nvram_space, mtd->erasesize);
+-	bcm947xx_flash_parts[nparts].offset = size - bcm947xx_flash_parts[nparts].size;
++	bcm947xx_flash_parts[nparts].offset = top;
++	top += bcm947xx_flash_parts[nparts].size;
++	nparts++;
++
++	/* Setup pot MTD partition */
++	bcm947xx_flash_parts[nparts].name = "pot";
++	bcm947xx_flash_parts[nparts].size = ROUNDUP( pot_space, mtd->erasesize);
++	bcm947xx_flash_parts[nparts].offset = top;
++	top += bcm947xx_flash_parts[nparts].size;
++	nparts++;
++
++	/* Setup art MTD partition */
++	bcm947xx_flash_parts[nparts].name = "art";
++	bcm947xx_flash_parts[nparts].size = ROUNDUP( art_space, mtd->erasesize);
++	bcm947xx_flash_parts[nparts].offset = top;
++	top += bcm947xx_flash_parts[nparts].size;
++	nparts++;
++
++	/* Setup lt MTD partition */
++	bcm947xx_flash_parts[nparts].name = "langtb";
++	bcm947xx_flash_parts[nparts].size = ROUNDUP( langtb_space, mtd->erasesize);
++	bcm947xx_flash_parts[nparts].offset = top;
++	top += bcm947xx_flash_parts[nparts].size;
++	nparts++;
++
++	/* Setup back MTD partition */
++	bcm947xx_flash_parts[nparts].name = "back";
++	bcm947xx_flash_parts[nparts].size = ROUNDUP( back_space, mtd->erasesize);
++	bcm947xx_flash_parts[nparts].offset = top;
++	top += bcm947xx_flash_parts[nparts].size;
+ 	nparts++;
+ 
+ 	return bcm947xx_flash_parts;

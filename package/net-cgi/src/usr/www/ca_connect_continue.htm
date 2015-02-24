@@ -1,0 +1,50 @@
+<% http_header("style/wizard.css", "/funcs.js", "/region_class.js", "/top.js") %>
+<% cfg_set("refresh_url", "") %>
+<% cfg_set("continue_ca_settings", "") %>
+<% cfg_set("mobile_tag", "0") %>
+
+<body onload="loadvalue();">
+<form>
+<script>
+var index_ts = 0;
+var gui_region="<% cfg_get("GUI_Region") %>";
+
+function loadvalue()
+{
+        //setFooterClass();
+        change_wizard_height();
+
+        region_class = initClass(gui_region);
+}
+
+</script>
+<div id="top">
+        <iframe name="topframe" id="topframe" src="ca_top.htm" allowtransparency="true" height="100%" width="100%" frameborder="0"></iframe>
+</div>
+<div id="container" class="wizard_container_center">
+<div id="wizard_middle">
+	<div id="wizard_menu">
+	<script>
+	if(gui_region == "Russian" || gui_region == "Japanese" || ((gui_region == "Korean" || gui_region == "Spanish" || gui_region == "Italian") && IE_version() == 9))
+		document.write('<div id="IA_menu_1" name="IA_menu_1" class="wizard_gray_long_button"><b><span>$connect_process1</span></b></div>')
+	else
+		document.write('<div id="IA_menu_1" name="IA_menu_1" class="wizard_gray_button"><b><span>$connect_process1</span></b></div>')
+	if(gui_region == "Italian" || gui_region == "French" || gui_region == "Russian" || gui_region == "Spanish" || gui_region == "Japanese")
+		document.write('<div id="IA_menu_2" name="IA_menu_2" class="wizard_gray_long_button"><b><span>$connect_process2</span></b></div>')
+	else
+		document.write('<div id="IA_menu_2" name="IA_menu_2" class="wizard_gray_button"><b><span>$connect_process2</span></b></div>')
+	if(gui_region == "French" || gui_region == "German" || ((gui_region == "Russian" || gui_region == "Spanish" || gui_region == "Italian") && IE_version() == 9))
+		document.write('<div id="IA_menu_3" name="IA_menu_3" class="wizard_gray_long_button"><b><span>$connect_process3</span></b></div>')
+	else
+		document.write('<div id="IA_menu_3" name="IA_menu_3" class="wizard_gray_button"><b><span>$connect_process3</span></b></div>')
+	</script>
+	</div> <!--menu -->
+
+<div id="wizard_formframe_div">
+<iframe name=formframe id="formframe" src="ca_continue.htm" allowtransparency="true" height="100%" width="100%"  frameBorder=0></iframe>
+</div> <!-- formframe_div -->
+</div> <!-- middle -->
+</div> <!-- container -->
+</form>
+</body>
+</html>

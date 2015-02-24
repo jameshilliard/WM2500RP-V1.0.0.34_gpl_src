@@ -1,0 +1,189 @@
+<% http_header("style/form.css", "/funcs.js", "/bas_ether.js") %>
+<% body_header("_ip_settings", "bas_ether.htm", "ether") %>
+
+<script>
+var ts='<% cfg_get("ether") %>';
+var info_get_enablepro="<% cfg_get("enable_dhcpd") %>";
+var info_get_lanproto="<% cfg_get("lan_dhcp") %>";
+var dhcp_start="<% cfg_get("dhcp_start") %>";
+var dhcp_end="<% cfg_get("dhcp_end") %>";
+var run_test="<% cfg_get("run_test") %>";
+<% cfg_set("run_test", "no") %>
+<% bas_ether_info() %>
+var old_lan_ip=ether_get_ip;
+function loadvalue()
+{
+	var form=document.forms[0];
+	var ip_array=ether_get_ip.split('.');
+	if(ether_get_ip!="")
+	{
+		//var ip_array=ether_get_ip.split('.');
+		form.ether_ip1.value=ip_array[0];
+		form.ether_ip2.value=ip_array[1];
+		form.ether_ip3.value=ip_array[2];
+		form.ether_ip4.value=ip_array[3];
+	}
+	form.ip_start1.value=form.ip_end1.value=ip_array[0];
+	form.ip_start2.value=form.ip_end2.value=ip_array[1];
+	form.ip_start3.value=form.ip_end3.value=ip_array[2];
+	var start_array =dhcp_start.split('.');
+	var end_array = dhcp_end.split('.');
+	form.ip_start4.value=start_array[3];
+	form.ip_end4.value=end_array[3];
+	if(info_get_lanproto == '1')
+        form.LANAssign[0].checked = true;
+        else
+        form.LANAssign[1].checked = true;
+	if(info_get_enablepro == '1')
+  		form.IPAssign[0].checked = true;
+	else if(info_get_enablepro == '2')
+		form.IPAssign[2].checked = true;
+	else
+		form.IPAssign[1].checked = true;
+	setIP(form);		
+	setDNS(form);
+	set_able(form);
+	set_auto(form);
+	set_disable(form);
+	if(ether_get_subnet!="")
+	{
+		var mask_array=ether_get_subnet.split('.');
+		form.ether_mask1.value=mask_array[0];
+		form.ether_mask2.value=mask_array[1];	
+		form.ether_mask3.value=mask_array[2];
+		form.ether_mask4.value=mask_array[3]; 
+	}
+	if(ether_get_gateway!="")
+	{
+		var gtw_array=ether_get_gateway.split('.');
+		form.ether_gtw1.value=gtw_array[0];
+		form.ether_gtw2.value=gtw_array[1];
+		form.ether_gtw3.value=gtw_array[2];
+		form.ether_gtw4.value=gtw_array[3];
+	}
+	if(ether_get_dns1!="")
+	{
+		var dns_array=ether_get_dns1.split('.');
+        	form.ether_dnsp1.value=dns_array[0];
+        	form.ether_dnsp2.value=dns_array[1];
+        	form.ether_dnsp3.value=dns_array[2];
+        	form.ether_dnsp4.value=dns_array[3];
+	}
+	//form.port_speed.value="$port_speed";
+	goTestApply();
+}
+</script>
+
+<input type="hidden" name="run_test" value="">
+<input type="hidden" name="ether_ipaddr">
+<input type="hidden" name="ether_subnet">
+<input type="hidden" name="ether_gateway">
+<input type="hidden" name="ether_dnsaddr1">
+<input type="hidden" name="ether_dnsaddr2">
+<input type="hidden" name="dh_start">
+<input type="hidden" name="dh_end">
+<input type="hidden" name="change_ip_flag" value="0">
+
+<div class="page_title">$internet_head</div>
+<div class="fix_button">
+<TABLE width=100% border=0 cellpadding=0 cellspacing=2>
+<TR>
+    <TD nowrap colspan=2 align=center>
+	<input class="cancel_bt" type="button" value="$cancel_mark" onClick="location.href='bas_ether.htm';">&nbsp;&nbsp;&nbsp;
+	<input class="apply_bt" type="submit" value="$apply_mark" onclick="return check_ether(document.forms[0],0)"></td>
+</tr>
+</TABLE>
+</div>
+<div id="main" class="main_top_button">
+<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+<tr><td nowrap colspan=2>
+<input type="radio" name="LANAssign" value="1" onClick="setIP(document.forms[0]);setDNS(document.forms[0])">$basic_int_autoip</td></tr>
+<tr><td nowrap colspan=2>
+<input type="radio" name="LANAssign" value="0" onClick="setIP(document.forms[0]);setDNS(document.forms[0])">$basic_int_static_ip</td></tr>
+<tr><td nowrap>
+<img src="image/spacer.gif" width=20 height=12 border=0>$lan_mark_ip</td>
+<td nowrap align=right>
+	<input type="text" name="ether_ip1"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)" onblur="lanip_change(document.forms[0])">.
+    <input type="text" name="ether_ip2"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)" onblur="lanip_change(document.forms[0])">.
+    <input type="text" name="ether_ip3"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)" onblur="lanip_change(document.forms[0])">.
+    <input type="text" name="ether_ip4"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)" onblur="lanip_change(document.forms[0])">
+</TD>
+</tr>
+<tr><td nowrap>
+<img src="image/spacer.gif" width=20 height=12 border=0>$lan_mark_subnet</td>
+<td nowrap align=right>
+    <input type="text" name="ether_mask1"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)" >.
+    <input type="text" name="ether_mask2"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)">.
+    <input type="text" name="ether_mask3"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)">.
+    <input type="text" name="ether_mask4"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)">
+</TD> 
+</tr>
+<tr><td nowrap>
+<img src="image/spacer.gif" width=20 height=12 border=0>$lan_mark_gateway</td>
+<td nowrap align=right>
+    <input type="text" name="ether_gtw1"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)" >.
+    <input type="text" name="ether_gtw2"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)">.
+    <input type="text" name="ether_gtw3"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)">.
+    <input type="text" name="ether_gtw4"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)">
+</TD>
+</tr>
+<tr><td nowrap>
+<img src="image/spacer.gif" width=20 height=12 border=0>$basic_int_primary_dns</td>
+<td nowrap align=right>
+    <input type="text" name="ether_dnsp1"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)" >.
+    <input type="text" name="ether_dnsp2"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)">.
+    <input type="text" name="ether_dnsp3"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)">.
+    <input type="text" name="ether_dnsp4"  size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)">
+</TD>
+</tr>
+</table>
+$bluebar
+<div ID="dhcp_able"> 
+<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+<tr><td nowrap colspan=2>
+<input type="radio" name="IPAssign" value="1" onClick="set_able(document.forms[0]);set_disable(document.forms[0])">$ip_enable</td></tr>
+<tr><td nowrap>
+<img src="image/spacer.gif" width=20 height=12 border=0>$ip_start</td>
+<td nowrap align=right>
+    <input type="text" name="ip_start1" disabled="True" size="3" maxlength="3" >.
+    <input type="text" name="ip_start2" disabled="True" size="3" maxlength="3">.
+    <input type="text" name="ip_start3" disabled="True" size="3" maxlength="3">.
+    <input type="text" name="ip_start4" size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)">
+</TD>
+</tr>
+<tr><td nowrap>
+<img src="image/spacer.gif" width=20 height=12 border=0>$ip_end</td>
+<td nowrap align=right>
+    <input type="text" name="ip_end1" disabled="True" size="3" maxlength="3" >.
+    <input type="text" name="ip_end2" disabled="True" size="3" maxlength="3">.
+    <input type="text" name="ip_end3" disabled="True" size="3" maxlength="3">.
+    <input type="text" name="ip_end4" size="3" maxlength="3" onFocus="this.select();" onKeyPress="return getkey('num',event)">
+</TD>
+</tr>
+<tr><td nowrap colspan=2><input type="radio" name="IPAssign" value="0" onClick="set_able(document.forms[0]);set_disable(document.forms[0])">$ip_disable</td></tr>
+<tr><td nowrap colspan=2><input type="radio" name="IPAssign" value="2" onClick="set_able(document.forms[0]);set_disable(document.forms[0]);set_auto(document.forms[0])">$ip_auto_enable</td></tr>
+</table>
+$bluebar
+</div>
+</div>
+<% help_box("0","_ip_settings") %>
+
+<!--
+   <tr> 
+     	$hd <strong>Internet Port Speed</strong> </td>
+      <td nowrap align=right>  
+        <SELECT name="port_speed" size="1" style="width:225">
+			<option value="0"  selected>AutoSense
+			<option value="1"  >10BaseT Half_Duplex
+			<option value="2"  >10BaseT Full_Duplex
+			<option value="3">100BaseT Half_Duplex
+			<option value="4">100BaseT Full_Duplex
+        </SELECT>
+      </td>
+   </tr>
+ $bluebar
+ -->   
+
+</FORM>
+</BODY>
+</HTML>

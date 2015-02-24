@@ -1,0 +1,26 @@
+--- linux-2.6.30/net/netfilter/nf_conntrack_proto_udp.c.old	2012-03-19 11:41:45.287162173 -0400
++++ linux-2.6.30/net/netfilter/nf_conntrack_proto_udp.c	2012-03-19 11:42:08.977162179 -0400
+@@ -81,10 +81,9 @@
+ 
+ 	/* If we've seen traffic both ways, this is some kind of UDP
+ 	   stream.  Extend timeout. */
+-	if (test_bit(IPS_SEEN_REPLY_BIT, &ct->status)) {
+-#if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
+-		nf_ct_refresh_acct_udp(ct, ctinfo, skb, nf_ct_udp_timeout_stream, "ASSURED"); // assured
+-#else
++	/* First time we see the reply packet , Bit IPS_SEEN_REPLY_BIT hasn't been set , The information
++	   is stored in param 'ctinfo' */
++	if ( dir == IP_CT_DIR_REPLY ||test_bit(IPS_SEEN_REPLY_BIT, &ct->status)) {
+ 		/*
+ 		 * REQ-6: The NAT mapping Refresh Direction MUST have a "NAT Outbound refresh
+ 		 * behavior" of "True".
+@@ -112,6 +111,9 @@
+ 		}
+ 
+ 		if (refresh)
++#if defined(CONFIG_RTL_NF_CONNTRACK_GARBAGE_NEW)
++		nf_ct_refresh_acct_udp(ct, ctinfo, skb, nf_ct_udp_timeout_stream, "ASSURED"); // assured
++#else
+ 		nf_ct_refresh_acct(ct, ctinfo, skb, nf_ct_udp_timeout_stream);
+ #endif			
+ 		

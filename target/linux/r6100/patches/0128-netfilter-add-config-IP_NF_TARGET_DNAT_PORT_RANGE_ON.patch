@@ -1,0 +1,98 @@
+From 8308f867cfa16f8b91ed28b911dc42c7c3a7babe Mon Sep 17 00:00:00 2001
+From: Jonathan Chang <jonathan@dniserver.dnish.net>
+Date: Thu, 23 Jun 2011 14:41:52 +0800
+Subject: [PATCH 128/137] netfilter: add config IP_NF_TARGET_DNAT_PORT_RANGE_ONE_BY_ONE
+
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netfilter/nf_nat.h   |    4 ++++
+ net/ipv4/netfilter/Kconfig       |    8 ++++++++
+ net/ipv4/netfilter/nf_nat_rule.c |   20 ++++++++++++++++++++
+ 3 files changed, 32 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/netfilter/nf_nat.h b/include/net/netfilter/nf_nat.h
+index 579c9f9..e62c287 100644
+--- a/include/net/netfilter/nf_nat.h
++++ b/include/net/netfilter/nf_nat.h
+@@ -19,7 +19,9 @@ enum nf_nat_manip_type
+ #define IP_NAT_RANGE_PROTO_SPECIFIED 2
+ #define IP_NAT_RANGE_PROTO_RANDOM 4
+ #define IP_NAT_RANGE_PERSISTENT 8
++#ifdef CONFIG_IP_NF_TARGET_DNAT_PORT_RANGE_ONE_BY_ONE
+ #define IP_NAT_RANGE_PORT_RANGE_ONE_BY_ONE 16
++#endif
+ 
+ /* NAT sequence number modifications */
+ struct nf_nat_seq {
+@@ -42,9 +44,11 @@ struct nf_nat_range
+ 	/* Inclusive: network order */
+ 	union nf_conntrack_man_proto min, max;
+ 
++#ifdef CONFIG_IP_NF_TARGET_DNAT_PORT_RANGE_ONE_BY_ONE
+ 	/* For port range forwarding to do special handling */
+ 	/* Inclusive: network order */
+ 	u_int16_t port_forwarding_external_starting_port;
++#endif
+ };
+ 
+ /* For backwards compat: don't use in modern code. */
+diff --git a/net/ipv4/netfilter/Kconfig b/net/ipv4/netfilter/Kconfig
+index acc6107..239d9a6 100644
+--- a/net/ipv4/netfilter/Kconfig
++++ b/net/ipv4/netfilter/Kconfig
+@@ -201,6 +201,14 @@ config IP_NF_TARGET_NETMAP
+ 
+ 	  To compile it as a module, choose M here.  If unsure, say N.
+ 
++config IP_NF_TARGET_DNAT_PORT_RANGE_ONE_BY_ONE
++	tristate "DNAT target support port range one-by-one"
++	depends on NF_NAT
++	help
++	  Special mode for DNAT target for port range one-by-one.
++
++	  If unsure, say N.
++
+ config IP_NF_TARGET_REDIRECT
+ 	tristate "REDIRECT target support"
+ 	depends on NF_NAT
+diff --git a/net/ipv4/netfilter/nf_nat_rule.c b/net/ipv4/netfilter/nf_nat_rule.c
+index 3d97985..094c431 100644
+--- a/net/ipv4/netfilter/nf_nat_rule.c
++++ b/net/ipv4/netfilter/nf_nat_rule.c
+@@ -85,6 +85,7 @@ ipt_snat_target(struct sk_buff *skb, const struct xt_target_param *par)
+ 	return nf_nat_setup_info(ct, &mr->range[0], IP_NAT_MANIP_SRC);
+ }
+ 
++#ifdef CONFIG_IP_NF_TARGET_DNAT_PORT_RANGE_ONE_BY_ONE
+ static unsigned int
+ ipt_dnat_target(struct sk_buff *skb, const struct xt_target_param *par)
+ {
+@@ -119,6 +120,25 @@ ipt_dnat_target(struct sk_buff *skb, const struct xt_target_param *par)
+ 
+ 	return nf_nat_setup_info(ct, &tmp_mr_ptr->range[0], IP_NAT_MANIP_DST);
+ }
++#else
++static unsigned int
++ipt_dnat_target(struct sk_buff *skb, const struct xt_target_param *par)
++{
++	struct nf_conn *ct;
++	enum ip_conntrack_info ctinfo;
++	const struct nf_nat_multi_range_compat *mr = par->targinfo;
++
++	NF_CT_ASSERT(par->hooknum == NF_INET_PRE_ROUTING ||
++		     par->hooknum == NF_INET_LOCAL_OUT);
++
++	ct = nf_ct_get(skb, &ctinfo);
++
++	/* Connection must be valid and new. */
++	NF_CT_ASSERT(ct && (ctinfo == IP_CT_NEW || ctinfo == IP_CT_RELATED));
++
++	return nf_nat_setup_info(ct, &mr->range[0], IP_NAT_MANIP_DST);
++}
++#endif
+ 
+ static bool ipt_snat_checkentry(const struct xt_tgchk_param *par)
+ {
+-- 
+1.7.4.1
+

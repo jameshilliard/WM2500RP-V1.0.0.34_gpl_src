@@ -1,0 +1,58 @@
+#!/bin/sh
+
+CONFIG="/bin/config"
+
+led_amber_blink()
+{
+	/sbin/ledcontrol -n moca -c green -s off
+	/sbin/ledcontrol -n moca -c amber -s on
+}
+
+led_green()
+{
+	/sbin/ledcontrol -n moca -c amber -s off
+	/sbin/ledcontrol -n moca -c green -s on
+}
+
+led_off()
+{
+	/sbin/ledcontrol -n moca -c amber -s off
+	/sbin/ledcontrol -n moca -c green -s off
+}
+
+#echo "----- $0 $1 -----"
+case "$1" in
+	ready)
+		#"ready" will be executed in every 2.5 minutes, in background, trying to get connected.
+		led_amber_blink
+		conn_stat=$($CONFIG get coax_conn_status)
+		if [ "x$conn_stat" = "x1" ]; then
+			/usr/sbin/dniautoip-control.sh renew_udhcpc 1>/dev/mull 2>/dev/null
+		fi
+		/sbin/ifconfig eth0 down
+		#Set connection status
+		$CONFIG set coax_conn_status=0
+		$CONFIG commit
+	;;
+	up)
+		led_green
+		/usr/sbin/dniautoip-control.sh renew_udhcpc 1>/dev/mull 2>/dev/null
+		/sbin/ifconfig eth0 up
+		/sbin/moca-control.sh save_config_file
+		eth_flow_ctr=$($CONFIG get eth_flow_control)
+		if [ "x$eth_flow_ctr" = "x0" ]; then
+			echo 0 > /proc/eth_flow_control
+		fi
+		#Set connection status
+		$CONFIG set coax_conn_status=1
+		$CONFIG commit
+	;;
+	off)
+		led_off
+		/usr/sbin/dniautoip-control.sh renew_udhcpc 1>/dev/mull 2>/dev/null
+		/sbin/ifconfig eth0 down
+		#Set connection status
+		$CONFIG set coax_conn_status=0
+		$CONFIG commit
+	;;
+esac

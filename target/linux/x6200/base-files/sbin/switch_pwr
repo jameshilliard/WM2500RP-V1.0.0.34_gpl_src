@@ -1,0 +1,36 @@
+#! /bin/sh
+
+PWR_B=11
+PORTS="0 1 2 3 4"
+
+let val=2**$PWR_B      # val = 2^11
+let val1=$val*2
+let val2=$val/2
+
+pull_switch()
+{
+	for i in $PORTS ; do
+		let page=0x10+$i
+
+		old_val=`et-tool robord $page 0`
+
+		let hval=$old_val/$val1
+		let lval=$old_val%$val2
+		case $1 in
+			"down")
+				let new_val=$hval*$val1+val+$lval
+				;;
+			*)
+				let new_val=$hval*$val1+$lval
+				;;
+		esac
+
+		et-tool robowr $page 0 $new_val
+	done
+}
+
+[ -z $1 ] && st=5 || st=$1
+
+pull_switch down
+
+(sleep $st && pull_switch up)&

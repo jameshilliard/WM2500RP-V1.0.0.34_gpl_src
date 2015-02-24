@@ -1,0 +1,55 @@
+<% http_header("style/form.css", "/funcs.js", "/backup.js") %>
+
+<body onload="loadhelp('_backup');loadvalue();" bgcolor=#ffffff>
+<form action="NETGEAR_WN1000RP.cfg" method="post" enctype="multipart/form-data">
+<script>
+var gui_region="<% cfg_get("GUI_Region") %>";
+function loadvalue()
+{
+	if(gui_region == "French")	
+	{
+		document.getElementsByName("Backup")[0].className = "middle_common_bt";
+		document.getElementsByName("restore")[0].className = "middle_common_bt";
+		document.getElementsByName("Backup")[1].className = "middle_common_bt";
+	}
+	else if(gui_region == "Russian")
+	{
+		document.getElementsByName("Backup")[0].className = "long_common_bt";
+		document.getElementsByName("restore")[0].className = "long_common_bt";
+		document.getElementsByName("Backup")[1].className = "long_common_bt";
+	}
+	else if(gui_region == "German" || gui_region == "Spanish")
+	{
+		document.getElementsByName("Backup")[0].className = "wizard_middle_common_bt";
+		document.getElementsByName("restore")[0].className = "wizard_middle_common_bt";
+		document.getElementsByName("Backup")[1].className = "wizard_middle_common_bt";
+	}
+	else
+	{
+		document.getElementsByName("Backup")[0].className = "short_common_bt";
+		document.getElementsByName("restore")[0].className = "short_common_bt";
+		document.getElementsByName("Backup")[1].className = "short_common_bt";
+	}
+}
+</script> 
+<div class="page_title">$backup_head</div>
+<div id="main" class="main">
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<TR><TD colSpan=3></TD></TR><TR><td colspan=3><img src=/liteblue.gif width=100% height=12></td></TR>
+<tr>
+<tr><td nowrap><a tabindex=-1 href="javascript:loadhelp('_backup','save')"><b>$backup_save_settings</b></a></td></tr>
+<tr><td nowrap colspan=2 align=center><input class="short_common_bt" type="button" name="Backup" value="$backup_mark" onClick="click_backup()"></td></tr>
+$bluebar
+<tr><td nowrap><a tabindex=-1 href="javascript:loadhelp('_backup','restore')"><b>$backup_restore</b></a></td></tr>
+<tr><td nowrap><input type="file" name="mtenRestoreCfg" value="" size="40" maxlength="128"></td></tr>
+<tr><td nowrap colspan=2 align=center><input class="short_common_bt" type="button" name="restore" value="$restore_mark" onClick="check_restore();"></td></tr>$bluebar
+<tr><td nowrap><a tabindex=-1 href="javascript:loadhelp('_backup','revert')"><b>$backup_factory</b></a></td></tr>
+<tr><td nowrap colspan=2 align=center><input class="short_common_bt" type="button" name="Backup" value="$erase_mark" onClick="location.href='upg_yesfactory.htm';"></td></tr>$bluebar
+</table>
+</div>
+<% help_box("1","_backup") %>
+</form>
+<form method="post" enctype="multipart/form-data">
+</form>
+</body>
+</html>

@@ -1,0 +1,116 @@
+#!/bin/bash
+
+##############################################################################
+# Copyright (c) 2001-2012 Entropic Communications, Inc. All rights reserved. #
+##############################################################################
+##############################################################################
+# This file is licensed under the terms of your license agreement(s) with    #
+# Entropic covering this file. Redistribution, except as permitted by the    #
+# terms of your license agreement(s) with Entropic, is strictly prohibited.  #
+##############################################################################
+##############################################################################
+# \note This file is subject to the \ref EntropicLicenseAgreement "Entropic" #
+# licenses.                                                                  #
+##############################################################################
+
+echo =======================
+echo Running the Host Code
+echo =======================
+
+echo ============================================
+echo Checking if need to copy configuration files
+echo ============================================
+
+checkConfigFiles()
+{
+	echo -n Checking if $CONF exists...
+	if [ -e $CONF ]; then
+		echo Yes.
+   		echo -n Checking if $CONF is identical to $BACKUP...
+   		cmp -s $CONF $BACKUP
+   		if [ $? != 0 ]; then
+			echo No.
+			echo Warning: No change made to existing $CONF.
+		else
+			echo Yes.
+		fi
+	else
+		echo No.
+   		echo "$CONF does not exists so creating..."
+   		sudo cp $BACKUP $CONF
+        sudo cp $BACKUP `dirname $CONF`/../`basename $CONF conf`backup 
+	fi
+}
+
+# Make /etc/clink/en0 if needed
+if [ -e /etc/clink/en0 ]; then
+	echo Using /etc/clink/en0 for configuration files
+else
+	sudo mkdir -p /etc/clink/en0
+fi
+
+CONF=/etc/clink/clink.backup
+BACKUP=pdo/clink.backup
+checkConfigFiles
+
+CONF=/etc/clink/en0/clink.conf
+BACKUP=pdo/clink.backup
+checkConfigFiles
+
+CONF=/etc/clink/en0/mcast.conf
+BACKUP=pdo/mcast.backup
+checkConfigFiles
+
+CONF=/etc/clink/en0/rlapm.conf
+BACKUP=pdo/rlapm.backup
+checkConfigFiles
+
+CONF=/etc/clink/en0/sapm.conf
+BACKUP=pdo/sapm.backup
+checkConfigFiles
+
+CONF=/etc/clink/en0/rssi.conf
+BACKUP=pdo/rssi.backup
+checkConfigFiles
+
+
+
+echo ======================
+echo Updating /etc/ccpu.elf
+echo =====================
+CONF=/etc/ccpu.elf
+BACKUP=pdo/ccpu.elf
+sudo cp $BACKUP $CONF
+
+echo ======================
+echo Loading en2710_pcie.ko
+echo ======================
+sudo /sbin/insmod do/bin/en2710_pcie.ko mac_addr=00:01:02:03:04:05 
+if [ $? != 0 ]; then
+	echo "Error loading driver."
+	echo "Exiting..."
+	exit 1
+fi
+
+echo ==============
+echo Loading clinkd
+echo ==============
+sudo do/bin/clinkd --interface en0 --pcie --mac-addr 00:01:02:03:04:05 --confdir=/etc/clink/en0
+if [ $? != 0 ]; then
+	echo "Error loading clinkd"
+	echo "Exiting..."
+	exit 2
+fi
+
+echo Wait 8 seconds...
+sleep 8
+
+#sudo ifconfig en0 10.1.1.27 netmask 255.255.255.0
+#ifconfig en0
+
+#echo Wait a moment...
+#sleep 5
+#sudo host/Apps/clnkstat/clnkstat | grep Link
+
+echo All done.
+

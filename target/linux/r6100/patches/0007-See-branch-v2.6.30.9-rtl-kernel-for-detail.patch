@@ -1,0 +1,212 @@
+From 97c544793aa362229795fb13267f02a9290bef37 Mon Sep 17 00:00:00 2001
+From: michell.dong <michell.dong@dniserver.dnish.net>
+Date: Thu, 1 Dec 2011 09:02:08 -0500
+Subject: [PATCH 007/137] See branch v2.6.30.9-rtl-kernel for detail
+
+Signed-off-by: michell.dong <michell.dong@dniserver.dnish.net>
+---
+ drivers/net/ppp_generic.c |  116 +++++++++++++++++++++++++++++++++++++++++++++
+ 1 files changed, 116 insertions(+), 0 deletions(-)
+
+diff --git a/drivers/net/ppp_generic.c b/drivers/net/ppp_generic.c
+index 4c8bc4d..b6c0152 100644
+--- a/drivers/net/ppp_generic.c
++++ b/drivers/net/ppp_generic.c
+@@ -38,8 +38,10 @@
+ #include <linux/skbuff.h>
+ #include <linux/rtnetlink.h>
+ #include <linux/if_arp.h>
++#include <linux/in.h>
+ #include <linux/ip.h>
+ #include <linux/tcp.h>
++#include <linux/udp.h>
+ #include <linux/smp_lock.h>
+ #include <linux/spinlock.h>
+ #if defined(CONFIG_PPP_MPPE_MPPC)
+@@ -49,6 +51,9 @@
+ #include <linux/stddef.h>
+ #include <linux/device.h>
+ #include <linux/mutex.h>
++#ifdef CONFIG_SYSCTL
++#include <linux/sysctl.h>
++#endif
+ #include <net/slhc_vj.h>
+ #include <asm/atomic.h>
+ 
+@@ -101,6 +106,12 @@ enum SE_TYPE
+ 
+ #define PPP_VERSION	"2.4.2"
+ 
++#if 0
++#define DOD_DEBUG(fmt, arg...) printk(fmt, ##arg)
++#else
++#define DOD_DEBUG(fmt, arg...)
++#endif
++
+ /*
+  * Network protocols we support.
+  */
+@@ -314,6 +325,11 @@ struct channel {
+ static atomic_t ppp_unit_count = ATOMIC_INIT(0);
+ static atomic_t channel_count = ATOMIC_INIT(0);
+ 
++int dod_skip_control_packet = 0;
++#ifdef CONFIG_SYSCTL
++static struct ctl_table_header *dni_sysctl_header;
++#endif
++
+ /* per-net private data for this module */
+ static int ppp_net_id;
+ struct ppp_net {
+@@ -1165,6 +1181,36 @@ static struct pernet_operations ppp_net_ops = {
+ };
+ 
+ #define PPP_MAJOR	108
++#ifdef CONFIG_SYSCTL
++static ctl_table dni_table[] = {
++       {
++               .ctl_name       = CTL_UNNUMBERED,
++               .procname       = "dod_skip_control_packet",
++               .data           = &dod_skip_control_packet,
++               .maxlen         = sizeof(int),
++               .mode           = 0644,
++               .proc_handler   = &proc_dointvec,
++       },
++       {0}
++};
++
++static ctl_table dni_root_table[2] = {
++       {
++               .ctl_name       = CTL_UNNUMBERED,
++               .procname       = "dni",
++               .mode           = 0555,
++               .child          = dni_table
++       },
++       {0}
++};
++
++static struct ctl_path nf_ct_path[] = {
++       { .procname = "net", .ctl_name = CTL_NET, },
++       { }
++};
++#endif
++
++
+ 
+ /* Called at boot time if ppp is compiled into the kernel,
+    or at module load time (from init_module) if compiled as a module. */
+@@ -1191,6 +1237,13 @@ static int __init ppp_init(void)
+ 		err = PTR_ERR(ppp_class);
+ 		goto out_chrdev;
+ 	}
++#ifdef CONFIG_SYSCTL
++       dni_sysctl_header = register_sysctl_paths(nf_ct_path, dni_root_table);
++       if (dni_sysctl_header == NULL) {
++               printk("dni: can't register to sysctl at ppp_generic.\n");
++       }
++#endif
++
+ 
+ 	/* not a big deal if we fail here :-) */
+ 	device_create(ppp_class, NULL, MKDEV(PPP_MAJOR, 0), NULL, "ppp");
+@@ -1584,6 +1637,56 @@ int timeoutCheck_skipp_pkt(struct iphdr *iph)
+ #endif
+ 
+ /*
++ * NETGEAR SPEC v1.9   5.6 PPP dial on demand:
++ * The idle time-out & dial-on demand should't treat control packets as traffic,
++ * it includes BPA heartbeat, PPP, PPTP, DDNS query, NTP, TMSS, RIP, and FW
++ * update detection.
++ */
++static int session_actived_frame(unsigned char *data)
++{
++       struct iphdr *iph;
++       struct udphdr *udph;
++
++       iph = (struct iphdr *)(data + 2); /* skip two ppp proto octets */
++
++       if (iph->protocol == IPPROTO_IGMP) {
++               DOD_DEBUG("Sending IGMP packet.\n");
++               return 0;
++       }
++
++       if (iph->protocol != IPPROTO_UDP)
++               return 1;
++
++       udph = (void *)iph + (iph->ihl << 2);
++
++       if (udph->dest == __constant_htons(123)) {
++               DOD_DEBUG("Sending NTP packet.\n");
++               return 0;
++       }
++
++       if (udph->dest == __constant_htons(520)) {
++               DOD_DEBUG("Sending a RIP packet.\n");
++               return 0;
++       }
++
++       if (udph->dest == __constant_htons(53) && ntohs(udph->len) > (sizeof(struct udphdr) + 13 + 5)) {
++               /*
++                * DNS packet has 12 fixed octet header, then the domain name and etc ...
++                * the domain is formatted as bellow: gemini.tuc.noao.edu --> 6gemini3tuc4noao3edu0
++               */
++               char *dns = (char *)udph + (sizeof(struct udphdr) + 13);
++
++               if (strncmp(dns, "time-", 5) == 0) {
++                       DOD_DEBUG("Sending a time-*.netgear.com DNS query.\n");
++                       return 0;
++               }
++       }
++
++       return 1;
++}
++
++
++/*
+  * Compress and send a frame.
+  * The caller should have locked the xmit path,
+  * and xmit_pending should be 0.
+@@ -1599,6 +1702,13 @@ static void ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
+ 	struct sk_buff *new_skb;
+ 	int len;
+ 	unsigned char *cp;
++
++       int actived = 1;
++
++       if (proto == PPP_IP)
++               actived = session_actived_frame(skb->data);
++
++
+ #if defined(CONFIG_PPP_IDLE_TIMEOUT_REFINE)
+ 	struct iphdr *iphp;
+ 	iphp = (struct iphdr *)((unsigned char *)(skb->data+2));
+@@ -1626,6 +1736,7 @@ static void ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
+ 		skb_pull(skb, 2);
+ #else
+ 		/* for data packets, record the time */
++               if (actived && (dod_skip_control_packet != 0))
+ #if defined(CONFIG_PPP_IDLE_TIMEOUT_REFINE)
+ 		if(timeoutCheck_skipp_pkt(iphp)!=1)
+ #endif
+@@ -1762,6 +1873,8 @@ static void ppp_send_frame(struct ppp *ppp, struct sk_buff *skb)
+ 	if (ppp->flags & SC_LOOP_TRAFFIC) {
+ 		if (ppp->file.rq.qlen > PPP_MAX_RQLEN)
+ 			goto drop;
++               if (!actived && (dod_skip_control_packet != 0))
++                       goto drop;
+ 		skb_queue_tail(&ppp->file.rq, skb);
+ 		wake_up_interruptible(&ppp->file.rwait);
+ 		return;
+@@ -3480,6 +3593,9 @@ static void __exit ppp_cleanup(void)
+ 	device_destroy(ppp_class, MKDEV(PPP_MAJOR, 0));
+ 	class_destroy(ppp_class);
+ 	unregister_pernet_gen_device(ppp_net_id, &ppp_net_ops);
++#ifdef CONFIG_SYSCTL
++       unregister_sysctl_table(dni_sysctl_header);
++#endif
+ }
+ 
+ /*
+-- 
+1.7.4.1
+

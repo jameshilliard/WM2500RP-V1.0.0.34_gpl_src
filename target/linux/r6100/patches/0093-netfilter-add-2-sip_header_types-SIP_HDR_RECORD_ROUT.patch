@@ -1,0 +1,62 @@
+From 615acb41c8dd4dc1bece0c8b850cdb9e059a682d Mon Sep 17 00:00:00 2001
+From: Vincent Yang <vincent@dniserver.dnish.net>
+Date: Thu, 2 Dec 2010 14:20:03 +0800
+Subject: [PATCH 093/137] netfilter: add 2 sip_header_types: SIP_HDR_RECORD_ROUTE and SIP_HDR_ROUTE
+
+Add 2 sip_header_types : SIP_HDR_RECORD_ROUTE, SIP_HDR_ROUTE.
+
+1. used in SIP ALG.
+2. for fixing SIP-ALG test fail when SIP server setup in LAN side,
+   and the DUT portforwards SIP traffic to the SIP server.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Vincent Yang <vincent@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/linux/netfilter/nf_conntrack_sip.h |    2 ++
+ 1 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/include/linux/netfilter/nf_conntrack_sip.h b/include/linux/netfilter/nf_conntrack_sip.h
+index 23aa2ec..a0869199 100644
+--- a/include/linux/netfilter/nf_conntrack_sip.h
++++ b/include/linux/netfilter/nf_conntrack_sip.h
+@@ -87,6 +87,8 @@ enum sip_header_types {
+ 	SIP_HDR_VIA,
+ 	SIP_HDR_EXPIRES,
+ 	SIP_HDR_CONTENT_LENGTH,
++	SIP_HDR_RECORD_ROUTE,
++	SIP_HDR_ROUTE,
+ };
+ 
+ enum sdp_header_types {
+-- 
+1.7.4.1
+

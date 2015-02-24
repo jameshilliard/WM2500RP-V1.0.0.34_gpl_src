@@ -1,0 +1,26 @@
+diff -Nur linux-2.6.31.old//arch/mips/atheros/gpio.c linux-2.6.31/arch/mips/atheros/gpio.c
+--- linux-2.6.31.old//arch/mips/atheros/gpio.c	2013-02-04 09:26:35.797372065 -0500
++++ linux-2.6.31/arch/mips/atheros/gpio.c	2013-02-04 09:27:45.057372183 -0500
+@@ -1453,6 +1453,11 @@
+ 	rddata = rddata | ATH_GPIO_OUT_FUNCTION1_ENABLE_GPIO_4(0x0);
+ 	ath_reg_wr(ATH_GPIO_OUT_FUNCTION1, rddata);
+ 
++	/* Because usb5v(GPIO16) is MUX gpio,default reserved , So need to set it's function */
++	rddata = ath_reg_rd(ATH_GPIO_OUT_FUNCTION4);
++	rddata = rddata & 0xffffff00;
++	rddata = rddata | ATH_GPIO_OUT_FUNCTION4_ENABLE_GPIO_16(0x0);
++	ath_reg_wr(ATH_GPIO_OUT_FUNCTION4, rddata);
+ 	init_waitqueue_head(&ath_fr_wq);
+ 
+ 	create_simple_config_led_proc_entry();
+diff -Nur linux-2.6.31.old//arch/mips/include/asm/mach-atheros/934x.h linux-2.6.31/arch/mips/include/asm/mach-atheros/934x.h
+--- linux-2.6.31.old//arch/mips/include/asm/mach-atheros/934x.h	2013-02-04 09:26:35.197372065 -0500
++++ linux-2.6.31/arch/mips/include/asm/mach-atheros/934x.h	2013-02-04 09:28:45.167372053 -0500
+@@ -661,6 +661,7 @@
+ #define ATH_GPIO_OE_EN(x)				(x)
+ #define ATH_GPIO_IN_ENABLE4_SLIC_PCM_FS_IN(x)		((0xff&x)<< 8)
+ #define ATH_GPIO_IN_ENABLE4_SLIC_DATA_IN(x)		(0xff&x)
++#define ATH_GPIO_OUT_FUNCTION4_ENABLE_GPIO_16(x)	(0xff&x)
+ #define ATH_GPIO_OUT_FUNCTION3_ENABLE_GPIO_15(x)	((0xff&x)<<24)
+ #define ATH_GPIO_OUT_FUNCTION3_ENABLE_GPIO_14(x)	((0xff&x)<<16)
+ #define ATH_GPIO_OUT_FUNCTION3_ENABLE_GPIO_13(x)	((0xff&x)<< 8)

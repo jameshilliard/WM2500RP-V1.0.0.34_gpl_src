@@ -1,0 +1,39 @@
+config TARGET_MODELNAME
+    string "Define the model name for wm2500rp"
+    depends TARGET_wm2500rp
+    default "WM2500RP"
+
+config TARGET_BOARD_HW_ID
+    string "Define the board hw id for wm2500rp"
+    depends TARGET_wm2500rp
+    default "29763948+128+128"
+
+config TARGET_FW_VERSION
+    string "Define the firmware version"
+    depends TARGET_wm2500rp
+    default "V1.0.1.32"
+
+config TARGET_LG_VERSION
+    string "Define the language table version"
+    depends TARGET_wm2500rp
+    default "V1.0.0.119"
+
+config TARGET_HEAD_LENGTH
+    string "Define the length of wm2500rp's firmware header."
+    depends TARGET_wm2500rp
+    default "128"
+
+config TARGET_KERNEL_SIZE
+    string "Define the kernel size of wm2500rp's firmware"
+    depends TARGET_wm2500rp
+    default "1152k"
+
+config TARGET_MAX_KERNEL_SIZE
+    string "Define the max kernel size of wm2500rp's firmware"
+    depends TARGET_wm2500rp
+    default "1179648"
+
+config TARGET_MAX_IMAGE_SIZE
+    string "Define the max image size of wm2500rp's firmware"
+    depends TARGET_wm2500rp
+    default "25034752"

@@ -1,0 +1,55 @@
+--- linux-2.6.31.org/net/ipv4/arp.c	2012-05-21 18:11:00.000000000 +0800
++++ linux-2.6.31/net/ipv4/arp.c	2012-05-21 18:17:09.000000000 +0800
+@@ -120,6 +120,10 @@
+ #include <asm/uaccess.h>
+ 
+ #include <linux/netfilter_arp.h>
++static int arp_attack_count = 0;
++static __be32 s_ip = 0;
++static __be32 t_ip = 0;
++static struct timer_list expire_timer;
+ 
+ /*
+  *	Interface to generic neighbour cache.
+@@ -692,6 +696,21 @@
+ 	arp_xmit(skb);
+ }
+ 
++/*	timeout process to check if the event is arp attack
++ *	if yes, printk the log
++ */
++static void expire_process(unsigned long dummy)
++{
++	if(arp_attack_count > 10) {
++		printk("[DoS Attack: ARP Attack] from source: %u.%u.%u.%u,\n", NIPQUAD(s_ip));
++	}
++	/* empty the data calculate */
++	s_ip = 0;
++	t_ip = 0;
++	arp_attack_count = 0;
++	del_timer(&expire_timer);
++}
++
+ /*
+  *	Process an arp request.
+  */
+@@ -810,6 +829,19 @@
+ 				 dev->dev_addr, sha);
+ 		goto out;
+ 	}
++	/* Check arp attack and log this event: 
++	 * Note that we have not concluded arp attack specific definition.
++	 * Assume arp attack action like this:
++	 * quickly && almost 10 per second && almost has not gap.
++	 */
++	if(s_ip == 0 && t_ip == 0) {
++		s_ip = sip;
++		t_ip = tip;
++		setup_timer(&expire_timer, expire_process, (unsigned long)dev);
++		mod_timer(&expire_timer, jiffies + msecs_to_jiffies(1000));
++	} else if(s_ip == sip && t_ip == tip) {
++		arp_attack_count++;
++	}
+ 
+ 	if (arp->ar_op == htons(ARPOP_REQUEST) &&
+ 	    ip_route_input(skb, tip, sip, 0, dev) == 0) {

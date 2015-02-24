@@ -1,0 +1,111 @@
+<% http_header("style/form.css", "/funcs.js", "/wlacl.js") %>
+<% body_header("_WLG_acl", "wlacl.htm", "wlacl_apply") %>
+
+<script>
+<% save_timestamp("wlacl_apply","wlacl_editnum","wlacl_del") %>
+<% refresh_timestamp("wlacl_edit","wlacl_add") %>
+
+<% wlacl_items_xss() %>
+var gui_region="<% cfg_get("GUI_Region") %>";
+var get_wl_access_ctrl_on="<% cfg_get("wl_access_ctrl_on") %>";
+var ts='<% cfg_get("wlacl_apply") %>';
+function loadvalue()
+{
+	top.enabled_wps=<% wps_menu() %>;
+	menu_color_change('wladv');
+	
+	var form=document.forms[0];
+	if(get_wl_access_ctrl_on == '1')
+	{
+		form.accessLimit.checked = true;
+	}
+	else
+	{
+		form.accessLimit.checked = false;
+	}
+}
+
+function isfull(array_num)
+{
+    if( array_num == 64 )
+    {
+        alert("$acl_length_64");
+        return false;
+    }
+    else
+    {
+    	location.href="wlacl_add_wait.htm" 
+    }
+}
+
+</script>
+<input type="hidden" name="select_edit">
+<input type="hidden" name="select_del">
+<input type="hidden" name="wl_access_ctrl_on">
+<div class="page_title">$wlan_wlacl</div>
+<div class="fix_button">
+<TABLE width=100% border=0 cellpadding=0 cellspacing=2>
+<TR>
+    <TD nowrap colspan=2 align=center>
+	<input class="cancel_bt" type="button" value="$cancel_mark" onClick="location.href='WLG_adv.htm';">&nbsp;&nbsp;&nbsp;
+	<input class="apply_bt" type="submit" value="$apply_mark" onclick="return check_wlacl_apply(document.forms[0])"></td>
+</tr>
+</TABLE>
+</div>
+
+<div id="main" class="main_top_button">
+		<table width=100% border=0 cellpadding=0 cellspacing=3>
+  <TR>
+    <td nowrap><input type="checkbox" name="accessLimit" ><a tabindex=-1 href="javascript:loadhelp('_WLG_acl','control')"><b>$adva_wlan_acl_on
+    </b></td>
+  </tr>
+  <tr>
+	<td nowrap> 
+	<table class=tables align=center border=0 cellpadding=2 cellspacing=0 width="100%">
+		<tr class=table_header>
+			<td nowrap>&nbsp;</td>
+			<td nowrap align=center><span class="subhead">
+			$adva_wlan_devicename
+			</span></td>
+			<td nowrap align=center><span class="subhead">
+			$adva_wlan_acl_mac
+			</span></td>
+		</tr>
+<script>
+if( array_num > 0 )
+{
+	for(i=1;i<=array_num;i++)
+	{
+		var str = eval ( 'wlaclArray' + i );	
+		var tmp_str=change_blank(str); 
+		var each_info=tmp_str.split(' ');
+		if( i%2== 0 )
+			document.write("<TR class=\"even_line\">");
+		else
+			document.write("<TR class=\"odd_line\">");
+		if(each_info[0]!="<unknown>")
+			document.write('<td nowrap align=center> <input type="radio" name="select_wlacl" value="'+i+'"></td><td nowrap align=center> '+each_info[0]+'</td><td nowrap align=center> '+each_info[1]+'</td></tr>');
+		else
+			document.write('<td nowrap align=center> <input type="radio" name="select_wlacl" value="'+i+'"></td><td nowrap align=center> &lt;unknown&gt;</td><td nowrap align=center> '+each_info[1]+'</td></tr>');
+	}
+}		
+</script>
+	</table>
+	</td>
+  </tr>
+$bluebar
+  <TR>
+	<td nowrap colspan=2 align=center>
+        <input class="add_bt" type="button" value="$add_mark" name="add" onClick="isfull(array_num)">&nbsp;&nbsp;
+		<input class="edit_bt" type="submit" value="$edit_mark" name="edit" onClick="return check_wlacl_editnum(document.forms[0]);">&nbsp;&nbsp;
+		<input class="delete_bt" type="submit" value="$delete_mark" name="deletebt" onClick="return check_wlacl_del(document.forms[0]);"></TD>
+  </TR>
+$bluebar
+     
+</TABLE>
+</div>
+<% help_box("0","_WLG_acl") %>
+
+</FORM>
+</body>
+</html>

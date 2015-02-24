@@ -1,0 +1,12 @@
+#!/bin/sh
+
+killall wpa_supplicant
+
+
+sleep 3
+
+# configure network interfaces
+ifconfig wlan0 down
+ifconfig wlan1 down
+
+exit 1

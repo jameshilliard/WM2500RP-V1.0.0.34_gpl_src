@@ -1,0 +1,104 @@
+#!/bin/sh
+###############################################################################
+#
+#      mount udisk or remove udisk 
+#
+###############################################################################
+DEBUG=0
+# parse parameters
+if [ -n "${1}" ]; then
+    DEVID=`echo ${1} |cut -b 4-`
+    DNAME=`echo ${1} |cut -b 1-3`
+     
+    case ${DNAME} in
+            sda)
+                MOUNTNAME="usb1_"${DEVID}
+            ;;
+            sdb)
+                MOUNTNAME="usb2_"${DEVID}
+            ;;
+            sdc)
+                MOUNTNAME="usb3_"${DEVID}
+            ;;
+            sdd)
+                MOUNTNAME="usb4_"${DEVID}
+            ;;
+            sde)
+                MOUNTNAME="usb5_"${DEVID}
+            ;;
+            sdf)
+                MOUNTNAME="usb6_"${DEVID}
+            ;;
+            sdg)
+                MOUNTNAME="usb7_"${DEVID}
+            ;;
+            sdh)
+                MOUNTNAME="usb8_"${DEVID}
+            ;;
+            sdi)
+                MOUNTNAME="usb9_"${DEVID}
+            ;;
+            sdj)
+                MOUNTNAME="usb10_"${DEVID}
+            ;;
+            sdk)
+                MOUNTNAME="usb11_"${DEVID}
+            ;;
+            sdl)
+                MOUNTNAME="usb12_"${DEVID}
+            ;;
+            sdm)
+                MOUNTNAME="usb13_"${DEVID}
+            ;;
+            sdn)
+                MOUNTNAME="usb14_"${DEVID}
+            ;;
+            sdo)
+                MOUNTNAME="usb15_"${DEVID}
+            ;;
+            sdp)
+                MOUNTNAME="usb16_"${DEVID}
+            ;;
+        esac
+else
+    echo "No device name"
+    exit 1
+fi
+
+
+mount_udisk()
+{
+    if [ $DEBUG = 1 ]; then
+        echo "mount /dev/$MDEV > /mnt/$MOUNTNAME" >> /tmp/hotplug.log
+    fi
+    if [ ! -d "/mnt/$MOUNTNAME" ]; then
+        mkdir /mnt/$MOUNTNAME
+    fi
+    mount -t auto /dev/$MDEV /mnt/$MOUNTNAME
+    if [ $? -ne 0 ]; then
+	    rm -rf /mnt/$MOUNTNAME
+    fi
+}
+
+umount_udisk()
+{
+    if [ $DEBUG = 1 ]; then
+        echo "umount /mnt/$MOUNTNAME" >> /tmp/hotplug.log
+    fi
+    umount -f /mnt/$MOUNTNAME
+    rm -rf /mnt/$MOUNTNAME
+}
+
+if [ $DEBUG = 1 ]; then
+echo "action: $ACTION / mdev: $MDEV / devpath: $DEVPATH / subsystem: $SUBSYSTEM / mntdir: $MOUNTNAME" >> /tmp/hotplug.log
+fi
+
+# check mount / unmount
+if [ "$ACTION" = "remove" ]; then
+    umount_udisk
+else #"$ACTION" = "add"
+    mount_udisk
+fi
+
+# exit successfully
+exit 0

@@ -1,0 +1,29 @@
+diff -Nur linux-2.6.30.old//rtkload/Makefile linux-2.6.30/rtkload/Makefile
+--- linux-2.6.30.old//rtkload/Makefile	2012-11-27 09:34:32.208083398 -0500
++++ linux-2.6.30/rtkload/Makefile	2012-11-27 09:39:51.548083351 -0500
+@@ -1,6 +1,7 @@
+ # The kernel tree you do builds in.
+ # Uncomment if you're building for the emulator
+ include ../.config
++include ../../../../rules.mk
+ #include ../../.config	# to check toolchain CONFIG_RSDK_rsdk-1.5.4-5281-EB-2.6.30-0.9.30.3-uls-101110
+ DOQUIET = false
+ #DOQUIET = true 
+@@ -17,6 +18,8 @@
+ else
+ CVIMG=$(DIR_USERS)/boa/tools/cvimg
+ endif
++CVIMG=$(TOOLCHAIN_BIN_DIRS)/cvimg
++LZMA=$(STAGING_DIR_HOST)/bin/lzma
+ # ---- shouldn't need to modify below this line.
+ 
+ ifdef EMULATOR
+@@ -251,7 +254,7 @@
+ ifdef GZIP_COMPRESS
+ 	cat vmlinux_img | gzip -9v > vmlinux_img.gz	
+ else
+-	./lzma e vmlinux_img vmlinux_img.gz
++	$(LZMA) e vmlinux_img vmlinux_img.gz
+ endif
+ endif
+ 	$(CVIMG) vmlinuxhdr vmlinux_img.gz vmlinux_img.gz $(KERNEL_ROOT)/vmlinux

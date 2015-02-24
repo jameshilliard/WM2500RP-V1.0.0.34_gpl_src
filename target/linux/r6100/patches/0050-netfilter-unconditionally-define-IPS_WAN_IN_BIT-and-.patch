@@ -1,0 +1,45 @@
+From 67cbf08d2e8a40588d1893a2b8a03af1163ea57b Mon Sep 17 00:00:00 2001
+From: stone.liu <stone.liu@dniserver.dnish.net>
+Date: Wed, 26 Oct 2011 11:59:48 -0400
+Subject: [PATCH 050/137] netfilter: unconditionally define IPS_WAN_IN_BIT and IPS_WAN_IN
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+
+Conflicts:
+
+	include/linux/netfilter/nf_conntrack_common.h
+
+Signed-off-by: stone.liu <stone.liu@dniserver.dnish.net>
+---
+ include/linux/netfilter/nf_conntrack_common.h |    4 +---
+ 1 files changed, 1 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/netfilter/nf_conntrack_common.h b/include/linux/netfilter/nf_conntrack_common.h
+index 619c722..0588c37 100644
+--- a/include/linux/netfilter/nf_conntrack_common.h
++++ b/include/linux/netfilter/nf_conntrack_common.h
+@@ -80,11 +80,9 @@ enum ip_conntrack_status {
+ 	IPS_BT_SESSION = (1 << IPS_BT_SESSION_BIT),
+ #endif	
+ 
+-#if defined(CONFIG_IP_NF_TARGET_TRIGGER)
+ 	/* Create conntrack from wan interface */
+ 	IPS_WAN_IN_BIT = 12,
+ 	IPS_WAN_IN = (1 << IPS_WAN_IN_BIT),
+-#endif
+ 
+ 	IPS_CONENAT_BIT = 13,
+ 	IPS_CONENAT = (1<< IPS_CONENAT_BIT),
+@@ -92,7 +90,7 @@ enum ip_conntrack_status {
+ 	IPS_TRIGGER_BIT = 14,
+ 	IPS_TRIGGER	= (1 << IPS_TRIGGER_BIT),
+ 
+-	IPS_SPI_DoS_BIT = 14,
++	IPS_SPI_DoS_BIT = 15,
+ 	IPS_SPI_DoS	= (1 << IPS_SPI_DoS_BIT),
+ };
+ 
+-- 
+1.7.4.1
+

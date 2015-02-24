@@ -1,0 +1,61 @@
+diff -Nur linux-2.6.22.old//include/linux/sysctl.h linux-2.6.22/include/linux/sysctl.h
+--- linux-2.6.22.old//include/linux/sysctl.h	2012-06-11 11:53:26.528897165 -0400
++++ linux-2.6.22/include/linux/sysctl.h	2012-06-11 11:55:15.498897191 -0400
+@@ -544,6 +544,7 @@
+ 	NET_IPV6_IP6FRAG_TIME=23,
+ 	NET_IPV6_IP6FRAG_SECRET_INTERVAL=24,
+ 	NET_IPV6_MLD_MAX_MSF=25,
++	NET_IPV6_6TO4_FORCE_IP4FRAGOFF_ZERO=26,
+ };
+ 
+ enum {
+diff -Nur linux-2.6.22.old//include/net/ipv6.h linux-2.6.22/include/net/ipv6.h
+--- linux-2.6.22.old//include/net/ipv6.h	2012-06-11 11:53:26.588897165 -0400
++++ linux-2.6.22/include/net/ipv6.h	2012-06-11 11:56:03.878897203 -0400
+@@ -569,6 +569,7 @@
+ extern int sysctl_ip6frag_low_thresh;
+ extern int sysctl_ip6frag_time;
+ extern int sysctl_ip6frag_secret_interval;
++extern int sysctl_ipv6_6to4_force_ip4fragoff_zero;
+ 
+ extern const struct proto_ops inet6_stream_ops;
+ extern const struct proto_ops inet6_dgram_ops;
+diff -Nur linux-2.6.22.old//net/ipv6/sit.c linux-2.6.22/net/ipv6/sit.c
+--- linux-2.6.22.old//net/ipv6/sit.c	2012-06-11 11:53:26.478897165 -0400
++++ linux-2.6.22/net/ipv6/sit.c	2012-06-11 11:58:03.048897231 -0400
+@@ -73,6 +73,8 @@
+ static struct ip_tunnel *tunnels_wc[1];
+ static struct ip_tunnel **tunnels[4] = { tunnels_wc, tunnels_l, tunnels_r, tunnels_r_l };
+ 
++int sysctl_ipv6_6to4_force_ip4fragoff_zero = 0;
++
+ static DEFINE_RWLOCK(ipip6_lock);
+ 
+ static struct ip_tunnel * ipip6_tunnel_lookup(__be32 remote, __be32 local)
+@@ -563,7 +565,7 @@
+ 	iph 			=	ip_hdr(skb);
+ 	iph->version		=	4;
+ 	iph->ihl		=	sizeof(struct iphdr)>>2;
+-	if (mtu > IPV6_MIN_MTU)
++	if (!sysctl_ipv6_6to4_force_ip4fragoff_zero && mtu > IPV6_MIN_MTU)
+ 		iph->frag_off	=	htons(IP_DF);
+ 	else
+ 		iph->frag_off	=	0;
+diff -Nur linux-2.6.22.old//net/ipv6/sysctl_net_ipv6.c linux-2.6.22/net/ipv6/sysctl_net_ipv6.c
+--- linux-2.6.22.old//net/ipv6/sysctl_net_ipv6.c	2012-06-11 11:53:26.478897165 -0400
++++ linux-2.6.22/net/ipv6/sysctl_net_ipv6.c	2012-06-11 11:56:42.898897211 -0400
+@@ -80,6 +80,14 @@
+ 		.mode		= 0644,
+ 		.proc_handler	= &proc_dointvec
+ 	},
++	{
++		.ctl_name       = NET_IPV6_6TO4_FORCE_IP4FRAGOFF_ZERO,
++		.procname       = "ipv6_6to4_force_ip4fragoff_zero",
++		.data           = &sysctl_ipv6_6to4_force_ip4fragoff_zero,
++		.maxlen         = sizeof(int),
++		.mode           = 0644,
++		.proc_handler   = &proc_dointvec
++	},
+ 	{ .ctl_name = 0 }
+ };
+ 

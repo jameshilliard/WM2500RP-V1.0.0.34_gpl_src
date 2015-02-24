@@ -1,0 +1,79 @@
+From 471ef28375fc797f2c35366e1fd003992ecce302 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Thu, 24 Feb 2011 18:04:11 +0800
+Subject: [PATCH 118/137] netfilter: add function do_flush_conntrack_table()
+
+Add a proc entry /proc/sys/dni_netfilter/flush_conntrack_table for
+flush conntrack table
+
+To flush current conntrack table:
+    echo 1 > /proc/sys/dni_netfilter/flush_conntrack_table
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netfilter/nf_conntrack.h |    2 ++
+ net/netfilter/nf_conntrack_core.c    |    5 +++++
+ 2 files changed, 7 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/netfilter/nf_conntrack.h b/include/net/netfilter/nf_conntrack.h
+index cca80f1..f54249d 100644
+--- a/include/net/netfilter/nf_conntrack.h
++++ b/include/net/netfilter/nf_conntrack.h
+@@ -287,6 +287,8 @@ extern void nf_ct_l3proto_module_put(unsigned short l3proto);
+  */
+ extern void *nf_ct_alloc_hashtable(unsigned int *sizep, int *vmalloced, int nulls);
+ 
++extern void do_flush_conntrack_table(void);
++
+ extern void nf_ct_free_hashtable(void *hash, int vmalloced, unsigned int size);
+ 
+ extern struct nf_conntrack_tuple_hash *
+diff --git a/net/netfilter/nf_conntrack_core.c b/net/netfilter/nf_conntrack_core.c
+index bef1e67..f8d58d0 100644
+--- a/net/netfilter/nf_conntrack_core.c
++++ b/net/netfilter/nf_conntrack_core.c
+@@ -1144,6 +1144,11 @@ static int kill_all(struct nf_conn *i, void *data)
+ 	return 1;
+ }
+ 
++void do_flush_conntrack_table(void)
++{
++	nf_ct_iterate_cleanup(&init_net, kill_all, NULL);
++}
++
+ void nf_ct_free_hashtable(void *hash, int vmalloced, unsigned int size)
+ {
+ 	if (vmalloced)
+-- 
+1.7.4.1
+

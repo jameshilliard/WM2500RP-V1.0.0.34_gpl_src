@@ -1,0 +1,29 @@
+#!/bin/sh
+	#classes for dscp
+	tc class add dev $DEV parent 1:1 classid 1:30 htb rate 800kbit ceil 800kbit prio 0
+	tc class add dev $DEV parent 1:1 classid 1:31 htb rate 100kbit ceil ${RATEUP}kbit prio 0
+	tc class add dev $DEV parent 1:1 classid 1:32 htb rate 2400kbit ceil 2400kbit prio 0
+	tc class add dev $DEV parent 1:1 classid 1:33 htb rate 100kbit ceil ${RATEUP}kbit prio 0
+	tc class add dev $DEV parent 1:1 classid 1:34 htb rate 100kbit ceil ${RATEUP}kbit prio 0
+	tc class add dev $DEV parent 1:1 classid 1:35 htb rate 100kbit ceil ${RATEUP}kbit prio 0
+	tc class add dev $DEV parent 1:1 classid 1:36 htb rate 1200kbit ceil 1200kbit prio 0
+
+	tc qdisc add dev $DEV parent 1:30 handle 30: sfq perturb 10
+	tc qdisc add dev $DEV parent 1:31 handle 31: sfq perturb 10
+	tc qdisc add dev $DEV parent 1:32 handle 32: sfq perturb 10
+	tc qdisc add dev $DEV parent 1:33 handle 33: sfq perturb 10
+	tc qdisc add dev $DEV parent 1:34 handle 34: sfq perturb 10
+	tc qdisc add dev $DEV parent 1:35 handle 35: sfq perturb 10
+	tc qdisc add dev $DEV parent 1:36 handle 36: sfq perturb 10
+
+	tc filter add dev $DEV parent 1:0 prio 0 protocol ip handle 30 fw flowid 1:30
+	tc filter add dev $DEV parent 1:0 prio 0 protocol ip handle 31 fw flowid 1:31
+	tc filter add dev $DEV parent 1:0 prio 0 protocol ip handle 32 fw flowid 1:32
+	tc filter add dev $DEV parent 1:0 prio 0 protocol ip handle 33 fw flowid 1:33
+	tc filter add dev $DEV parent 1:0 prio 0 protocol ip handle 34 fw flowid 1:34
+	tc filter add dev $DEV parent 1:0 prio 0 protocol ip handle 35 fw flowid 1:35
+	#tc filter add dev $DEV parent 1:0 prio 0 protocol ip handle 36 fw flowid 1:36
+
+	# remark fwmark for dscp
+	iptables -t mangle -A MYSHAPER-OUT -m dscp --dscp 10 -j MARK --set-mark 31
+	iptables -t mangle -A MYSHAPER-OUT -m dscp --dscp 46 -j MARK --set-mark 32

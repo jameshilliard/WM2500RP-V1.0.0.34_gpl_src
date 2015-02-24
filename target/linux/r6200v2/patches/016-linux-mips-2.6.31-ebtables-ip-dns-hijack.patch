@@ -1,0 +1,152 @@
+From b247c1b9430323a8a0a580a063a82b4ef51c85bc Mon Sep 17 00:00:00 2001
+From: alime.mao <alime.mao@dniserver.dnish.net>
+Date: Thu, 11 Apr 2013 14:38:49 -0400
+Subject: [PATCH 1/2] Add an ebtable match, support netgear dns hijack
+
+Signed-off-by: alime.mao <alime.mao@dniserver.dnish.net>
+---
+ include/linux/netfilter_bridge/ebt_ip.h |    6 ++-
+ net/bridge/netfilter/ebt_ip.c           |   81 +++++++++++++++++++++++++++++++
+ 2 files changed, 85 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/netfilter_bridge/ebt_ip.h b/include/linux/netfilter_bridge/ebt_ip.h
+index 6a708fb..6d936ee 100644
+--- a/include/linux/netfilter_bridge/ebt_ip.h
++++ b/include/linux/netfilter_bridge/ebt_ip.h
+@@ -21,8 +21,9 @@
+ #define EBT_IP_PROTO 0x08
+ #define EBT_IP_SPORT 0x10
+ #define EBT_IP_DPORT 0x20
++#define EBT_IP_DNS_HIJACK 0x100
+ #define EBT_IP_MASK (EBT_IP_SOURCE | EBT_IP_DEST | EBT_IP_TOS | EBT_IP_PROTO |\
+- EBT_IP_SPORT | EBT_IP_DPORT )
++ EBT_IP_SPORT | EBT_IP_DPORT | EBT_IP_DNS_HIJACK)
+ #define EBT_IP_MATCH "ip"
+ 
+ /* the same values are used for the invflags */
+@@ -31,12 +32,13 @@ struct ebt_ip_info {
+ 	__be32 daddr;
+ 	__be32 smsk;
+ 	__be32 dmsk;
++	__be32  bitmask;
+ 	uint8_t  tos;
+ 	uint8_t  protocol;
+-	uint8_t  bitmask;
+ 	uint8_t  invflags;
+ 	uint16_t sport[2];
+ 	uint16_t dport[2];
++	__be32 dns_hijack;
+ };
+ 
+ #endif
+diff --git a/net/bridge/netfilter/ebt_ip.c b/net/bridge/netfilter/ebt_ip.c
+index 23bca62..cf5d05a 100644
+--- a/net/bridge/netfilter/ebt_ip.c
++++ b/net/bridge/netfilter/ebt_ip.c
+@@ -15,15 +15,90 @@
+ #include <net/ip.h>
+ #include <linux/in.h>
+ #include <linux/module.h>
++#include <linux/udp.h>
+ #include <linux/netfilter/x_tables.h>
+ #include <linux/netfilter_bridge/ebtables.h>
+ #include <linux/netfilter_bridge/ebt_ip.h>
+ 
++#if 1
++#define DEBUGP printk
++#else
++#define DEBUGP(format, args...)
++#endif
++
+ struct tcpudphdr {
+ 	__be16 src;
+ 	__be16 dst;
+ };
+ 
++static int check_dns_hijack(const struct sk_buff *skb)
++{
++       struct iphdr _iph, *ih;
++       struct udphdr _ports, *pptr;
++       unsigned char *haystack, *p, dns[256], n, i;
++
++       static char *hijack_dns[] = {
++                   "www.routerlogin.com",
++                   "www.routerlogin.net",
++                   "routerlogin.com",
++                   "routerlogin.net",
++                   "readyshare.routerlogin.net",
++                   /* --- The End --- */
++                   NULL
++       };
++
++       ih = skb_header_pointer(skb, 0, sizeof(_iph), &_iph);
++       if (ih == NULL)
++               return EBT_NOMATCH;
++       if (ih->protocol != IPPROTO_UDP)    /* UDP protocol: 0x11 */
++               return EBT_NOMATCH;
++
++       pptr = skb_header_pointer(skb, ih->ihl*4,
++                         sizeof(_ports), &_ports);
++       if (pptr == NULL)
++               return EBT_NOMATCH;
++
++       if (ntohs(pptr->dest) != 53)    /* DNS port: 53 */
++               return EBT_NOMATCH;
++       haystack = (void *)pptr + sizeof(struct udphdr) + 12;   /* Skip 12 fixed bytes header. */
++       p = &dns[0];
++       /*
++        * Now extract name as .-concatenated string into 'dns[256]' buffer, normally, DNS
++        * is encoded as: gemini.tuc.noao.edu  --> [6]gemini[3]tuc[4]noao[3]edu[0]
++        */
++
++       while ((haystack < skb->tail) && (n = *haystack++)) {
++               if (n & 0xC0) {
++                       DEBUGP("dnshijack: Don't support compressed DNS encoding.\n");
++                       return EBT_NOMATCH;
++               }
++
++               if ((p - dns + n + 1) >= sizeof(dns)) {
++                       DEBUGP("Too long subdomain name :%d, the buffer is :%d\n", n, sizeof(dns));
++                       return EBT_NOMATCH;
++               }
++               if ((haystack + n) > skb->tail) {
++                       DEBUGP("The domain is invalid encoded!\n");
++                       return EBT_NOMATCH;
++               }
++
++               for (i = 0; i < n; i++)
++                       *p++ = *haystack++;
++               *p++ = '.';
++       }
++       if (p != &dns[0])
++               p--;
++       *p = 0; /* Terminate: lose final period. */
++
++       //DEBUGP("ebt_ip: The DNS is : %s\n", (char *)dns);
++       for (i = 0; hijack_dns[i]; i++) {
++               if (strcmp((const char *)dns, hijack_dns[i]) == 0)
++                       return EBT_MATCH;
++       }
++
++       return EBT_NOMATCH;
++}
++
+ static bool
+ ebt_ip_mt(const struct sk_buff *skb, struct xt_action_param *par)
+ {
+@@ -74,6 +149,12 @@ ebt_ip_mt(const struct sk_buff *skb, struct xt_action_param *par)
+ 			return false;
+ 		}
+ 	}
++
++	if (info->bitmask & EBT_IP_DNS_HIJACK) {
++		if (check_dns_hijack(skb) == EBT_NOMATCH)
++			return false;
++	}
++
+ 	return true;
+ }
+ 
+-- 
+1.7.4.1
+

@@ -1,0 +1,57 @@
+From 821ef2fdd04fb6809fe12b6fc6ed930aeeb63e23 Mon Sep 17 00:00:00 2001
+From: Jack Lin <jack.lin@dniserver.dnish.net>
+Date: Tue, 7 Dec 2010 10:16:44 +0800
+Subject: [PATCH 010/137] udp: Add integer sysctl_udp_ssdp_deliver_all with initial value 0
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jack Lin <jack.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv4/udp.c |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv4/udp.c b/net/ipv4/udp.c
+index 9746e5f..f570580 100644
+--- a/net/ipv4/udp.c
++++ b/net/ipv4/udp.c
+@@ -120,6 +120,9 @@ int sysctl_udp_wmem_min __read_mostly;
+ 
+ #define DNI_SSDP_DELIVER_ALL
+ #define SSDP_PORT		1900
++#ifdef DNI_SSDP_DELIVER_ALL
++int sysctl_udp_ssdp_deliver_all = 0;
++#endif
+ 
+ EXPORT_SYMBOL(sysctl_udp_mem);
+ EXPORT_SYMBOL(sysctl_udp_rmem_min);
+-- 
+1.7.4.1
+

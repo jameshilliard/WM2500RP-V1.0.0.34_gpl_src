@@ -1,0 +1,28 @@
+From cbe0f431571e736b8e3bb7bf31ec3b1f1175b1ad Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:44 +0800
+Subject: [PATCH 005/137] ipv4: add struct hlist_head pointer nat_by_modified_source in struct netns_ipv4
+
+Define new variables for supporting SNATP2P in conntrack module.
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netns/ipv4.h |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/netns/ipv4.h b/include/net/netns/ipv4.h
+index 2eb3814..2ac1b62 100644
+--- a/include/net/netns/ipv4.h
++++ b/include/net/netns/ipv4.h
+@@ -40,6 +40,7 @@ struct netns_ipv4 {
+ 	struct xt_table		*iptable_security;
+ 	struct xt_table		*nat_table;
+ 	struct hlist_head	*nat_bysource;
++	struct hlist_head	*nat_by_modified_source;
+ 	int			nat_vmalloced;
+ #endif
+ 
+-- 
+1.7.4.1
+

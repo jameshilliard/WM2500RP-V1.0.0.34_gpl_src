@@ -1,0 +1,121 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006 OpenWrt.org
+
+START=10
+
+start() {
+	mkdir -p /var/run
+	mkdir -p /var/log
+	mkdir -p /var/lock
+	mkdir -p /var/state
+	touch /var/log/wtmp
+	touch /var/log/lastlog
+	ln -sf /tmp/resolv.conf.auto /tmp/resolv.conf
+
+	# create /dev/root if it doesn't exist
+	#[ -e /dev/root ] || {
+	#	ln -s 31:02 /dev/root
+	#}
+
+	klogd
+	syslogd -m 0
+
+	ifconfig lo 127.0.0.1 up
+
+       killall -q hotplug2
+
+       echo "-----boot : run hotplug2-----"
+        [ -x /sbin/hotplug2 ] && /sbin/hotplug2 --override --persistent \
+                        --set-worker /lib/hotplug2/worker_fork.so \
+                        --set-rules-file /etc/hotplug2.rules \
+                        --max-children 1 >/dev/null 2>&1 &
+
+        # the coldplugging of network interfaces needs to happen later, so we do it manually here
+        #for iface in $(awk -F: '/:/ {print $1}' /proc/net/dev); do
+        #        /usr/bin/env -i ACTION=add INTERFACE="$iface" /sbin/hotplug-call net
+        #done
+
+	datalib
+	#coremgr
+
+	/sbin/printhosts
+
+	# let hostname = netbiosname
+	#echo "$($CONFIG get netbiosname)" > /proc/sys/kernel/hostname
+
+        load_modules /etc/modules.d/*
+
+        # process user commands
+        [ -f /etc/rc.local ] && {
+                sh /etc/rc.local
+        }
+
+	/etc/net6conf/6proc start
+	#read mac from flash
+	/sbin/artmtd -r mac
+
+	# generate the firewall rule file after loading the configuration data.
+	/usr/sbin/net-wall rule
+
+	# start SIP ALG module
+	#load_modules /etc/modules.d/30-sip-alg
+	/sbin/cmd_sipalg
+
+	/bin/config set syslog_up_first=0
+
+	# start GPIO reset button & GPIO LED
+	#load_modules /etc/modules.d/40-ar7100-gpio
+	#mknod /dev/ar7100gpio c 240 0
+	#mknod /dev/ar7100gpiointr c 250 0
+
+	# Load Default QoS rules if needed.
+	qos_dft="$(/bin/config get qos_list_default)"
+	if [ "$qos_dft" = "1" ]; then
+		count=1
+		while :
+		do
+			qos_rule="$(/bin/config get qos_dft_list$count)"
+			if [ "x$qos_rule" = "x" ]; then
+				break;
+			fi
+			/bin/config set qos_list$count="$qos_rule"
+
+			count=`expr $count + 1`
+		done
+
+		count=`expr $count - 1`
+		echo "$count QoS default rules are Loaded!"
+
+		/bin/config set qos_list_default="0"
+		#/bin/config commit
+	fi
+	#read serial number from flash to /tmp/Seria_Number
+	/sbin/artmtd -r sn
+
+	#WiFi pre-setting
+	id_dft="$(/bin/config get default_ssphrase)"
+	if [ "$id_dft" = "1" ]; then
+		/sbin/artmtd -r ssid
+		/sbin/artmtd -r passphrase
+
+		if [ -s /tmp/ssid-setted ] && [ -s /tmp/passphrase-setted ]; then
+			id_set=$(cat /tmp/ssid-setted)
+			ps_set=$(cat /tmp/passphrase-setted)
+
+			/bin/config set wl_ssid="$id_set"
+			/bin/config set wl_wpas_psk="$ps_set"
+			/bin/config set wl_sectype="5" #Mixed mode
+			/bin/config set wps_status="5" #WPS configured
+		fi
+
+		/bin/config set default_ssphrase="0"
+		/bin/config commit
+	fi
+	# the fisrt log
+	local sys_first="$(/bin/config get syslog_up_first)"
+	if [ "x$sys_first" = "x0" ]; then
+	        logger "[Initialized, firmware version: $(cat /firmware_version)]"
+	        $CONFIG set syslog_up_first=1
+	fi
+
+}

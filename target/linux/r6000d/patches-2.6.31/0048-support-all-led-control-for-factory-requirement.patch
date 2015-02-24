@@ -1,0 +1,70 @@
+diff -Nur linux-2.6.31.old//arch/mips/atheros/gpio.c linux-2.6.31/arch/mips/atheros/gpio.c
+--- linux-2.6.31.old//arch/mips/atheros/gpio.c	2013-03-01 06:23:06.567115629 -0500
++++ linux-2.6.31/arch/mips/atheros/gpio.c	2013-03-01 06:33:38.987115554 -0500
+@@ -161,6 +161,7 @@
+ static struct proc_dir_entry *button_state = NULL;
+ static struct proc_dir_entry *disable_wps = NULL; /* WPS is disabled? write into: 1 => disable, 0 => enable */
+ static struct proc_dir_entry *usb5v_en = NULL;
++static struct proc_dir_entry *all_led = NULL;
+ static int diswps = 0;  /* 0 => WPS is enabled, 1 => WPS is disabled */
+ static int diswps_blink_count = 0; /* max value: 50, blinking 5 seconds */
+ 
+@@ -866,6 +867,45 @@
+ 	return count;
+ }
+ #endif
++static int all_led_read (char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++        return 0;
++}
++
++static int all_led_write (struct file *file, const char *buf,
++                                        unsigned long count, void *data)
++{
++	if (0 != strncmp(buf,"on",2) && 0 != strncmp(buf,"off",3))
++		return count;
++
++	ath_gpio_config_output(POWER_LED_GPIO);
++	ath_gpio_config_output(STATUS_LED_GPIO);
++	ath_gpio_config_output(WAN_AMBER_LED_GPIO);
++	ath_gpio_config_output(WAN_GREEN_LED_GPIO);
++	ath_gpio_config_output(USB_LED_GPIO);
++	ath_gpio_config_output(WLAN_LED_GPIO);
++	ath_gpio_config_output(WPS_LED_GPIO);
++
++	if (strncmp(buf,"on",2) == 0) {
++		ath_gpio_out_val(POWER_LED_GPIO, LED_ON);
++		ath_gpio_out_val(STATUS_LED_GPIO, LED_ON);
++		ath_gpio_out_val(WAN_AMBER_LED_GPIO, LED_ON);
++		ath_gpio_out_val(WAN_GREEN_LED_GPIO, LED_ON);
++		ath_gpio_out_val(USB_LED_GPIO, LED_ON);
++		ath_gpio_out_val(WLAN_LED_GPIO, LED_ON);
++		ath_gpio_out_val(WPS_LED_GPIO, LED_ON);
++	} else if (strncmp(buf,"off",3) == 0) {
++		ath_gpio_out_val(POWER_LED_GPIO, LED_OFF);
++		ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
++		ath_gpio_out_val(WAN_AMBER_LED_GPIO, LED_OFF);
++		ath_gpio_out_val(WAN_GREEN_LED_GPIO, LED_OFF);
++		ath_gpio_out_val(USB_LED_GPIO, LED_OFF);
++		ath_gpio_out_val(WLAN_LED_GPIO, LED_OFF);
++		ath_gpio_out_val(WPS_LED_GPIO, LED_OFF);
++	}
++	return count;
++}
+ 
+ static int usb5v_enable_read (char *page, char **start, off_t off,
+                                int count, int *eof, void *data)
+@@ -1210,6 +1250,12 @@
+ 	usb5v_en->write_proc = usb5v_enable_write;
+ 	usb5v_en->read_proc = usb5v_enable_read;
+ 
++	all_led = create_proc_entry ("all_led", 0644, simple_config_entry);
++	if (!all_led)
++		return -ENOENT;
++	all_led->write_proc = all_led_write;
++	all_led->read_proc = all_led_read;
++
+ 	/* disable ar9380 JTAG to use GPIO0~GPIO4 */
+ 	ar9380DisableJtag(0);
+ 

@@ -1,0 +1,21 @@
+body{ background-image: url(../image/top-oneline.gif); background-repeat: repeat-x; background-color: #e5e5e5; margin: auto; width: 840px;}/* to fix bug  23323 */
+
+.wizard_container_center{width: 820px; min-height:460px; _height: 800px; position:absolute; top:97px; bottom:0;}
+
+#top{width: 820px; height: 97px;}
+#topframe{width: 820px; height: 97px;}
+
+#wizard_middle{ width: 820px; min-height:455px; _height: 795px; position:absolute; top:5px; bottom:0px;}
+
+#wizard_menu{ float: left; width: 195px; min-height: 410px; _height: 707px; font-family: Arial; font-weight: Bold; font-size: 15px; text-align: left; position:absolute; top:20px; bottom:45px;}
+
+#wizard_menu .wizard_gray_button{margin-bottom: 5px;  width: 182px; height: 28px; background:url(../image/menus.gif) no-repeat -182px 0; background-repeat: no-repeat; color: #ffffff; overflow:hidden; position: relative}
+#wizard_menu .wizard_gray_long_button{margin-bottom: 5px;  width: 182px; height: 42px; background:url(../image/menus.gif) no-repeat -182px -28px; background-repeat: no-repeat; color: #ffffff; overflow:hidden; position: relative}
+
+.wizard_purple_long_button{margin-bottom: 5px;  width: 182px; height: 42px; background:url(../image/menus.gif) no-repeat -364px -28px; background-repeat: no-repeat; color: #ffffff; overflow:hidden; position: relative} 
+.wizard_purple_button{margin-bottom: 5px;  width: 182px; height: 28px; background:url(../image/menus.gif) no-repeat -364px 0; background-repeat: no-repeat; color: #ffffff; overflow:hidden; position: relative}
+
+#wizard_formframe_div{float: left; width: 625px; min-height: 410px; _height: 707px; position:absolute; top:0; bottom:45px; left:200px;}
+#formframe{float: left; position:absolute; top:0; bottom:45px;}
+
+.wizard_gray_button span, .wizard_gray_long_button span, .wizard_purple_button span, .wizard_purple_long_button span{ display:-moz-inline-box; display:inline-block; width:170px; position: absolute; top: 6px; left: 6px; line-height: 15px; }

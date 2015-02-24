@@ -1,0 +1,37 @@
+--- linux-2.6.30_ori/drivers/serial/serial_core.c	2011-10-17 04:56:41.640780645 -0400
++++ linux-2.6.30/drivers/serial/serial_core.c	2011-10-17 11:22:55.830763154 -0400
+@@ -2369,7 +2369,8 @@
+ 		struct uart_state *state = drv->state + i;
+ 
+ 		state->close_delay     = 500;	/* .5 seconds */
+-		state->closing_wait    = 30000;	/* 30 seconds */
++		//state->closing_wait    = 30000;	/* 30 seconds */
++		state->closing_wait    = USF_CLOSING_WAIT_NONE; /* no wait */
+ 		mutex_init(&state->mutex);
+ 
+ 		tty_port_init(&state->info.port);
+--- linux-2.6.30_ori/init/main.c	2011-10-17 04:56:41.220780737 -0400
++++ linux-2.6.30/init/main.c	2011-10-17 11:23:52.620763933 -0400
+@@ -816,7 +816,7 @@
+ 	numa_default_policy();
+ 
+ 	if (sys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)
+-		printk(KERN_WARNING "Warning: unable to open an initial console.\n");
++		printk(KERN_WARNING "Please be patient, while OpenWrt loads ....\n");
+ 
+ 	(void) sys_dup(0);
+ 	(void) sys_dup(0);
+@@ -840,10 +840,13 @@
+ 		printk(KERN_WARNING "Failed to execute %s.  Attempting "
+ 					"defaults...\n", execute_command);
+ 	}
++#if 0
+ 	run_init_process("/sbin/init");
+ 	run_init_process("/etc/init");
+ 	run_init_process("/bin/init");
+ 	run_init_process("/bin/sh");
++#endif
++	run_init_process("/etc/preinit");
+ 
+ 	panic("No init found.  Try passing init= option to kernel.");
+ }

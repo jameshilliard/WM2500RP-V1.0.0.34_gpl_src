@@ -1,0 +1,93 @@
+<% http_header("style/form.css", "/funcs.js", "/upgrade.js") %>
+<% body_header("_auto_upgrade", "auto_lang_firm_check.htm", "auto_upgrade_check") %>
+
+<input type="hidden" name="auto_check_for_upgrade" >
+
+<div class="page_title">$auto_update_header</div>
+<div id="main" class="main">
+<table width=100% border=0 cellpadding=0 cellspacing=3>
+<tr><td><img src="/liteblue.gif" width=100% height="12"></td></tr>
+<tr>
+<td colspan="2">$auto_upg_check_ser<br> <br>$auto_upg_90s</td>
+</tr>
+<tr></tr>
+<tr></tr>
+<tr><td nowrap colspan=2 align=center>
+<input type="text" name="progress" value="" style="color: blue" size="40"></td>
+</tr>
+<tr></tr>
+<tr></tr>
+<TR>
+<tr><td nowrap colspan=2><input type="checkbox" name="enable" onClick="check_if_show_auto();">$upgrade_upon</td></tr>
+
+<tr></tr>
+<tr></tr>
+
+<tr><td nowrap colspan=2 align=center>
+<input class="cancel_bt" type="button" value="$cancel_mark" onClick="location.href='RST_status.htm';"></td>
+</td></tr>
+</table>
+</div>
+<% help_box("1","_auto_upgrade") %>
+
+<script language="javascript">
+var conn_status="<% detwan_valid() %>";
+var auto_basic_type="<% cfg_get("auto_check_for_upgrade") %>";
+
+function loadvalue()
+{
+	if(auto_basic_type == "1")
+		document.forms[0].enable.checked = true;
+	else
+		document.forms[0].enable.checked = false;
+	updateProgress();
+}
+
+var pchar = "|"; // progress char
+var maxchars = 40; 
+var delay_time = 1000; // msecs
+var charcount = parent.charcount;
+
+function makeStr(strsize, fillchar)
+{
+	var temp = "";
+	for (i=0; i < strsize ; i ++)
+		temp = temp + fillchar;
+	return temp;
+}
+
+function updateProgress()
+{
+	var cf = document.forms[0];
+	if( conn_status == "0" )
+		location.href="auto_upgrade_nowan.htm";
+	else if (conn_status == "1")
+	{
+		var config_status=<% autoup_status() %>;
+		if (config_status >= 10000)
+			location.href="auto_upgrade_noversion.htm";			
+		else if(config_status == 9999){
+			location.href="ver_lang_firm.htm";
+			return;
+		}
+	}
+	if (charcount < maxchars && ((charcount % 5) == 0) && charcount != 0 )
+	{
+		parent.charcount=charcount+1;
+		location.href="auto_lang_firm_check.htm"
+	}
+	else if (charcount < maxchars) {
+		charcount ++;
+		cf.progress.value = makeStr(charcount,pchar);
+		setTimeout("updateProgress()",delay_time);
+	}
+	else
+	{
+		location.href="auto_upgrade_noversion.htm";
+	}
+}
+
+</script>
+</form>
+</body>
+</html>

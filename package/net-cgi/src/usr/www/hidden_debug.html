@@ -1,0 +1,70 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% nohelp_header("hidden_debug.html", "hidden_debug_page") %>
+
+<script>
+var eth_flow_control="<% cfg_get("eth_flow_control") %>";
+var eth_background_control="<% cfg_get("eth_background_control") %>";
+function loadvalue()
+{
+	if(eth_flow_control == 1)
+		document.forms[0].FlowControl[1].checked = true;
+	else
+		document.forms[0].FlowControl[0].checked = true;
+
+	if(eth_background_control == 1)
+		document.forms[0].BackgroundTrafficControl.checked = true;
+}
+
+function do_check()
+{
+	var cf=document.forms[0];
+	if(cf.FlowControl[0].checked == true)
+		cf.hid_eth_flow_control.value=0;
+	else
+		cf.hid_eth_flow_control.value=1;
+
+	if(cf.BackgroundTrafficControl.checked == true)
+		cf.hid_eth_background_control.value=1;
+	else
+		cf.hid_eth_background_control.value=0;
+
+	cf.submit();
+}
+
+</script>
+$bluebar
+<input type="hidden" name="hid_eth_flow_control">
+<input type="hidden" name="hid_eth_background_control">
+<TABLE cellspacing=5 cellPadding=0 width=100% border=0>
+
+<tr><td nowrap colspan=2><script>document.write("Flow Control:")</script></td></tr>
+<tr><td nowrap colspan=2><input type="radio" name="FlowControl" value="0" ><script>document.write("Disable all flow control")</script></td></tr>
+<tr><td nowrap colspan=2><input type="radio" name="FlowControl" value="1" ><script>document.write("Enable all flow control (Default)")</script></td></tr>
+$bluebar
+<tr><td nowrap colspan=2><script>document.write("Background Traffic Control:")</script></td></tr>
+<tr><td nowrap colspan=2><input type="checkbox" name="BackgroundTrafficControl" value="0" ><script>document.write("Disable all background traffic.")</script></td></tr>
+<tr><td nowrap colspan=2>&nbsp;&nbsp;&nbsp;
+<script>
+if(eth_background_control == 0)
+{
+	document.write("NOTICE: Device will get into pure throughput mode. This will remove wireless interface from bridge and kill all background applications, including WEB SERVER!")
+}
+else
+{
+	document.write("NOTICE: NOW device is in pure throughput mode! Device cannot get back to normal mode unless: (1)Reset device by reset button. (2) Execute this command in console: /sbin/moca-control.sh test3;reboot")
+}
+</script></td></tr>
+</table>
+$bluebar
+
+<table align="center">
+<TR>
+    <td nowrap colspan=2 align=center>
+      <input type="button"  value="$apply_mark" onclick="do_check();">&nbsp;&nbsp;
+	</td>
+</TR>
+</TABLE>
+</FORM>
+</body>
+</html>
+

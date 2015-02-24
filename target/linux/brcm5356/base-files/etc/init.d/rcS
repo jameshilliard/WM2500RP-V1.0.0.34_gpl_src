@@ -1,0 +1,11 @@
+#!/bin/sh
+# Copyright (C) 2006 OpenWrt.org
+
+echo 1 > /tmp/boot_status
+{
+	for i in /etc/rc.d/S*; do
+		$i boot
+	done 
+} | logger -s -p 6 -t '' &
+
+rm -rf /tmp/boot_status

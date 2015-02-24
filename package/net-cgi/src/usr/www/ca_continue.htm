@@ -1,0 +1,59 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% nobody_header("welcome.htm", "ca_continue") %>
+
+<script>
+var mobile_tag="<% cfg_get("mobile_tag") %>";
+var ts='<% cfg_get("ca_continue") %>';
+function msg_continue()
+{
+	var cf = document.forms[0];
+	cf.target="_parent";
+	if(check_mobile_device() == '1')
+		cf.action="/apply.cgi?/mobile_welcome.htm timestamp="+ts;
+	
+	cf.submit();
+}
+function msg_cancel()
+{
+	var cf = document.forms[0];
+	cf.target="_parent";
+	cf.ca_contiue.value="0";
+	cf.action="/apply.cgi?/index.htm timestamp="+ts;
+	cf.submit();
+}
+</script>
+
+<input type="hidden" name="ca_contiue" value="1">
+<div id="main" class="ca_main">
+<table width=100% border=0 cellpadding=0 cellspacing=0>
+	<TR>
+	<td width="5%">&nbsp;</td>
+	<!--<script>
+		document.write('<td  rowspan=100 width=70 align=center valign=top>');document.write(ca_icon+"<br><br><br>");icons_show_status();document.write('&nbsp;</td>');
+	</script>-->
+	<TD><H1><script>document.write("$ca_continue")</script></H1></TD>
+	<td width="5%">&nbsp;</td></TR>
+	<TR><td width="5%">&nbsp;</td>
+		<td><img src=/liteblue.gif width=100% height=12></td>
+	<td width="5%">&nbsp;</td></TR>
+	<tr><td width="5%">&nbsp;</td>
+	<td nowrap align=right>
+	<script>
+		if(mobile_tag == 1)
+		{
+			document.write('<input name="next" class="mobile_short_common_bt" type="button" value="$exit_mark" onClick="msg_cancel();">&nbsp;&nbsp;&nbsp;')
+			document.write('<input name="next" class="mobile_short_common_bt" type="button" value="$next_mark" onClick="msg_continue();">')
+		}
+		else
+		{
+			document.write('<input name="next" class="short_common_bt" type="button" value="$exit_mark" onClick="msg_cancel();">&nbsp;&nbsp;&nbsp;')
+			document.write('<input name="next" class="short_common_bt" type="button" value="$next_mark" onClick="msg_continue();">')
+		}
+	</script>	
+	</td><td width="5%">&nbsp;</td>
+	</tr>
+</table>
+</div>
+</form> 
+</body>
+</html>

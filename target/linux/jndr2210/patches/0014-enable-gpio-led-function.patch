@@ -1,0 +1,590 @@
+--- linux-2.6.30/drivers/char/rtl_gpio.c.old	2012-02-10 04:14:17.656368332 -0500
++++ linux-2.6.30/drivers/char/rtl_gpio.c	2012-02-10 04:21:42.896372070 -0500
+@@ -260,6 +260,19 @@
+ 
+ 	
+ #elif defined(CONFIG_RTL_819XD)	//LZQ
++	
++	/*
++	*	8192DR :
++	*		31:24 GPIO_MOD 		date(0) or interrupt(0 && GPIO_IO_SEL = 0)
++	*		23:16 GPIO_IO_SEL 	output(1) or input(0)
++	*		15:8  GPIO_OUT		output value
++	*		7:0   GPIO_IN		input value
++	*/		
++	//rtl8192dr chipset
++	#define P8192D_GPIO_IOBASE      0xb9000000
++	#define P8192D_GPIO_0_7_CRTL   (P8192D_GPIO_IOBASE+0x44)
++	#define P8192D_GPIO_8_11_CRTL	(P8192D_GPIO_IOBASE+0x40)
++
+ 	//V201 demo board 
+ 	#define RESET_PIN_IOBASE 	PABCD_CNR	//RTL_GPIO_PABCD_CNR
+ 	#define RESET_PIN_DIRBASE 	PABCD_DIR //RTL_GPIO_PABCD_DIR 
+@@ -396,13 +409,24 @@
+ 											 RTL_GPIO_CNR_GPIOA5 | \
+ 											 RTL_GPIO_CNR_GPIOA6)
+ 
+-	
+ 		#define AUTOCFG_LED_PIN 			6
+ 		#define AUTOCFG_BTN_PIN         	2
+ 		#define RESET_LED_PIN           	6
+ 		#define RESET_BTN_PIN           	5		
+ 		
+-	
++		/* for 8196d  PABCD_CNR PABCD_DIR PABCD_DAT*/
++		#define POWER_LED_PIN			2
++		#define SYS_LED_PIN 			6
++		#define WAN_AMBER_LED_PIN		14
++		/* for 8192dr  P8192D_GPIO_0_7_CRTL  P8192D_GPIO_8_11_CRTL */
++		#define WAN_GREEN_LED_PIN		3
++		#define USB_LED_PIN			5
++		#define WPS_LED_Y_PIN			6
++		#define WPS_LED_G_PIN			7
++		#define WIFI_LED_1_PIN			8
++		#define WIFI_LED_2_PIN			9
++		#define WIFI_LED_3_PIN			10
++
+ 	#endif
+ #endif	 
+ 
+@@ -1091,7 +1115,8 @@
+ }
+ #endif
+ 
+-static int read_proc(char *page, char **start, off_t off,
++// the function to read the status of the leds
++static int read_proc_wps(char *page, char **start, off_t off,
+ 				int count, int *eof, void *data)
+ {
+ 	int len;
+@@ -1104,9 +1129,9 @@
+ 		//wps_button_push = 0; //mark it for select wlan interface by button pressed time		
+ 	}
+ 	else{
+-		if (RTL_R32(AUTOCFG_PIN_DATABASE) & (1 << AUTOCFG_BTN_PIN)){
++       		if (RTL_R32(P8192D_GPIO_0_7_CRTL) & (1 << ( WPS_LED_G_PIN + 8)))
+ 			flag = '0';
+-		}else{
++		else{
+ 			//printk("wps button be held \n");
+ 			flag = '1';
+ 		}
+@@ -1115,7 +1140,7 @@
+ // 2009-0414		
+ #else
+ 
+-	if (RTL_R32(AUTOCFG_PIN_DATABASE) & (1 << AUTOCFG_BTN_PIN))
++	if (RTL_R32(P8192D_GPIO_0_7_CRTL) & (1 << (WPS_LED_G_PIN + 8)))
+ 		flag = '0';
+ 	else {
+ 		flag = '1';
+@@ -1133,6 +1158,185 @@
+ 	return len;
+ }
+ 
++static int read_proc_wps_led_g(char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++       int len;
++       char flag;
++
++       if (RTL_R32(P8192D_GPIO_0_7_CRTL) & (1 << ( WPS_LED_G_PIN + 8)))
++               flag = '0';
++       else
++               flag = '1';
++
++       len = sprintf(page, "%c\n", flag);
++
++       if (len <= off+count) *eof = 1;
++       *start = page + off;
++       len -= off;
++       if (len > count) len = count;
++       if (len < 0) len = 0;
++       return len;
++}
++
++static int read_proc_wan_amber_led(char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++       int len;
++       char flag;
++
++       if (RTL_R32(PABCD_DAT) & (1 << WAN_AMBER_LED_PIN))
++               flag = '0';
++       else
++               flag = '1';
++
++       len = sprintf(page, "%c\n", flag);
++
++       if (len <= off+count) *eof = 1;
++       *start = page + off;
++       len -= off;
++       if (len > count) len = count;
++       if (len < 0) len = 0;
++       return len;
++}
++
++static int read_proc_wan_green_led(char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++       int len;
++       char flag;
++
++       if (RTL_R32(P8192D_GPIO_0_7_CRTL) & (1 << (WAN_GREEN_LED_PIN + 8)))
++               flag = '0';
++       else
++               flag = '1';
++
++       len = sprintf(page, "%c\n", flag);
++
++       if (len <= off+count) *eof = 1;
++       *start = page + off;
++       len -= off;
++       if (len > count) len = count;
++       if (len < 0) len = 0;
++       return len;
++}
++
++static int read_proc_usb_led(char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++       int len;
++       char flag;
++
++       if (RTL_R32(P8192D_GPIO_0_7_CRTL) & (1 << (USB_LED_PIN + 8)))
++               flag = '0';
++       else
++               flag = '1';
++
++       len = sprintf(page, "%c\n", flag);
++
++       if (len <= off+count) *eof = 1;
++       *start = page + off;
++       len -= off;
++       if (len > count) len = count;
++       if (len < 0) len = 0;
++       return len;
++}
++
++static int read_proc_power_led(char *page, char **start, off_t off,
++                                int count, int *eof, void *data)
++{
++        int len;
++        char flag;
++
++        if (RTL_R32(PABCD_DAT) & (1 << (POWER_LED_PIN) ))
++                flag = '0';
++        else
++                flag = '1';
++
++        len = sprintf(page, "%c\n", flag);
++        if (len <= off+count) *eof = 1;
++        *start = page + off;len -= off;
++        if (len > count) len = count;
++        if (len < 0) len = 0;
++        return len;
++}
++static int read_proc_sys_led(char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++       int len;
++       char flag;
++
++       if (RTL_R32(PABCD_DAT) & (1 << SYS_LED_PIN))
++               flag = '0';
++       else
++               flag = '1';
++
++       len = sprintf(page, "%c\n", flag);
++       if (len <= off+count) *eof = 1;
++       *start = page + off;len -= off;
++       if (len > count) len = count;
++       if (len < 0) len = 0;
++       return len;
++}
++
++static int read_proc_wifi_led_1(char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++       int len;
++       char flag;
++
++       if (RTL_R32(P8192D_GPIO_8_11_CRTL) & (1 << (WIFI_LED_1_PIN)))
++               flag = '0';
++       else
++               flag = '1';
++
++       len = sprintf(page, "%c\n", flag);
++       if (len <= off+count) *eof = 1;
++       *start = page + off;len -= off;
++       if (len > count) len = count;
++       if (len < 0) len = 0;
++       return len;
++}
++
++
++static int read_proc_wifi_led_2(char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++       int len;
++       char flag;
++
++       if (RTL_R32(P8192D_GPIO_8_11_CRTL) & (1 << WIFI_LED_2_PIN))
++               flag = '0';
++       else
++               flag = '1';
++
++       len = sprintf(page, "%c\n", flag);
++       if (len <= off+count) *eof = 1;
++       *start = page + off;len -= off;
++       if (len > count) len = count;
++       if (len < 0) len = 0;
++       return len;
++}
++
++static int read_proc_wifi_led_3(char *page, char **start, off_t off,
++                               int count, int *eof, void *data)
++{
++       int len;
++       char flag;
++
++       if (RTL_R32(P8192D_GPIO_8_11_CRTL) & (1 << WIFI_LED_3_PIN))
++               flag = '0';
++       else
++               flag = '1';
++
++       len = sprintf(page, "%c\n", flag);
++       if (len <= off+count) *eof = 1;
++       *start = page + off;len -= off;
++       if (len > count) len = count;
++       if (len < 0) len = 0;
++       return len;
++}
++
+ 
+ #if defined(CONFIG_RTL_819XD)
+ static int usb_mode_detect_read_proc(char *page, char **start, off_t off,
+@@ -1173,7 +1377,188 @@
+ #ifdef CONFIG_RTL_KERNEL_MIPS16_CHAR
+ __NOMIPS16
+ #endif 
+-static int write_proc(struct file *file, const char *buffer,
++
++//the function to set the leds
++static int write_proc_wan_amber_led(struct file *file, const char *buffer,
++                               unsigned long count, void *data)
++{
++       char flag[20];
++       RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | (1 << WAN_AMBER_LED_PIN)));
++       if (count < 2)
++               return -EFAULT;
++
++       if (buffer && !copy_from_user(&flag, buffer, 1)) {
++               if (flag[0] == '0')
++                       RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) | (1 << WAN_AMBER_LED_PIN)));
++               else if (flag[0] == '1')
++                       RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) & (~(1 << WAN_AMBER_LED_PIN))));
++               return count;
++       }
++       else
++               return -EFAULT;
++}
++static int write_proc_wan_green_led(struct file *file, const char *buffer,
++                               unsigned long count, void *data)
++{
++       char flag[20];
++
++       RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << ( WAN_GREEN_LED_PIN + 16 ) )));
++       if (count < 2)
++              return -EFAULT;
++
++       if (buffer && !copy_from_user(&flag, buffer, 1)) {
++               if (flag[0] == '0')
++                       RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << (WAN_GREEN_LED_PIN + 8))));
++               else if (flag[0] == '1')
++                        RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) & (~(1 << (WAN_GREEN_LED_PIN +8)))));
++                return count;
++        }
++        else
++                return -EFAULT;
++}
++static int write_proc_power_led(struct file *file, const char *buffer,
++                                unsigned long count, void *data)
++{
++        char flag[20];
++	
++        RTL_W32(PABCD_CNR, (RTL_R32(PABCD_CNR) | (1 << ( POWER_LED_PIN ))));
++        RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | (1 << ( POWER_LED_PIN  ))));
++        if (count < 2)
++                return -EFAULT;
++        if (buffer && !copy_from_user(&flag, buffer, 1)) {
++                if (flag[0] == '0')
++                        RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) | (1 << (POWER_LED_PIN))));
++                else if (flag[0] == '1')
++                        RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) & (~(1 << (POWER_LED_PIN)))));
++                return count;
++        }
++        else
++                return -EFAULT;
++}
++static int write_proc_sys_led(struct file *file, const char *buffer,
++                                unsigned long count, void *data)
++{
++        char flag[20];
++	RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | (1 << SYS_LED_PIN)));
++        if (count < 2)
++                return -EFAULT;
++
++        if (buffer && !copy_from_user(&flag, buffer, 1)) {
++                if (flag[0] == '0')
++                        RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) | (1 << SYS_LED_PIN)));
++                else if (flag[0] == '1')
++                        RTL_W32(PABCD_DAT, (RTL_R32(PABCD_DAT) & (~(1 << SYS_LED_PIN))));
++                return count;
++        }
++        else
++              return -EFAULT;
++}
++
++static int write_proc_usb_led(struct file *file, const char *buffer,
++                                unsigned long count, void *data)
++{
++        char flag[20];
++       
++	RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << (USB_LED_PIN + 16))));
++        if (count < 2)
++                return -EFAULT;
++
++        if (buffer && !copy_from_user(&flag, buffer, 1)) {
++                if (flag[0] == '0')
++                        RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << (USB_LED_PIN + 8))));
++                else if (flag[0] == '1')
++                        RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) & (~(1 << (USB_LED_PIN + 8)))));
++                return count;
++        }
++        else
++              return -EFAULT;
++}
++
++static int write_proc_wifi_led_1(struct file *file, const char *buffer,
++                                unsigned long count, void *data)
++{
++        char flag[20];
++       
++	RTL_W32(P8192D_GPIO_8_11_CRTL, (RTL_R32(P8192D_GPIO_8_11_CRTL) | (1 << (WIFI_LED_1_PIN + 16))));
++        if (count < 2)
++                return -EFAULT;
++
++        if (buffer && !copy_from_user(&flag, buffer, 1)) {
++                if (flag[0] == '0')
++                        RTL_W32(P8192D_GPIO_8_11_CRTL, (RTL_R32(P8192D_GPIO_8_11_CRTL) | (1 << (WIFI_LED_1_PIN + 12))));
++                else if (flag[0] == '1')
++                        RTL_W32(P8192D_GPIO_8_11_CRTL, (RTL_R32(P8192D_GPIO_8_11_CRTL) & (~(1 << (WIFI_LED_1_PIN + 12)))));
++                return count;
++        }
++        else
++              return -EFAULT;
++}
++
++static int write_proc_wifi_led_2(struct file *file, const char *buffer,
++                                unsigned long count, void *data)
++{
++        char flag[20];
++       
++	RTL_W32(P8192D_GPIO_8_11_CRTL, (RTL_R32(P8192D_GPIO_8_11_CRTL) | (1 << (WIFI_LED_2_PIN + 16))));
++        if (count < 2)
++                return -EFAULT;
++
++        if (buffer && !copy_from_user(&flag, buffer, 1)) {
++                if (flag[0] == '0')
++                        RTL_W32(P8192D_GPIO_8_11_CRTL, (RTL_R32(P8192D_GPIO_8_11_CRTL) | (1 << (WIFI_LED_2_PIN + 12))));
++                else if (flag[0] == '1')
++                        RTL_W32(P8192D_GPIO_8_11_CRTL, (RTL_R32(P8192D_GPIO_8_11_CRTL) & (~(1 << (WIFI_LED_2_PIN + 12)))));
++                return count;
++        }
++        else
++              return -EFAULT;
++}
++
++
++static int write_proc_wifi_led_3(struct file *file, const char *buffer,
++                                unsigned long count, void *data)
++{
++        char flag[20];
++       
++	RTL_W32(P8192D_GPIO_8_11_CRTL, (RTL_R32(P8192D_GPIO_8_11_CRTL) | (1 << (WIFI_LED_3_PIN + 16))));
++        if (count < 2)
++                return -EFAULT;
++
++        if (buffer && !copy_from_user(&flag, buffer, 1)) {
++                if (flag[0] == '0')
++                        RTL_W32(P8192D_GPIO_8_11_CRTL, (RTL_R32(P8192D_GPIO_8_11_CRTL) | (1 << (WIFI_LED_3_PIN + 12))));
++                else if (flag[0] == '1')
++                        RTL_W32(P8192D_GPIO_8_11_CRTL, (RTL_R32(P8192D_GPIO_8_11_CRTL) & (~(1 << (WIFI_LED_3_PIN + 12)))));
++                return count;
++        }
++        else
++              return -EFAULT;
++}
++
++
++
++static int write_proc_wps_led_g(struct file *file, const char *buffer,
++				unsigned long count, void *data)
++{
++        char flag[20];
++       
++	RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << (WPS_LED_G_PIN + 24))));
++	RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << (WPS_LED_G_PIN + 16))));
++        if (count < 2)
++                return -EFAULT;
++
++        if (buffer && !copy_from_user(&flag, buffer, 1)) {
++                if (flag[0] == '0')
++                        RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) | (1 << (WPS_LED_G_PIN + 8))));
++                else if (flag[0] == '1')
++                        RTL_W32(P8192D_GPIO_0_7_CRTL, (RTL_R32(P8192D_GPIO_0_7_CRTL) & (~(1 << (WPS_LED_G_PIN + 8)))));
++                return count;
++        }
++        else
++              return -EFAULT;
++}
++
++static int write_proc_wps(struct file *file, const char *buffer,
+ 				unsigned long count, void *data)
+ {
+ 	char flag[20];
+@@ -1573,6 +1958,7 @@
+ 	mod_timer(&pocket_ap_timer, jiffies + HZ/2);
+ }
+ #endif
++struct proc_dir_entry *led_root=NULL;
+ int __init rtl_gpio_init(void)
+ {
+ 	struct proc_dir_entry *res=NULL;
+@@ -1609,16 +1995,96 @@
+ 		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA4))));
+ 		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) & (~(RTL_GPIO_DIR_GPIOA5))));
+ 		RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | ((RTL_GPIO_DIR_GPIOA6))));
+-	#endif
+-	res = create_proc_entry("gpio", 0, NULL);
+-	if (res) {
+-		res->read_proc = read_proc;
+-		res->write_proc = write_proc;
+-	}
+-	else {
+-		printk("Realtek GPIO Driver, create proc failed!\n");
+-	}
++		RTL_W32(RESET_LED_IOBASE, (RTL_R32(RESET_LED_IOBASE) & (~(1 << RESET_LED_PIN))));
+ 
++	#endif
++	//create the proc files for leds
++       struct proc_dir_entry *p;
++       if ((led_root = proc_mkdir("led_ctl", NULL)) == NULL) {
++	       printk("%s: proc_mkdir gpioled failed.\n", __FILE__);
++	       return -ENODEV;
++       }
++       else {
++	       if((p = create_proc_entry("wps_led", 0, led_root)) != NULL)
++	       {
++		       p->read_proc = read_proc_wps_led_g;
++		       p->write_proc = write_proc_wps_led_g;
++	       }
++	       else
++		       printk("Realtek GPIO Driver, create proc failed!\n");
++
++	       if((p = create_proc_entry("wan_amber_led", 0, led_root)) != NULL)
++	       {
++		       RTL_W32(PABCD_CNR,(RTL_R32(PABCD_CNR) & (~(1<< (WAN_AMBER_LED_PIN)))));
++		       RTL_W32(PABCD_DIR,(RTL_R32(PABCD_DIR) | (1<< (WAN_AMBER_LED_PIN))));
++		       p->read_proc = read_proc_wan_amber_led;
++		       p->write_proc = write_proc_wan_amber_led;
++	       }
++	       else
++		       printk("Realtek GPIO Driver, create proc failed!\n");
++
++	       if((p = create_proc_entry("wan_green_led", 0, led_root)) != NULL)
++	       {
++		       p->read_proc = read_proc_wan_green_led;
++		       p->write_proc = write_proc_wan_green_led;
++	       }
++	       else
++		       printk("Realtek GPIO Driver, create proc failed!\n");
++
++	       if((p = create_proc_entry("pwr_amber_led", 0, led_root)) != NULL)
++	       {
++		       RTL_W32(PABCD_CNR,(RTL_R32(PABCD_CNR) & (~(1<< (SYS_LED_PIN)))));
++		       RTL_W32(PABCD_DIR,(RTL_R32(PABCD_DIR) | (1<< (SYS_LED_PIN))));
++		       p->read_proc = read_proc_sys_led;
++		       p->write_proc = write_proc_sys_led;
++	       }
++	       else
++		       printk("Realtek GPIO Driver, create proc failed!\n");
++
++	       if((p = create_proc_entry("pwr_green_led", 0, led_root)) != NULL)
++	       {
++		       RTL_W32(PABCD_CNR, (RTL_R32(PABCD_CNR) | (1 << ( POWER_LED_PIN ))));
++		       RTL_W32(PABCD_DIR, (RTL_R32(PABCD_DIR) | (1 << ( POWER_LED_PIN ))));
++		
++		       p->read_proc = read_proc_power_led;
++		       p->write_proc = write_proc_power_led;
++	       }
++	       else
++		       printk("Realtek GPIO Driver, create proc failed!\n");
++
++	       if((p = create_proc_entry("usb_led",0,led_root)) != NULL)
++	       {
++		       p->read_proc = read_proc_usb_led;
++		       p->write_proc = write_proc_usb_led;
++	       }
++	       else
++		       printk("Realtek GPIO Driver, create proc failed!\n");
++
++	       if((p = create_proc_entry("wifi_led_r",0,led_root)) != NULL)
++	       {
++		       p->read_proc = read_proc_wifi_led_1;
++		       p->write_proc = write_proc_wifi_led_1;
++	       }
++	       else
++		       printk("Realtek GPIO Driver, create proc failed!\n");
++
++	       if((p = create_proc_entry("wifi_led_b",0,led_root)) != NULL)
++	       {
++		       p->read_proc = read_proc_wifi_led_2;
++		       p->write_proc = write_proc_wifi_led_2;
++	       }
++	       else
++		       printk("Realtek GPIO Driver, create proc failed!\n");
++
++	       if((p = create_proc_entry("wifi_led_g",0,led_root)) != NULL)
++	       {
++		       p->read_proc = read_proc_wifi_led_3;
++		       p->write_proc = write_proc_wifi_led_3;
++	       }
++	       else
++		       printk("Realtek GPIO Driver, create proc failed!\n");
++       }
++       // 2009-0414
+ 	res = create_proc_entry("usb_mode_detect", 0, NULL);
+ 	if (res) {
+ 		res->read_proc = usb_mode_detect_read_proc;
+@@ -1860,6 +2326,19 @@
+ static void __exit rtl_gpio_exit(void)
+ {
+ 	printk("Unload Realtek GPIO Driver \n");
++#ifdef AUTO_CONFIG
++        remove_proc_entry("wps_led", led_root);
++        remove_proc_entry("wan_amber_led", led_root);
++        remove_proc_entry("wan_green_led", led_root);
++        remove_proc_entry("pwr_amber_led", led_root);
++        remove_proc_entry("pwr_green_led", led_root);
++        remove_proc_entry("usb_led", led_root);
++        remove_proc_entry("wifi_leb_b", led_root);
++        remove_proc_entry("wifi_leb_r", led_root);
++        remove_proc_entry("wifi_leb_g", led_root);
++        remove_proc_entry("led_ctl", NULL);
++#endif
++
+ 	del_timer_sync(&probe_timer);
+ }
+ 

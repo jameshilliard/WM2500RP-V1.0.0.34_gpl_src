@@ -1,0 +1,70 @@
+#################################################################
+# Atheros Communications Gateway
+# PCD Script for pb92 platform
+#################################################################
+RULE = MODULES_LLC
+START_COND = NONE
+COMMAND = insmod ${MODULE_PATH}/llc.ko
+SCHED = NICE,0
+DAEMON = NO
+END_COND = EXIT,0
+END_COND_TIMEOUT = -1
+FAILURE_ACTION = REBOOT
+ACTIVE = YES
+
+#################################################################
+RULE = MODULES_STP
+START_COND = RULE_COMPLETED,MODULES_LLC
+COMMAND = insmod ${MODULE_PATH}/stp.ko
+SCHED = NICE,0
+DAEMON = NO
+END_COND = EXIT,0
+END_COND_TIMEOUT = -1
+FAILURE_ACTION = REBOOT
+ACTIVE = YES
+
+#################################################################
+RULE = MODULES_HYBRIDGE
+START_COND = RULE_COMPLETED,MODULES_STP
+COMMAND = insmod ${MODULE_PATH}/hy_bridge.ko
+SCHED = NICE,0
+DAEMON = NO
+END_COND = EXIT,0
+END_COND_TIMEOUT = -1
+FAILURE_ACTION = REBOOT
+ACTIVE = YES
+
+#################################################################
+RULE = GATEWAY_HTTPSERVER
+START_COND = RULE_COMPLETED,MODULES_HYBRIDGE
+COMMAND = /sbin/shttpd -ports 80,61176 -root /webs -error_log /var/log/weberror.log
+SCHED = NICE,0
+DAEMON = YES
+END_COND = NONE
+END_COND_TIMEOUT = -1
+FAILURE_ACTION = RESTART
+ACTIVE = YES
+
+#################################################################
+RULE = GATEWAY_MASTERD
+START_COND = RULE_COMPLETED,MODULES_HYBRIDGE
+COMMAND = /sbin/masterd
+SCHED = FIFO,1
+DAEMON = YES
+END_COND = NONE
+END_COND_TIMEOUT = -1
+FAILURE_ACTION = REBOOT
+ACTIVE = YES
+
+#################################################################
+RULE = GATEWAY_HYD
+START_COND = NONE
+COMMAND = /sbin/hyd
+SCHED = FIFO,1
+DAEMON = YES
+END_COND = NONE
+END_COND_TIMEOUT = -1
+FAILURE_ACTION = RESTART
+ACTIVE = NO
+
+#################################################################

@@ -1,0 +1,88 @@
+--- linux-2.6.30/drivers/net/rtl819x/rtl_nic.c.old	2011-12-06 08:49:29.113460428 -0500
++++ linux-2.6.30/drivers/net/rtl819x/rtl_nic.c	2011-12-06 08:52:23.293455590 -0500
+@@ -11,7 +11,7 @@
+  *   re865x_nic.c: NIC driver for the RealTek 865*
+  *
+  */
+-
++#define DNI_LINK_CHANGE_NOTIFY 1
+ #define DRV_RELDATE		"Mar 25, 2004"
+ #include <linux/config.h>
+ #include <linux/autoconf.h>
+@@ -40,6 +40,9 @@
+ #if defined(CONFIG_RTK_VLAN_SUPPORT)
+ #include <net/rtl/rtk_vlan.h>
+ #endif
++#ifdef DNI_LINK_CHANGE_NOTIFY
++#include <linux/sched.h>
++#endif
+ 
+ #if	defined(CONFIG_RTL8196_RTL8366) && defined(CONFIG_RTL_IGMP_SNOOPING)
+ #undef	CONFIG_RTL_IGMP_SNOOPING
+@@ -216,6 +219,11 @@
+ static void one_sec_timer(unsigned long task_priv);
+ #endif
+ 
++//Add for checking port status
++#ifdef DNI_LINK_CHANGE_NOTIFY
++static void check_phy_change(void);
++#endif
++
+ #ifdef CONFIG_RTL8196C_GREEN_ETHERNET
+ static void power_save_timer(unsigned long task_priv);
+ #endif
+@@ -3248,6 +3256,42 @@
+ int port_pwr_save_low = 0;
+ #endif
+ 
++//Add for checking port status
++#ifdef DNI_LINK_CHANGE_NOTIFY
++//#define SIG_PHY 29  //this must be the same as the one in init program
++static void check_phy_change()
++{
++
++       #define PHY_LINK_UP             1
++       static int first_time=1;
++       static unsigned char last_port_status=0;
++       unsigned char curr_port_status;
++       int i;
++       //struct task_struct *initd=NULL;
++
++       //check each port status
++       curr_port_status = 0;
++       for(i=0; i<5 ; i++)
++       {
++               if(READ_MEM32(PSRP0 + (i) * 4) & PortStatusLinkUp)
++                       curr_port_status |= (PHY_LINK_UP << i);
++       }
++       if(first_time)
++               first_time = 0;
++       else if(curr_port_status != last_port_status)
++       {
++               printk("##Pay your attention, cable plug in or off!!!\n");
++               /* This function is just used under the version of 2.6.24*/
++               //initd = find_task_by_pid(1); /* init pid is always 1 */
++               /* This function is just used over the version of 2.6.30*/
++               //initd = pid_task(find_vpid(1), PIDTYPE_PID);
++               //send_sig(SIG_PHY, initd, 0); /* send signal to PID 1 process */
++       }
++       last_port_status = curr_port_status;
++       //printk("port_status[%02x]\n", curr_port_status);
++}
++#endif  //#ifdef DNI_LINK_CHANGE_NOTIFY
++
+ #if defined(DYNAMIC_ADJUST_TASKLET) || defined(CONFIG_RTL8186_TR) || defined(CONFIG_RTL8196C_REVISION_B) || defined(CONFIG_RTL_8198) || defined(RTL8196C_EEE_MAC) || defined(RTL_CPU_QOS_ENABLED) || defined(CONFIG_RTL_819XD)
+ static void one_sec_timer(unsigned long task_priv)
+ {
+@@ -3539,6 +3583,11 @@
+ 	}
+ #endif
+ 	mod_timer(&cp->expire_timer, jiffies + HZ);
++	//Add for checking port status
++#ifdef DNI_LINK_CHANGE_NOTIFY
++       check_phy_change();
++#endif
++
+ 
+ 	//spin_unlock_irqrestore(&cp->lock, flags);
+ 	local_irq_restore(flags);

@@ -1,0 +1,71 @@
+--- linux-2.6.30_ori/drivers/mtd/maps/rtl819x_flash.c	2011-10-19 10:01:16.330641182 -0400
++++ linux-2.6.30/drivers/mtd/maps/rtl819x_flash.c	2011-10-19 05:47:12.050652477 -0400
+@@ -38,7 +38,6 @@
+ #endif
+ 
+ 
+-
+ static struct mtd_info *rtl8196_mtd;
+ 
+ __u8 rtl8196_map_read8(struct map_info *map, unsigned long ofs)
+@@ -166,6 +165,7 @@
+ 
+ #elif defined( CONFIG_ROOTFS_SQUASH )
+ #ifndef CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
++#if 0
+ static struct mtd_partition rtl8196_parts1[] = {
+         {
+                 name: "boot+cfg+linux",
+@@ -186,6 +186,52 @@
+                 offset:         (CONFIG_RTL_ROOT_IMAGE_OFFSET),
+         }
+ };
++#endif
++#define FLASH_BLOCK_SIZE 0x10000
++#define BOOT_FLASH_OFFSET 0x00000000
++
++static struct mtd_partition rtl8196_parts1[] = {
++        {
++                name: 		"boot-hw",
++                size:           (FLASH_BLOCK_SIZE),
++                offset:         BOOT_FLASH_OFFSET,
++        },
++        {
++                name:           "setting",
++                size:           (0x8000),
++                offset:         (BOOT_FLASH_OFFSET + FLASH_BLOCK_SIZE),
++        },
++        {
++                name:           "pot",
++                size:           (0x4000),
++                offset:         (BOOT_FLASH_OFFSET + FLASH_BLOCK_SIZE + 0x8000),
++        },
++        {
++                name:           "trafficmeter",
++                size:           (0x4000),
++                offset:         (BOOT_FLASH_OFFSET + FLASH_BLOCK_SIZE + 0x8000 + 0x4000),
++        },
++        {
++                name:           "language",
++                size:           (FLASH_BLOCK_SIZE*2),
++                offset:         (BOOT_FLASH_OFFSET + FLASH_BLOCK_SIZE*2),
++        },
++        {
++                name:           "config",
++                size:           (FLASH_BLOCK_SIZE),
++                offset:         (BOOT_FLASH_OFFSET + FLASH_BLOCK_SIZE*4),
++        },
++        {
++                name:           "kernel",
++                size:           (CONFIG_RTL_ROOT_IMAGE_OFFSET-CONFIG_RTL_LINUX_IMAGE_OFFSET),
++                offset:         (CONFIG_RTL_LINUX_IMAGE_OFFSET),
++        },
++        {
++                name:           "rootfs",
++                size:           (CONFIG_RTL_FLASH_SIZE-CONFIG_RTL_ROOT_IMAGE_OFFSET),
++                offset:         (CONFIG_RTL_ROOT_IMAGE_OFFSET),
++        },
++};
+ 
+ #else //!CONFIG_RTL_FLASH_DUAL_IMAGE_ENABLE
+ static struct mtd_partition rtl8196_parts1[] = {

@@ -1,0 +1,35 @@
+<% http_header("style/form.css", "/funcs.js") %>
+<% nohelp_header("hidden_telnet.html", "hid_telnet_enable") %>
+
+<script>
+var enalbe_or_not="<% cfg_get("telnet_enable") %>";
+function loadvalue()
+{
+
+}
+function check_before_submit()
+{
+	var cf=document.forms[0];
+	cf.submit();
+}
+
+</script>
+
+<table align="center" width="100%">
+<script>
+	if(enalbe_or_not == 1)
+	        document.write("telnet is already open!");
+	else
+	        document.write("telnet is close, please click Apply button to open.");
+</script>
+$bluebar
+<TR>
+    <td nowrap colspan=2 align=center>
+      <input type="button" value="$apply_mark" onclick="check_before_submit();">&nbsp;&nbsp;
+	</td>
+</TR>
+</TABLE>
+</FORM>
+</body>
+</html>
+

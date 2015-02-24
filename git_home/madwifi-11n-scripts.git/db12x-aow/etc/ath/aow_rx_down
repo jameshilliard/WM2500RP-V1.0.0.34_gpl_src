@@ -1,0 +1,4 @@
+#!/bin/sh
+apdown
+rmmod ath_i2s
+echo "Uninstalled wlan and i2s drivers"

@@ -1,0 +1,59 @@
+From 9c44f13ab17a633175f8df9f6c18c32a5e36eaa2 Mon Sep 17 00:00:00 2001
+From: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Date: Tue, 5 Jul 2011 11:50:12 +0800
+Subject: [PATCH 132/137] netfilter: return original ICMP packet if ipv6_ip6frag_not_check_icmp is set to 1
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: Jingying Lin <jingying.lin@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ net/ipv6/netfilter/nf_conntrack_reasm.c |    5 +++++
+ 1 files changed, 5 insertions(+), 0 deletions(-)
+
+diff --git a/net/ipv6/netfilter/nf_conntrack_reasm.c b/net/ipv6/netfilter/nf_conntrack_reasm.c
+index 337e075..c2a837e 100644
+--- a/net/ipv6/netfilter/nf_conntrack_reasm.c
++++ b/net/ipv6/netfilter/nf_conntrack_reasm.c
+@@ -599,6 +599,11 @@ struct sk_buff *nf_ct_frag6_gather(struct sk_buff *skb)
+ 	hdr = ipv6_hdr(clone);
+ 	fhdr = (struct frag_hdr *)skb_transport_header(clone);
+ 
++	if ((ipv6_ip6frag_not_check_icmp == 1) && fhdr->nexthdr == NEXTHDR_ICMP) {
++                pr_debug("Do not check ICMP packets");
++                goto ret_orig;
++        }
++
+ 	if (!(fhdr->frag_off & htons(0xFFF9))) {
+ 		pr_debug("Invalid fragment offset\n");
+ 		/* It is not a fragmented frame */
+-- 
+1.7.4.1
+

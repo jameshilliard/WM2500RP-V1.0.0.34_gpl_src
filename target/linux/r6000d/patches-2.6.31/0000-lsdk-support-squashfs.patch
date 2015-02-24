@@ -1,0 +1,2558 @@
+diff -Nurp linux-2.6.31.orig//crypto/algapi.c linux-2.6.31/crypto/algapi.c
+--- linux-2.6.31.orig//crypto/algapi.c	2013-01-16 15:10:18.215278518 -0500
++++ linux-2.6.31/crypto/algapi.c	2013-01-16 15:22:59.595288708 -0500
+@@ -780,13 +780,17 @@ EXPORT_SYMBOL_GPL(crypto_xor);
+ 
+ static int __init crypto_algapi_init(void)
+ {
++#ifndef CONFIG_ATH_2X8
+ 	crypto_init_proc();
++#endif
+ 	return 0;
+ }
+ 
+ static void __exit crypto_algapi_exit(void)
+ {
++#ifndef CONFIG_ATH_2X8
+ 	crypto_exit_proc();
++#endif
+ }
+ 
+ module_init(crypto_algapi_init);
+diff -Nurp linux-2.6.31.orig//crypto/Kconfig linux-2.6.31/crypto/Kconfig
+--- linux-2.6.31.orig//crypto/Kconfig	2013-01-16 15:10:18.205278518 -0500
++++ linux-2.6.31/crypto/Kconfig	2013-01-16 15:22:59.595288708 -0500
+@@ -768,6 +768,12 @@ config CRYPTO_ZLIB
+ 	help
+ 	  This is the zlib algorithm.
+ 
++config CRYPTO_UNLZMA
++	tristate "LZMA decompression"
++	select CRYPTO_PCOMP
++	help
++	  This is the lzma decompression module.
++
+ config CRYPTO_LZO
+ 	tristate "LZO compression algorithm"
+ 	select CRYPTO_ALGAPI
+diff -Nurp linux-2.6.31.orig//crypto/Makefile linux-2.6.31/crypto/Makefile
+--- linux-2.6.31.orig//crypto/Makefile	2013-01-16 15:10:18.155278518 -0500
++++ linux-2.6.31/crypto/Makefile	2013-01-16 15:22:59.595288708 -0500
+@@ -9,7 +9,9 @@ obj-$(CONFIG_CRYPTO_WORKQUEUE) += crypto
+ 
+ obj-$(CONFIG_CRYPTO_FIPS) += fips.o
+ 
++ifneq ($(CONFIG_ATH_2X8),y)
+ crypto_algapi-$(CONFIG_PROC_FS) += proc.o
++endif
+ crypto_algapi-objs := algapi.o scatterwalk.o $(crypto_algapi-y)
+ obj-$(CONFIG_CRYPTO_ALGAPI2) += crypto_algapi.o
+ 
+@@ -75,6 +77,7 @@ obj-$(CONFIG_CRYPTO_SEED) += seed.o
+ obj-$(CONFIG_CRYPTO_SALSA20) += salsa20_generic.o
+ obj-$(CONFIG_CRYPTO_DEFLATE) += deflate.o
+ obj-$(CONFIG_CRYPTO_ZLIB) += zlib.o
++obj-$(CONFIG_CRYPTO_UNLZMA) += unlzma.o
+ obj-$(CONFIG_CRYPTO_MICHAEL_MIC) += michael_mic.o
+ obj-$(CONFIG_CRYPTO_CRC32C) += crc32c.o
+ obj-$(CONFIG_CRYPTO_AUTHENC) += authenc.o
+diff -Nurp linux-2.6.31.orig//crypto/unlzma.c linux-2.6.31/crypto/unlzma.c
+--- linux-2.6.31.orig//crypto/unlzma.c	1969-12-31 19:00:00.000000000 -0500
++++ linux-2.6.31/crypto/unlzma.c	2013-01-16 15:22:59.595288708 -0500
+@@ -0,0 +1,775 @@
++/*
++ * LZMA uncompresion module for pcomp
++ * Copyright (C) 2009  Felix Fietkau <nbd@openwrt.org>
++ *
++ * Based on:
++ *  Initial Linux kernel adaptation
++ *  Copyright (C) 2006  Alain < alain@knaff.lu >
++ *
++ *  Based on small lzma deflate implementation/Small range coder
++ *  implementation for lzma.
++ *  Copyright (C) 2006  Aurelien Jacobs < aurel@gnuage.org >
++ *
++ *  Based on LzmaDecode.c from the LZMA SDK 4.22 (http://www.7-zip.org/)
++ *  Copyright (C) 1999-2005  Igor Pavlov
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published
++ * by the Free Software Foundation.
++ *
++ * FIXME: the current implementation assumes that the caller will
++ * not free any output buffers until the whole decompression has been
++ * completed. This is necessary, because LZMA looks back at old output
++ * instead of doing a separate dictionary allocation, which saves RAM.
++ */
++
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/vmalloc.h>
++#include <linux/interrupt.h>
++#include <linux/mm.h>
++#include <linux/net.h>
++#include <linux/slab.h>
++#include <linux/kthread.h>
++
++#include <crypto/internal/compress.h>
++#include <net/netlink.h>
++#include "unlzma.h"
++
++static int instance = 0;
++
++struct unlzma_buffer {
++	int offset;
++	int size;
++	u8 *ptr;
++};
++
++struct unlzma_ctx {
++	struct task_struct *thread;
++	wait_queue_head_t next_req;
++	wait_queue_head_t req_done;
++	struct mutex mutex;
++	bool waiting;
++	bool active;
++	bool cancel;
++
++	const u8 *next_in;
++	int avail_in;
++
++	u8 *next_out;
++	int avail_out;
++
++	/* reader state */
++	u32 code;
++	u32 range;
++	u32 bound;
++
++	/* writer state */
++	u8 previous_byte;
++	ssize_t pos;
++	int buf_full;
++	int n_buffers;
++	int buffers_max;
++	struct unlzma_buffer *buffers;
++
++	/* cstate */
++	int state;
++	u32 rep0, rep1, rep2, rep3;
++
++	u32 dict_size;
++
++	void *workspace;
++	int workspace_size;
++};
++
++static inline bool
++unlzma_should_stop(struct unlzma_ctx *ctx)
++{
++	return unlikely(kthread_should_stop() || ctx->cancel);
++}
++
++static void
++get_buffer(struct unlzma_ctx *ctx)
++{
++	struct unlzma_buffer *bh;
++
++	BUG_ON(ctx->n_buffers >= ctx->buffers_max);
++	bh = &ctx->buffers[ctx->n_buffers++];
++	bh->ptr = ctx->next_out;
++	bh->offset = ctx->pos;
++	bh->size = ctx->avail_out;
++	ctx->buf_full = 0;
++}
++
++static void
++unlzma_request_buffer(struct unlzma_ctx *ctx, int *avail)
++{
++	do {
++		ctx->waiting = true;
++		mutex_unlock(&ctx->mutex);
++		wake_up(&ctx->req_done);
++		if (wait_event_interruptible(ctx->next_req,
++			unlzma_should_stop(ctx) || (*avail > 0)))
++			schedule();
++		mutex_lock(&ctx->mutex);
++	} while (*avail <= 0 && !unlzma_should_stop(ctx));
++
++	if (!unlzma_should_stop(ctx) && ctx->buf_full)
++		get_buffer(ctx);
++}
++
++static u8
++rc_read(struct unlzma_ctx *ctx)
++{
++	if (unlikely(ctx->avail_in <= 0))
++		unlzma_request_buffer(ctx, &ctx->avail_in);
++
++	if (unlzma_should_stop(ctx))
++		return 0;
++
++	ctx->avail_in--;
++	return *(ctx->next_in++);
++}
++
++
++static inline void
++rc_get_code(struct unlzma_ctx *ctx)
++{
++	ctx->code = (ctx->code << 8) | rc_read(ctx);
++}
++
++static void
++rc_normalize(struct unlzma_ctx *ctx)
++{
++	if (ctx->range < (1 << RC_TOP_BITS)) {
++		ctx->range <<= 8;
++		rc_get_code(ctx);
++	}
++}
++
++static int
++rc_is_bit_0(struct unlzma_ctx *ctx, u16 *p)
++{
++	rc_normalize(ctx);
++	ctx->bound = *p * (ctx->range >> RC_MODEL_TOTAL_BITS);
++	return ctx->code < ctx->bound;
++}
++
++static void
++rc_update_bit_0(struct unlzma_ctx *ctx, u16 *p)
++{
++	ctx->range = ctx->bound;
++	*p += ((1 << RC_MODEL_TOTAL_BITS) - *p) >> RC_MOVE_BITS;
++}
++
++static void
++rc_update_bit_1(struct unlzma_ctx *ctx, u16 *p)
++{
++	ctx->range -= ctx->bound;
++	ctx->code -= ctx->bound;
++	*p -= *p >> RC_MOVE_BITS;
++}
++
++static bool
++rc_get_bit(struct unlzma_ctx *ctx, u16 *p, int *symbol)
++{
++	if (rc_is_bit_0(ctx, p)) {
++		rc_update_bit_0(ctx, p);
++		*symbol *= 2;
++		return 0;
++	} else {
++		rc_update_bit_1(ctx, p);
++		*symbol = *symbol * 2 + 1;
++		return 1;
++	}
++}
++
++static int
++rc_direct_bit(struct unlzma_ctx *ctx)
++{
++	rc_normalize(ctx);
++	ctx->range >>= 1;
++	if (ctx->code >= ctx->range) {
++		ctx->code -= ctx->range;
++		return 1;
++	}
++	return 0;
++}
++
++static void
++rc_bit_tree_decode(struct unlzma_ctx *ctx, u16 *p, int num_levels, int *symbol)
++{
++	int i = num_levels;
++
++	*symbol = 1;
++	while (i--)
++		rc_get_bit(ctx, p + *symbol, symbol);
++	*symbol -= 1 << num_levels;
++}
++
++static u8
++peek_old_byte(struct unlzma_ctx *ctx, u32 offs)
++{
++	struct unlzma_buffer *bh = &ctx->buffers[ctx->n_buffers - 1];
++	int i = ctx->n_buffers;
++	u32 pos;
++
++	if (!ctx->n_buffers) {
++		printk(KERN_ERR "unlzma/%s: no buffer\n", __func__);
++		goto error;
++	}
++
++	pos = ctx->pos - offs;
++	if (unlikely(pos >= ctx->dict_size))
++		pos = ~pos & (ctx->dict_size - 1);
++
++	while (bh->offset > pos) {
++		bh--;
++		i--;
++		if (!i) {
++			printk(KERN_ERR "unlzma/%s: position %d out of range\n", __func__, pos);
++			goto error;
++		}
++	}
++
++	pos -= bh->offset;
++	if (pos >= bh->size) {
++		printk(KERN_ERR "unlzma/%s: position %d out of range\n", __func__, pos);
++		goto error;
++	}
++
++	return bh->ptr[pos];
++
++error:
++	ctx->cancel = true;
++	return 0;
++}
++
++static void
++write_byte(struct unlzma_ctx *ctx, u8 byte)
++{
++	if (unlikely(ctx->avail_out <= 0)) {
++		unlzma_request_buffer(ctx, &ctx->avail_out);
++	}
++
++	if (!ctx->avail_out)
++		return;
++
++	ctx->previous_byte = byte;
++	*(ctx->next_out++) = byte;
++	ctx->avail_out--;
++	if (ctx->avail_out == 0)
++		ctx->buf_full = 1;
++	ctx->pos++;
++}
++
++
++static inline void
++copy_byte(struct unlzma_ctx *ctx, u32 offs)
++{
++	write_byte(ctx, peek_old_byte(ctx, offs));
++}
++
++static void
++copy_bytes(struct unlzma_ctx *ctx, u32 rep0, int len)
++{
++	do {
++		copy_byte(ctx, rep0);
++		len--;
++		if (unlzma_should_stop(ctx))
++			break;
++	} while (len != 0);
++}
++
++static void
++process_bit0(struct unlzma_ctx *ctx, u16 *p, int pos_state, u16 *prob,
++             int lc, u32 literal_pos_mask)
++{
++	int mi = 1;
++	rc_update_bit_0(ctx, prob);
++	prob = (p + LZMA_LITERAL +
++		(LZMA_LIT_SIZE
++		 * (((ctx->pos & literal_pos_mask) << lc)
++		    + (ctx->previous_byte >> (8 - lc))))
++		);
++
++	if (ctx->state >= LZMA_NUM_LIT_STATES) {
++		int match_byte = peek_old_byte(ctx, ctx->rep0);
++		do {
++			u16 bit;
++			u16 *prob_lit;
++
++			match_byte <<= 1;
++			bit = match_byte & 0x100;
++			prob_lit = prob + 0x100 + bit + mi;
++			if (rc_get_bit(ctx, prob_lit, &mi) != !!bit)
++				break;
++		} while (mi < 0x100);
++	}
++	while (mi < 0x100) {
++		u16 *prob_lit = prob + mi;
++		rc_get_bit(ctx, prob_lit, &mi);
++	}
++	write_byte(ctx, mi);
++	if (ctx->state < 4)
++		ctx->state = 0;
++	else if (ctx->state < 10)
++		ctx->state -= 3;
++	else
++		ctx->state -= 6;
++}
++
++static void
++process_bit1(struct unlzma_ctx *ctx, u16 *p, int pos_state, u16 *prob)
++{
++	int offset;
++	u16 *prob_len;
++	int num_bits;
++	int len;
++
++	rc_update_bit_1(ctx, prob);
++	prob = p + LZMA_IS_REP + ctx->state;
++	if (rc_is_bit_0(ctx, prob)) {
++		rc_update_bit_0(ctx, prob);
++		ctx->rep3 = ctx->rep2;
++		ctx->rep2 = ctx->rep1;
++		ctx->rep1 = ctx->rep0;
++		ctx->state = ctx->state < LZMA_NUM_LIT_STATES ? 0 : 3;
++		prob = p + LZMA_LEN_CODER;
++	} else {
++		rc_update_bit_1(ctx, prob);
++		prob = p + LZMA_IS_REP_G0 + ctx->state;
++		if (rc_is_bit_0(ctx, prob)) {
++			rc_update_bit_0(ctx, prob);
++			prob = (p + LZMA_IS_REP_0_LONG
++				+ (ctx->state <<
++				   LZMA_NUM_POS_BITS_MAX) +
++				pos_state);
++			if (rc_is_bit_0(ctx, prob)) {
++				rc_update_bit_0(ctx, prob);
++
++				ctx->state = ctx->state < LZMA_NUM_LIT_STATES ?
++					9 : 11;
++				copy_byte(ctx, ctx->rep0);
++				return;
++			} else {
++				rc_update_bit_1(ctx, prob);
++			}
++		} else {
++			u32 distance;
++
++			rc_update_bit_1(ctx, prob);
++			prob = p + LZMA_IS_REP_G1 + ctx->state;
++			if (rc_is_bit_0(ctx, prob)) {
++				rc_update_bit_0(ctx, prob);
++				distance = ctx->rep1;
++			} else {
++				rc_update_bit_1(ctx, prob);
++				prob = p + LZMA_IS_REP_G2 + ctx->state;
++				if (rc_is_bit_0(ctx, prob)) {
++					rc_update_bit_0(ctx, prob);
++					distance = ctx->rep2;
++				} else {
++					rc_update_bit_1(ctx, prob);
++					distance = ctx->rep3;
++					ctx->rep3 = ctx->rep2;
++				}
++				ctx->rep2 = ctx->rep1;
++			}
++			ctx->rep1 = ctx->rep0;
++			ctx->rep0 = distance;
++		}
++		ctx->state = ctx->state < LZMA_NUM_LIT_STATES ? 8 : 11;
++		prob = p + LZMA_REP_LEN_CODER;
++	}
++
++	prob_len = prob + LZMA_LEN_CHOICE;
++	if (rc_is_bit_0(ctx, prob_len)) {
++		rc_update_bit_0(ctx, prob_len);
++		prob_len = (prob + LZMA_LEN_LOW
++			    + (pos_state <<
++			       LZMA_LEN_NUM_LOW_BITS));
++		offset = 0;
++		num_bits = LZMA_LEN_NUM_LOW_BITS;
++	} else {
++		rc_update_bit_1(ctx, prob_len);
++		prob_len = prob + LZMA_LEN_CHOICE_2;
++		if (rc_is_bit_0(ctx, prob_len)) {
++			rc_update_bit_0(ctx, prob_len);
++			prob_len = (prob + LZMA_LEN_MID
++				    + (pos_state <<
++				       LZMA_LEN_NUM_MID_BITS));
++			offset = 1 << LZMA_LEN_NUM_LOW_BITS;
++			num_bits = LZMA_LEN_NUM_MID_BITS;
++		} else {
++			rc_update_bit_1(ctx, prob_len);
++			prob_len = prob + LZMA_LEN_HIGH;
++			offset = ((1 << LZMA_LEN_NUM_LOW_BITS)
++				  + (1 << LZMA_LEN_NUM_MID_BITS));
++			num_bits = LZMA_LEN_NUM_HIGH_BITS;
++		}
++	}
++
++	rc_bit_tree_decode(ctx, prob_len, num_bits, &len);
++	len += offset;
++
++	if (ctx->state < 4) {
++		int pos_slot;
++
++		ctx->state += LZMA_NUM_LIT_STATES;
++		prob =
++			p + LZMA_POS_SLOT +
++			((len <
++			  LZMA_NUM_LEN_TO_POS_STATES ? len :
++			  LZMA_NUM_LEN_TO_POS_STATES - 1)
++			 << LZMA_NUM_POS_SLOT_BITS);
++		rc_bit_tree_decode(ctx, prob,
++				   LZMA_NUM_POS_SLOT_BITS,
++				   &pos_slot);
++		if (pos_slot >= LZMA_START_POS_MODEL_INDEX) {
++			int i, mi;
++			num_bits = (pos_slot >> 1) - 1;
++			ctx->rep0 = 2 | (pos_slot & 1);
++			if (pos_slot < LZMA_END_POS_MODEL_INDEX) {
++				ctx->rep0 <<= num_bits;
++				prob = p + LZMA_SPEC_POS +
++					ctx->rep0 - pos_slot - 1;
++			} else {
++				num_bits -= LZMA_NUM_ALIGN_BITS;
++				while (num_bits--)
++					ctx->rep0 = (ctx->rep0 << 1) |
++						rc_direct_bit(ctx);
++				prob = p + LZMA_ALIGN;
++				ctx->rep0 <<= LZMA_NUM_ALIGN_BITS;
++				num_bits = LZMA_NUM_ALIGN_BITS;
++			}
++			i = 1;
++			mi = 1;
++			while (num_bits--) {
++				if (rc_get_bit(ctx, prob + mi, &mi))
++					ctx->rep0 |= i;
++				i <<= 1;
++			}
++		} else
++			ctx->rep0 = pos_slot;
++		if (++(ctx->rep0) == 0)
++			return;
++	}
++
++	len += LZMA_MATCH_MIN_LEN;
++
++	copy_bytes(ctx, ctx->rep0, len);
++}
++
++
++static int
++do_unlzma(struct unlzma_ctx *ctx)
++{
++	u8 hdr_buf[sizeof(struct lzma_header)];
++	struct lzma_header *header = (struct lzma_header *)hdr_buf;
++	u32 pos_state_mask;
++	u32 literal_pos_mask;
++	int lc, pb, lp;
++	int num_probs;
++	int i, mi;
++	u16 *p;
++
++	for (i = 0; i < sizeof(struct lzma_header); i++) {
++		hdr_buf[i] = rc_read(ctx);
++	}
++
++	ctx->n_buffers = 0;
++	ctx->pos = 0;
++	get_buffer(ctx);
++	ctx->active = true;
++	ctx->state = 0;
++	ctx->rep0 = ctx->rep1 = ctx->rep2 = ctx->rep3 = 1;
++
++	ctx->previous_byte = 0;
++	ctx->code = 0;
++	ctx->range = 0xFFFFFFFF;
++
++	ctx->dict_size = le32_to_cpu(header->dict_size);
++
++	if (header->pos >= (9 * 5 * 5))
++		return -1;
++
++	mi = 0;
++	lc = header->pos;
++	while (lc >= 9) {
++		mi++;
++		lc -= 9;
++	}
++	pb = 0;
++	lp = mi;
++	while (lp >= 5) {
++		pb++;
++		lp -= 5;
++	}
++	pos_state_mask = (1 << pb) - 1;
++	literal_pos_mask = (1 << lp) - 1;
++
++	if (ctx->dict_size == 0)
++		ctx->dict_size = 1;
++
++	num_probs = LZMA_BASE_SIZE + (LZMA_LIT_SIZE << (lc + lp));
++	if (ctx->workspace_size < num_probs * sizeof(*p)) {
++		if (ctx->workspace)
++			vfree(ctx->workspace);
++		ctx->workspace_size = num_probs * sizeof(*p);
++		ctx->workspace = vmalloc(ctx->workspace_size);
++	}
++	p = (u16 *) ctx->workspace;
++	if (!p)
++		return -1;
++
++	num_probs = LZMA_LITERAL + (LZMA_LIT_SIZE << (lc + lp));
++	for (i = 0; i < num_probs; i++)
++		p[i] = (1 << RC_MODEL_TOTAL_BITS) >> 1;
++
++	for (i = 0; i < 5; i++)
++		rc_get_code(ctx);
++
++	while (1) {
++		int pos_state =	ctx->pos & pos_state_mask;
++		u16 *prob = p + LZMA_IS_MATCH +
++			(ctx->state << LZMA_NUM_POS_BITS_MAX) + pos_state;
++		if (rc_is_bit_0(ctx, prob))
++			process_bit0(ctx, p, pos_state, prob,
++				     lc, literal_pos_mask);
++		else {
++			process_bit1(ctx, p, pos_state, prob);
++			if (ctx->rep0 == 0)
++				break;
++		}
++		if (unlzma_should_stop(ctx))
++			break;
++	}
++	if (likely(!unlzma_should_stop(ctx)))
++		rc_normalize(ctx);
++
++	return ctx->pos;
++}
++
++
++static void
++unlzma_reset_buf(struct unlzma_ctx *ctx)
++{
++	ctx->avail_in = 0;
++	ctx->next_in = NULL;
++	ctx->avail_out = 0;
++	ctx->next_out = NULL;
++}
++
++static int
++unlzma_thread(void *data)
++{
++	struct unlzma_ctx *ctx = data;
++
++	mutex_lock(&ctx->mutex);
++	do {
++		if (do_unlzma(ctx) < 0)
++			ctx->pos = 0;
++		unlzma_reset_buf(ctx);
++		ctx->cancel = false;
++		ctx->active = false;
++	} while (!kthread_should_stop());
++	mutex_unlock(&ctx->mutex);
++	return 0;
++}
++
++
++static int
++unlzma_init(struct crypto_tfm *tfm)
++{
++	return 0;
++}
++
++static void
++unlzma_cancel(struct unlzma_ctx *ctx)
++{
++	unlzma_reset_buf(ctx);
++
++	if (!ctx->active)
++		return;
++
++	ctx->cancel = true;
++	do {
++		mutex_unlock(&ctx->mutex);
++		wake_up(&ctx->next_req);
++		schedule();
++		mutex_lock(&ctx->mutex);
++	} while (ctx->cancel);
++}
++
++
++static void
++unlzma_exit(struct crypto_tfm *tfm)
++{
++	struct unlzma_ctx *ctx = crypto_tfm_ctx(tfm);
++
++	if (ctx->thread) {
++		unlzma_cancel(ctx);
++		kthread_stop(ctx->thread);
++		ctx->thread = NULL;
++		if (ctx->buffers)
++			kfree(ctx->buffers);
++		ctx->buffers_max = 0;
++		ctx->buffers = NULL;
++	}
++}
++
++static int
++unlzma_decompress_setup(struct crypto_pcomp *tfm, void *p, unsigned int len)
++{
++	struct unlzma_ctx *ctx = crypto_tfm_ctx(crypto_pcomp_tfm(tfm));
++	struct nlattr *tb[UNLZMA_DECOMP_MAX + 1];
++	int ret = 0;
++
++	if (ctx->thread)
++		return -EINVAL;
++
++	if (!p)
++		return -EINVAL;
++
++	ret = nla_parse(tb, UNLZMA_DECOMP_MAX, p, len, NULL);
++	if (ret)
++		return ret;
++
++	if (!tb[UNLZMA_DECOMP_OUT_BUFFERS])
++		return -EINVAL;
++
++	if (ctx->buffers_max && (ctx->buffers_max <
++	    nla_get_u32(tb[UNLZMA_DECOMP_OUT_BUFFERS]))) {
++		kfree(ctx->buffers);
++		ctx->buffers_max = 0;
++		ctx->buffers = NULL;
++	}
++	if (!ctx->buffers) {
++		ctx->buffers_max = nla_get_u32(tb[UNLZMA_DECOMP_OUT_BUFFERS]);
++		ctx->buffers = kzalloc(sizeof(struct unlzma_buffer) * ctx->buffers_max, GFP_KERNEL);
++	}
++	if (!ctx->buffers)
++		return -ENOMEM;
++
++	ctx->waiting = false;
++	mutex_init(&ctx->mutex);
++	init_waitqueue_head(&ctx->next_req);
++	init_waitqueue_head(&ctx->req_done);
++	ctx->thread = kthread_run(unlzma_thread, ctx, "unlzma/%d", instance++);
++	if (IS_ERR(ctx->thread)) {
++		ret = PTR_ERR(ctx->thread);
++		ctx->thread = NULL;
++	}
++
++	return ret;
++}
++
++static int
++unlzma_decompress_init(struct crypto_pcomp *tfm)
++{
++	return 0;
++}
++
++static void
++unlzma_wait_complete(struct unlzma_ctx *ctx, bool finish)
++{
++	DEFINE_WAIT(__wait);
++
++	do {
++		wake_up(&ctx->next_req);
++		prepare_to_wait(&ctx->req_done, &__wait, TASK_INTERRUPTIBLE);
++		mutex_unlock(&ctx->mutex);
++		schedule();
++		mutex_lock(&ctx->mutex);
++	} while (!ctx->waiting && ctx->active);
++	finish_wait(&ctx->req_done, &__wait);
++}
++
++static int
++unlzma_decompress_update(struct crypto_pcomp *tfm, struct comp_request *req)
++{
++	struct unlzma_ctx *ctx = crypto_tfm_ctx(crypto_pcomp_tfm(tfm));
++	size_t pos = 0;
++
++	mutex_lock(&ctx->mutex);
++	if (!ctx->active && !req->avail_in)
++		goto out;
++
++	pos = ctx->pos;
++	ctx->waiting = false;
++	ctx->next_in = req->next_in;
++	ctx->avail_in = req->avail_in;
++	ctx->next_out = req->next_out;
++	ctx->avail_out = req->avail_out;
++
++	unlzma_wait_complete(ctx, false);
++
++	req->next_in = ctx->next_in;
++	req->avail_in = ctx->avail_in;
++	req->next_out = ctx->next_out;
++	req->avail_out = ctx->avail_out;
++	ctx->next_in = 0;
++	ctx->avail_in = 0;
++	pos = ctx->pos - pos;
++
++out:
++	mutex_unlock(&ctx->mutex);
++	if (ctx->cancel)
++		return -EINVAL;
++
++	return pos;
++}
++
++static int
++unlzma_decompress_final(struct crypto_pcomp *tfm, struct comp_request *req)
++{
++	struct unlzma_ctx *ctx = crypto_tfm_ctx(crypto_pcomp_tfm(tfm));
++	int ret = 0;
++
++	/* cancel pending operation */
++	mutex_lock(&ctx->mutex);
++	if (ctx->active) {
++		// ret = -EINVAL;
++		unlzma_cancel(ctx);
++	}
++	ctx->pos = 0;
++	mutex_unlock(&ctx->mutex);
++	return ret;
++}
++
++
++static struct pcomp_alg unlzma_alg = {
++	.decompress_setup	= unlzma_decompress_setup,
++	.decompress_init	= unlzma_decompress_init,
++	.decompress_update	= unlzma_decompress_update,
++	.decompress_final	= unlzma_decompress_final,
++
++	.base			= {
++		.cra_name	= "lzma",
++		.cra_flags	= CRYPTO_ALG_TYPE_PCOMPRESS,
++		.cra_ctxsize	= sizeof(struct unlzma_ctx),
++		.cra_module	= THIS_MODULE,
++		.cra_init	= unlzma_init,
++		.cra_exit	= unlzma_exit,
++	}
++};
++
++static int __init
++unlzma_mod_init(void)
++{
++	return crypto_register_pcomp(&unlzma_alg);
++}
++
++static void __exit
++unlzma_mod_exit(void)
++{
++	crypto_unregister_pcomp(&unlzma_alg);
++}
++
++module_init(unlzma_mod_init);
++module_exit(unlzma_mod_exit);
++
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("LZMA Decompression Algorithm");
++MODULE_AUTHOR("Felix Fietkau <nbd@openwrt.org>");
+diff -Nurp linux-2.6.31.orig//crypto/unlzma.h linux-2.6.31/crypto/unlzma.h
+--- linux-2.6.31.orig//crypto/unlzma.h	1969-12-31 19:00:00.000000000 -0500
++++ linux-2.6.31/crypto/unlzma.h	2013-01-16 15:22:59.595288708 -0500
+@@ -0,0 +1,80 @@
++/* LZMA uncompresion module for pcomp
++ * Copyright (C) 2009  Felix Fietkau <nbd@openwrt.org>
++ *
++ * Based on:
++ *  Initial Linux kernel adaptation
++ *  Copyright (C) 2006  Alain < alain@knaff.lu >
++ *
++ *  Based on small lzma deflate implementation/Small range coder
++ *  implementation for lzma.
++ *  Copyright (C) 2006  Aurelien Jacobs < aurel@gnuage.org >
++ *
++ *  Based on LzmaDecode.c from the LZMA SDK 4.22 (http://www.7-zip.org/)
++ *  Copyright (C) 1999-2005  Igor Pavlov
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published
++ * by the Free Software Foundation.
++ */
++#ifndef __UNLZMA_H
++#define __UNLZMA_H
++
++struct lzma_header {
++	__u8 pos;
++	__le32 dict_size;
++} __attribute__ ((packed)) ;
++
++
++#define RC_TOP_BITS 24
++#define RC_MOVE_BITS 5
++#define RC_MODEL_TOTAL_BITS 11
++
++#define LZMA_BASE_SIZE 1846
++#define LZMA_LIT_SIZE 768
++
++#define LZMA_NUM_POS_BITS_MAX 4
++
++#define LZMA_LEN_NUM_LOW_BITS 3
++#define LZMA_LEN_NUM_MID_BITS 3
++#define LZMA_LEN_NUM_HIGH_BITS 8
++
++#define LZMA_LEN_CHOICE 0
++#define LZMA_LEN_CHOICE_2 (LZMA_LEN_CHOICE + 1)
++#define LZMA_LEN_LOW (LZMA_LEN_CHOICE_2 + 1)
++#define LZMA_LEN_MID (LZMA_LEN_LOW \
++		      + (1 << (LZMA_NUM_POS_BITS_MAX + LZMA_LEN_NUM_LOW_BITS)))
++#define LZMA_LEN_HIGH (LZMA_LEN_MID \
++		       +(1 << (LZMA_NUM_POS_BITS_MAX + LZMA_LEN_NUM_MID_BITS)))
++#define LZMA_NUM_LEN_PROBS (LZMA_LEN_HIGH + (1 << LZMA_LEN_NUM_HIGH_BITS))
++
++#define LZMA_NUM_STATES 12
++#define LZMA_NUM_LIT_STATES 7
++
++#define LZMA_START_POS_MODEL_INDEX 4
++#define LZMA_END_POS_MODEL_INDEX 14
++#define LZMA_NUM_FULL_DISTANCES (1 << (LZMA_END_POS_MODEL_INDEX >> 1))
++
++#define LZMA_NUM_POS_SLOT_BITS 6
++#define LZMA_NUM_LEN_TO_POS_STATES 4
++
++#define LZMA_NUM_ALIGN_BITS 4
++
++#define LZMA_MATCH_MIN_LEN 2
++
++#define LZMA_IS_MATCH 0
++#define LZMA_IS_REP (LZMA_IS_MATCH + (LZMA_NUM_STATES << LZMA_NUM_POS_BITS_MAX))
++#define LZMA_IS_REP_G0 (LZMA_IS_REP + LZMA_NUM_STATES)
++#define LZMA_IS_REP_G1 (LZMA_IS_REP_G0 + LZMA_NUM_STATES)
++#define LZMA_IS_REP_G2 (LZMA_IS_REP_G1 + LZMA_NUM_STATES)
++#define LZMA_IS_REP_0_LONG (LZMA_IS_REP_G2 + LZMA_NUM_STATES)
++#define LZMA_POS_SLOT (LZMA_IS_REP_0_LONG \
++		       + (LZMA_NUM_STATES << LZMA_NUM_POS_BITS_MAX))
++#define LZMA_SPEC_POS (LZMA_POS_SLOT \
++		       +(LZMA_NUM_LEN_TO_POS_STATES << LZMA_NUM_POS_SLOT_BITS))
++#define LZMA_ALIGN (LZMA_SPEC_POS \
++		    + LZMA_NUM_FULL_DISTANCES - LZMA_END_POS_MODEL_INDEX)
++#define LZMA_LEN_CODER (LZMA_ALIGN + (1 << LZMA_NUM_ALIGN_BITS))
++#define LZMA_REP_LEN_CODER (LZMA_LEN_CODER + LZMA_NUM_LEN_PROBS)
++#define LZMA_LITERAL (LZMA_REP_LEN_CODER + LZMA_NUM_LEN_PROBS)
++
++#endif
+diff -Nurp linux-2.6.31.orig//fs/squashfs/block.c linux-2.6.31/fs/squashfs/block.c
+--- linux-2.6.31.orig//fs/squashfs/block.c	2013-01-16 15:10:04.455278520 -0500
++++ linux-2.6.31/fs/squashfs/block.c	2013-01-16 15:23:20.815278427 -0500
+@@ -29,14 +29,122 @@
+ #include <linux/fs.h>
+ #include <linux/vfs.h>
+ #include <linux/slab.h>
++#include <linux/mutex.h>
+ #include <linux/string.h>
+ #include <linux/buffer_head.h>
+ 
++#include <crypto/compress.h>
++
+ #include "squashfs_fs.h"
+ #include "squashfs_fs_sb.h"
+ #include "squashfs_fs_i.h"
+ #include "squashfs.h"
+-#include "decompressor.h"
++
++
++#ifdef CONFIG_SQUASHFS_MTD
++
++#define SQUASHFS_MTD_OFFSET(index, msblk)	(index * msblk->devblksize)
++#define SQUASHFS_BUF_FREE(buf)			kfree(buf)
++#define SQUASHFS_GET_BLK(s, index)		squashfs_getblk_mtd(s, (index))
++
++static int
++squashfs_mtd_read(
++	struct super_block	*s,
++	int			index,
++	size_t			*retlen,
++	u_char			*buf)
++{
++	struct squashfs_sb_info	*msblk = s->s_fs_info;
++	struct mtd_info		*mtd = msblk->mtd;
++	int			ret;
++	loff_t			off = SQUASHFS_MTD_OFFSET(index, msblk);
++
++	TRACE(	"%s(): issuing mtd from offset: %lld on mtd->index:%d "
++		"mtd->name:%s msblk=%p mtd=%p s=%p \n", __func__, off,
++		mtd->index, mtd->name, msblk, mtd, s);
++
++	ret = mtd->read(mtd, off, msblk->devblksize, retlen, buf);
++
++	TRACE(	"%s(): mtd->read result:%d retlen:0x%x\n",
++		__func__, ret, *retlen);
++
++	if (ret != 0) {
++		printk("%s(): mtd read failed err %d\n", __func__, ret);
++	}
++
++	return ret;
++}
++
++u_char *
++squashfs_getblk_mtd(struct super_block *s, int index)
++{
++	struct squashfs_sb_info	*msblk = s->s_fs_info;
++	u_char			*buf;
++	size_t			retlen;
++	int			ret;
++
++	buf = kmalloc(msblk->devblksize, GFP_KERNEL);
++
++	if (!buf) {
++		return NULL;
++	}
++
++	ret = squashfs_mtd_read(s, index, &retlen, buf);
++	if (ret != 0) {
++		return NULL;
++	}
++
++	return buf;
++}
++
++static u_char *
++get_block_length(
++	struct super_block	*sb,
++	u64			*cur_index,
++	int			*offset,
++	int			*length)
++{
++	struct squashfs_sb_info	*msblk = sb->s_fs_info;
++	int			ret;
++	size_t			retlen;
++	u_char			*buf;
++
++	buf = kmalloc(msblk->devblksize, GFP_KERNEL);
++	if (buf == NULL) {
++		return NULL;
++	}
++
++	ret = squashfs_mtd_read(sb, *cur_index, &retlen, buf);
++	if (ret != 0) {
++		goto out;
++	}
++
++	if (msblk->devblksize - *offset == 1) {
++		*length = (unsigned char) buf[*offset];
++		ret = squashfs_mtd_read(sb, ++(*cur_index), &retlen, buf);
++		if (ret != 0) {
++			goto out;
++		}
++		*length |= (unsigned char) buf[0] << 8;
++		*offset = 1;
++	} else {
++		*length = (unsigned char) buf[*offset] |
++			(unsigned char) buf[*offset + 1] << 8;
++		*offset += 2;
++	}
++
++	return buf;
++
++out:
++	kfree(buf);
++	return NULL;
++}
++
++#else
++
++#define SQUASHFS_BUF_FREE(bh)		put_bh(bh)
++#define SQUASHFS_GET_BLK(s, index)	sb_getblk(s, index)
++
+ /*
+  * Read the metadata block length, this is stored in the first two
+  * bytes of the metadata block.
+@@ -68,6 +176,8 @@ static struct buffer_head *get_block_len
+ 	return bh;
+ }
+ 
++#endif	/* CONFIG_SQUASHFS_MTD */
++
+ 
+ /*
+  * Read and decompress a metadata block or datablock.  Length is non-zero
+@@ -81,7 +191,11 @@ int squashfs_read_data(struct super_bloc
+ 			int length, u64 *next_index, int srclength, int pages)
+ {
+ 	struct squashfs_sb_info *msblk = sb->s_fs_info;
++#ifdef CONFIG_SQUASHFS_MTD
++	u_char **bh;
++#else
+ 	struct buffer_head **bh;
++#endif	/* CONFIG_SQUASHFS_MTD */
+ 	int offset = index & ((1 << msblk->devblksize_log2) - 1);
+ 	u64 cur_index = index >> msblk->devblksize_log2;
+ 	int bytes, compressed, b = 0, k = 0, page = 0, avail;
+@@ -110,12 +224,14 @@ int squashfs_read_data(struct super_bloc
+ 			goto read_failure;
+ 
+ 		for (b = 0; bytes < length; b++, cur_index++) {
+-			bh[b] = sb_getblk(sb, cur_index);
++			bh[b] = SQUASHFS_GET_BLK(sb, cur_index);
+ 			if (bh[b] == NULL)
+ 				goto block_release;
+ 			bytes += msblk->devblksize;
+ 		}
++#if !defined(CONFIG_SQUASHFS_MTD)
+ 		ll_rw_block(READ, b, bh);
++#endif
+ 	} else {
+ 		/*
+ 		 * Metadata block.
+@@ -142,31 +258,110 @@ int squashfs_read_data(struct super_bloc
+ 			goto block_release;
+ 
+ 		for (; bytes < length; b++) {
+-			bh[b] = sb_getblk(sb, ++cur_index);
++			bh[b] = SQUASHFS_GET_BLK(sb, ++cur_index);
+ 			if (bh[b] == NULL)
+ 				goto block_release;
+ 			bytes += msblk->devblksize;
+ 		}
++#if !defined(CONFIG_SQUASHFS_MTD)
+ 		ll_rw_block(READ, b - 1, bh + 1);
++#endif
+ 	}
+ 
+ 	if (compressed) {
+-		length = squashfs_decompress(msblk, buffer, bh, b, offset,
+-			length, srclength, pages);
+-		if (length < 0)
+-			goto read_failure;
++		int res = 0, decomp_init = 0;
++		struct comp_request req;
++
++		/*
++		 * Uncompress block.
++		 */
++
++		mutex_lock(&msblk->read_data_mutex);
++
++		req.avail_out = 0;
++		req.avail_in = 0;
++
++		bytes = length;
++		length = 0;
++		do {
++			if (req.avail_in == 0 && k < b) {
++				avail = min(bytes, msblk->devblksize - offset);
++				bytes -= avail;
++#if !defined(CONFIG_SQUASHFS_MTD)
++				wait_on_buffer(bh[k]);
++				if (!buffer_uptodate(bh[k]))
++					goto release_mutex;
++#endif /* CONFIG_SQUASHFS_MTD */
++
++				if (avail == 0) {
++					offset = 0;
++					SQUASHFS_BUF_FREE(bh[k++]);
++					continue;
++				}
++
++#ifdef CONFIG_SQUASHFS_MTD
++				req.next_in = bh[k] + offset;
++#else
++				req.next_in = bh[k]->b_data + offset;
++#endif
++				req.avail_in = avail;
++				offset = 0;
++			}
++
++			if (req.avail_out == 0 && page < pages) {
++				req.next_out = buffer[page++];
++				req.avail_out = PAGE_CACHE_SIZE;
++			}
++			if (!decomp_init) {
++				res = crypto_decompress_init(msblk->tfm);
++				if (res) {
++					ERROR("crypto_decompress_init "
++						"returned %d, srclength %d\n",
++						res, srclength);
++					goto release_mutex;
++				}
++				decomp_init = 1;
++			}
++
++			res = crypto_decompress_update(msblk->tfm, &req);
++			if (res < 0) {
++				ERROR("crypto_decompress_update returned %d, "
++					"data probably corrupt\n", res);
++				goto release_mutex;
++			}
++			length += res;
++
++			if (req.avail_in == 0 && k < b)
++				SQUASHFS_BUF_FREE(bh[k++]);
++
++		} while (bytes || res);
++
++		res = crypto_decompress_final(msblk->tfm, &req);
++		if (res < 0) {
++			ERROR("crypto_decompress_final returned %d, data "
++				"probably corrupt\n", res);
++			goto release_mutex;
++		}
++		length += res;
++
++		mutex_unlock(&msblk->read_data_mutex);
+ 	} else {
+ 		/*
+ 		 * Block is uncompressed.
+ 		 */
++#ifdef CONFIG_SQUASHFS_MTD
++		int in, pg_offset = 0;
++#else
+ 		int i, in, pg_offset = 0;
++#endif
+ 
++#if !defined(CONFIG_SQUASHFS_MTD)
+ 		for (i = 0; i < b; i++) {
+ 			wait_on_buffer(bh[i]);
+ 			if (!buffer_uptodate(bh[i]))
+ 				goto block_release;
+ 		}
+-
++#endif /* CONFIG_SQUASHFS_MTD */
+ 		for (bytes = length; k < b; k++) {
+ 			in = min(bytes, msblk->devblksize - offset);
+ 			bytes -= in;
+@@ -177,23 +372,31 @@ int squashfs_read_data(struct super_bloc
+ 				}
+ 				avail = min_t(int, in, PAGE_CACHE_SIZE -
+ 						pg_offset);
++#ifdef CONFIG_SQUASHFS_MTD
++				memcpy(buffer[page] + pg_offset,
++						bh[k] + offset, avail);
++#else
+ 				memcpy(buffer[page] + pg_offset,
+ 						bh[k]->b_data + offset, avail);
++#endif /* CONFIG_SQUASHFS_MTD */
+ 				in -= avail;
+ 				pg_offset += avail;
+ 				offset += avail;
+ 			}
+ 			offset = 0;
+-			put_bh(bh[k]);
++			SQUASHFS_BUF_FREE(bh[k]);
+ 		}
+ 	}
+ 
+ 	kfree(bh);
+ 	return length;
+ 
++release_mutex:
++	mutex_unlock(&msblk->read_data_mutex);
++
+ block_release:
+ 	for (; k < b; k++)
+-		put_bh(bh[k]);
++		SQUASHFS_BUF_FREE(bh[k]);
+ 
+ read_failure:
+ 	ERROR("squashfs_read_data failed to read block 0x%llx\n",
+diff -Nurp linux-2.6.31.orig//fs/squashfs/cache.c linux-2.6.31/fs/squashfs/cache.c
+--- linux-2.6.31.orig//fs/squashfs/cache.c	2013-01-16 15:10:04.535278520 -0500
++++ linux-2.6.31/fs/squashfs/cache.c	2013-01-16 15:23:20.815278427 -0500
+@@ -51,6 +51,7 @@
+ #include <linux/sched.h>
+ #include <linux/spinlock.h>
+ #include <linux/wait.h>
++#include <linux/zlib.h>
+ #include <linux/pagemap.h>
+ 
+ #include "squashfs_fs.h"
+diff -Nurp linux-2.6.31.orig//fs/squashfs/decompressor.c linux-2.6.31/fs/squashfs/decompressor.c
+--- linux-2.6.31.orig//fs/squashfs/decompressor.c	2013-01-16 15:10:04.535278520 -0500
++++ linux-2.6.31/fs/squashfs/decompressor.c	1969-12-31 19:00:00.000000000 -0500
+@@ -1,72 +0,0 @@
+-/*
+- * Squashfs - a compressed read only filesystem for Linux
+- *
+- * Copyright (c) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+- * Phillip Lougher <phillip@lougher.demon.co.uk>
+- *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2,
+- * or (at your option) any later version.
+- *
+- * This program is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
+- *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+- *
+- * decompressor.c
+- */
+-
+-#include <linux/types.h>
+-#include <linux/mutex.h>
+-#include <linux/buffer_head.h>
+-
+-#include "squashfs_fs.h"
+-#include "squashfs_fs_sb.h"
+-#include "squashfs_fs_i.h"
+-#include "decompressor.h"
+-#include "squashfs.h"
+-
+-/*
+- * This file (and decompressor.h) implements a decompressor framework for
+- * Squashfs, allowing multiple decompressors to be easily supported
+- */
+-
+-static const struct squashfs_decompressor squashfs_lzma_unsupported_comp_ops = {
+-	NULL, NULL, NULL, LZMA_COMPRESSION, "lzma", 0
+-};
+-
+-static const struct squashfs_decompressor squashfs_lzo_unsupported_comp_ops = {
+-	NULL, NULL, NULL, LZO_COMPRESSION, "lzo", 0
+-};
+-
+-static const struct squashfs_decompressor squashfs_unknown_comp_ops = {
+-	NULL, NULL, NULL, 0, "unknown", 0
+-};
+-
+-static const struct squashfs_decompressor *decompressor[] = {
+-	&squashfs_zlib_comp_ops,
+-#ifdef CONFIG_SQUASHFS_LZMA
+-	&squashfs_lzma_comp_ops,
+-#else
+-	&squashfs_lzma_unsupported_comp_ops,
+-#endif
+-	&squashfs_lzo_unsupported_comp_ops,
+-	&squashfs_unknown_comp_ops
+-};
+-
+-
+-const struct squashfs_decompressor *squashfs_lookup_decompressor(int id)
+-{
+-	int i;
+-
+-	for (i = 0; decompressor[i]->id; i++)
+-		if (id == decompressor[i]->id)
+-			break;
+-
+-	return decompressor[i];
+-}
+diff -Nurp linux-2.6.31.orig//fs/squashfs/decompressor.h linux-2.6.31/fs/squashfs/decompressor.h
+--- linux-2.6.31.orig//fs/squashfs/decompressor.h	2013-01-16 15:10:04.535278520 -0500
++++ linux-2.6.31/fs/squashfs/decompressor.h	1969-12-31 19:00:00.000000000 -0500
+@@ -1,55 +0,0 @@
+-#ifndef DECOMPRESSOR_H
+-#define DECOMPRESSOR_H
+-/*
+- * Squashfs - a compressed read only filesystem for Linux
+- *
+- * Copyright (c) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+- * Phillip Lougher <phillip@lougher.demon.co.uk>
+- *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2,
+- * or (at your option) any later version.
+- *
+- * This program is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
+- *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+- *
+- * decompressor.h
+- */
+-
+-struct squashfs_decompressor {
+-	void	*(*init)(struct squashfs_sb_info *);
+-	void	(*free)(void *);
+-	int	(*decompress)(struct squashfs_sb_info *, void **,
+-		struct buffer_head **, int, int, int, int, int);
+-	int	id;
+-	char	*name;
+-	int	supported;
+-};
+-
+-static inline void *squashfs_decompressor_init(struct squashfs_sb_info *msblk)
+-{
+-	return msblk->decompressor->init(msblk);
+-}
+-
+-static inline void squashfs_decompressor_free(struct squashfs_sb_info *msblk,
+-	void *s)
+-{
+-	if (msblk->decompressor)
+-		msblk->decompressor->free(s);
+-}
+-
+-static inline int squashfs_decompress(struct squashfs_sb_info *msblk,
+-	void **buffer, struct buffer_head **bh, int b, int offset, int length,
+-	int srclength, int pages)
+-{
+-	return msblk->decompressor->decompress(msblk, buffer, bh, b, offset,
+-		length, srclength, pages);
+-}
+-#endif
+diff -Nurp linux-2.6.31.orig//fs/squashfs/dir.c linux-2.6.31/fs/squashfs/dir.c
+--- linux-2.6.31.orig//fs/squashfs/dir.c	2013-01-16 15:10:04.555278520 -0500
++++ linux-2.6.31/fs/squashfs/dir.c	2013-01-16 15:23:20.815278427 -0500
+@@ -30,6 +30,7 @@
+ #include <linux/fs.h>
+ #include <linux/vfs.h>
+ #include <linux/slab.h>
++#include <linux/zlib.h>
+ 
+ #include "squashfs_fs.h"
+ #include "squashfs_fs_sb.h"
+diff -Nurp linux-2.6.31.orig//fs/squashfs/export.c linux-2.6.31/fs/squashfs/export.c
+--- linux-2.6.31.orig//fs/squashfs/export.c	2013-01-16 15:10:04.495278520 -0500
++++ linux-2.6.31/fs/squashfs/export.c	2013-01-16 15:23:20.815278427 -0500
+@@ -39,6 +39,7 @@
+ #include <linux/vfs.h>
+ #include <linux/dcache.h>
+ #include <linux/exportfs.h>
++#include <linux/zlib.h>
+ #include <linux/slab.h>
+ 
+ #include "squashfs_fs.h"
+diff -Nurp linux-2.6.31.orig//fs/squashfs/file.c linux-2.6.31/fs/squashfs/file.c
+--- linux-2.6.31.orig//fs/squashfs/file.c	2013-01-16 15:10:04.525278520 -0500
++++ linux-2.6.31/fs/squashfs/file.c	2013-01-16 15:23:20.815278427 -0500
+@@ -47,6 +47,7 @@
+ #include <linux/string.h>
+ #include <linux/pagemap.h>
+ #include <linux/mutex.h>
++#include <linux/zlib.h>
+ 
+ #include "squashfs_fs.h"
+ #include "squashfs_fs_sb.h"
+diff -Nurp linux-2.6.31.orig//fs/squashfs/fragment.c linux-2.6.31/fs/squashfs/fragment.c
+--- linux-2.6.31.orig//fs/squashfs/fragment.c	2013-01-16 15:10:04.525278520 -0500
++++ linux-2.6.31/fs/squashfs/fragment.c	2013-01-16 15:23:20.815278427 -0500
+@@ -36,6 +36,7 @@
+ #include <linux/fs.h>
+ #include <linux/vfs.h>
+ #include <linux/slab.h>
++#include <linux/zlib.h>
+ 
+ #include "squashfs_fs.h"
+ #include "squashfs_fs_sb.h"
+diff -Nurp linux-2.6.31.orig//fs/squashfs/id.c linux-2.6.31/fs/squashfs/id.c
+--- linux-2.6.31.orig//fs/squashfs/id.c	2013-01-16 15:10:04.535278520 -0500
++++ linux-2.6.31/fs/squashfs/id.c	2013-01-16 15:23:20.815278427 -0500
+@@ -34,6 +34,7 @@
+ #include <linux/fs.h>
+ #include <linux/vfs.h>
+ #include <linux/slab.h>
++#include <linux/zlib.h>
+ 
+ #include "squashfs_fs.h"
+ #include "squashfs_fs_sb.h"
+diff -Nurp linux-2.6.31.orig//fs/squashfs/inode.c linux-2.6.31/fs/squashfs/inode.c
+--- linux-2.6.31.orig//fs/squashfs/inode.c	2013-01-16 15:10:04.535278520 -0500
++++ linux-2.6.31/fs/squashfs/inode.c	2013-01-16 15:23:20.815278427 -0500
+@@ -40,6 +40,7 @@
+ 
+ #include <linux/fs.h>
+ #include <linux/vfs.h>
++#include <linux/zlib.h>
+ 
+ #include "squashfs_fs.h"
+ #include "squashfs_fs_sb.h"
+diff -Nurp linux-2.6.31.orig//fs/squashfs/Kconfig linux-2.6.31/fs/squashfs/Kconfig
+--- linux-2.6.31.orig//fs/squashfs/Kconfig	2013-01-16 15:10:04.535278520 -0500
++++ linux-2.6.31/fs/squashfs/Kconfig	2013-01-16 15:23:20.815278427 -0500
+@@ -1,7 +1,6 @@
+ config SQUASHFS
+ 	tristate "SquashFS 4.0 - Squashed file system support"
+-	depends on BLOCK
+-	select ZLIB_INFLATE
++	select CRYPTO
+ 	help
+ 	  Saying Y here includes support for SquashFS 4.0 (a Compressed
+ 	  Read-Only File System).  Squashfs is a highly compressed read-only
+@@ -11,7 +10,7 @@ config SQUASHFS
+ 	  greater than 4K are supported up to a maximum of 1 Mbytes (default
+ 	  block size 128K).  SquashFS 4.0 supports 64 bit filesystems and files
+ 	  (larger than 4GB), full uid/gid information, hard links and
+-	  timestamps.  
++	  timestamps.
+ 
+ 	  Squashfs is intended for general read-only filesystem use, for
+ 	  archival use (i.e. in cases where a .tar.gz file may be used), and in
+@@ -26,15 +25,9 @@ config SQUASHFS
+ 
+ 	  If unsure, say N.
+ 
+-config SQUASHFS_LZMA
+-	bool "Include support for LZMA compressed file systems"
+-	depends on SQUASHFS
+-	select DECOMPRESS_LZMA
+-	select DECOMPRESS_LZMA_NEEDED
+-
+ config SQUASHFS_EMBEDDED
+ 
+-	bool "Additional option for memory-constrained systems" 
++	bool "Additional option for memory-constrained systems"
+ 	depends on SQUASHFS
+ 	default n
+ 	help
+@@ -42,6 +35,36 @@ config SQUASHFS_EMBEDDED
+ 
+ 	  If unsure, say N.
+ 
++config SQUASHFS_MTD
++	bool "Use MTD layer calls for filesystem I/O"
++	depends on SQUASHFS && !BLOCK && MTD && !MTD_BLOCK
++	default y
++	help
++	  Uses the MTD layer I/O functionality for reading filesystem I/O
++	  from flash instead of BLOCK layer.
++
++
++config SQUASHFS_SUPPORT_ZLIB
++	bool
++	prompt "Support ZLIB compression"
++	depends on SQUASHFS
++	select CRYPTO_ZLIB
++	default n
++	help
++	  ZLIB is the default compression used in squashfs. If you are
++	  using LZMA compression instead, you can remove support for ZLIB
++	  entirely.
++
++config SQUASHFS_SUPPORT_LZMA
++	bool "Support LZMA compression"
++	depends on SQUASHFS
++	select CRYPTO_UNLZMA
++	default y
++	help
++	  By default SquashFS uses ZLIB compression, however (if your tools
++	  support it, you can use LZMA instead, which saves space.
++
++
+ config SQUASHFS_FRAGMENT_CACHE_SIZE
+ 	int "Number of fragments cached" if SQUASHFS_EMBEDDED
+ 	depends on SQUASHFS
+diff -Nurp linux-2.6.31.orig//fs/squashfs/lzma_wrapper.c linux-2.6.31/fs/squashfs/lzma_wrapper.c
+--- linux-2.6.31.orig//fs/squashfs/lzma_wrapper.c	2013-01-16 15:10:04.535278520 -0500
++++ linux-2.6.31/fs/squashfs/lzma_wrapper.c	1969-12-31 19:00:00.000000000 -0500
+@@ -1,151 +0,0 @@
+-/*
+- * Squashfs - a compressed read only filesystem for Linux
+- *
+- * Copyright (c) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+- * Phillip Lougher <phillip@lougher.demon.co.uk>
+- *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2,
+- * or (at your option) any later version.
+- *
+- * This program is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
+- *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+- *
+- * lzma_wrapper.c
+- */
+-
+-#include <asm/unaligned.h>
+-#include <linux/buffer_head.h>
+-#include <linux/mutex.h>
+-#include <linux/vmalloc.h>
+-#include <linux/decompress/unlzma.h>
+-
+-#include "squashfs_fs.h"
+-#include "squashfs_fs_sb.h"
+-#include "squashfs_fs_i.h"
+-#include "squashfs.h"
+-#include "decompressor.h"
+-
+-struct squashfs_lzma {
+-	void	*input;
+-	void	*output;
+-};
+-
+-/* decompress_unlzma.c is currently non re-entrant... */
+-DEFINE_MUTEX(lzma_mutex);
+-
+-/* decompress_unlzma.c doesn't provide any context in its callbacks... */
+-static int lzma_error;
+-
+-static void error(char *m)
+-{
+-	ERROR("unlzma error: %s\n", m);
+-	lzma_error = 1;
+-}
+-
+-	
+-static void *lzma_init(struct squashfs_sb_info *msblk)
+-{
+-	struct squashfs_lzma *stream = kzalloc(sizeof(*stream), GFP_KERNEL);
+-	if (stream == NULL)
+-		goto failed;
+-	stream->input = vmalloc(msblk->block_size);
+-	if (stream->input == NULL)
+-		goto failed;
+-	stream->output = vmalloc(msblk->block_size);
+-	if (stream->output == NULL)
+-		goto failed2;
+-
+-	return stream;
+-
+-failed2:
+-	vfree(stream->input);
+-failed:
+-	ERROR("failed to allocate lzma workspace\n");
+-	kfree(stream);
+-	return NULL;
+-}
+-
+-
+-static void lzma_free(void *strm)
+-{
+-	struct squashfs_lzma *stream = strm;
+-
+-	if (stream) {
+-		vfree(stream->input);
+-		vfree(stream->output);
+-	}
+-	kfree(stream);
+-}
+-
+-
+-static int lzma_uncompress(struct squashfs_sb_info *msblk, void **buffer,
+-	struct buffer_head **bh, int b, int offset, int length, int srclength,
+-	int pages)
+-{
+-	struct squashfs_lzma *stream = msblk->stream;
+-	void *buff = stream->input;
+-	int avail, i, bytes = length, res;
+-
+-	mutex_lock(&lzma_mutex);
+-
+-	for (i = 0; i < b; i++) {
+-		wait_on_buffer(bh[i]);
+-		if (!buffer_uptodate(bh[i]))
+-			goto block_release;
+-
+-		avail = min(bytes, msblk->devblksize - offset);
+-		memcpy(buff, bh[i]->b_data + offset, avail);
+-		buff += avail;
+-		bytes -= avail;
+-		offset = 0;
+-		put_bh(bh[i]);
+-	}
+-
+-	lzma_error = 0;
+-	res = unlzma(stream->input, length, NULL, NULL, stream->output, NULL,
+-							error);
+-	if (res || lzma_error)
+-		goto failed;
+-
+-	/* uncompressed size is stored in the LZMA header (5 byte offset) */
+-	res = bytes = get_unaligned_le32(stream->input + 5);
+-	for (i = 0, buff = stream->output; bytes && i < pages; i++) {
+-		avail = min_t(int, bytes, PAGE_CACHE_SIZE);
+-		memcpy(buffer[i], buff, avail);
+-		buff += avail;
+-		bytes -= avail;
+-	}
+-	if (bytes)
+-		goto failed;
+-
+-	mutex_unlock(&lzma_mutex);
+-	return res;
+-
+-block_release:
+-	for (; i < b; i++)
+-		put_bh(bh[i]);
+-
+-failed:
+-	mutex_unlock(&lzma_mutex);
+-
+-	ERROR("lzma decompression failed, data probably corrupt\n");
+-	return -EIO;
+-}
+-
+-const struct squashfs_decompressor squashfs_lzma_comp_ops = {
+-	.init = lzma_init,
+-	.free = lzma_free,
+-	.decompress = lzma_uncompress,
+-	.id = LZMA_COMPRESSION,
+-	.name = "lzma",
+-	.supported = 1
+-};
+-
+diff -Nurp linux-2.6.31.orig//fs/squashfs/Makefile linux-2.6.31/fs/squashfs/Makefile
+--- linux-2.6.31.orig//fs/squashfs/Makefile	2013-01-16 15:10:04.505278520 -0500
++++ linux-2.6.31/fs/squashfs/Makefile	2013-01-16 15:23:20.815278427 -0500
+@@ -4,5 +4,4 @@
+ 
+ obj-$(CONFIG_SQUASHFS) += squashfs.o
+ squashfs-y += block.o cache.o dir.o export.o file.o fragment.o id.o inode.o
+-squashfs-y += namei.o super.o symlink.o zlib_wrapper.o decompressor.o
+-squashfs-$(CONFIG_SQUASHFS_LZMA) += lzma_wrapper.o
++squashfs-y += namei.o super.o symlink.o
+diff -Nurp linux-2.6.31.orig//fs/squashfs/namei.c linux-2.6.31/fs/squashfs/namei.c
+--- linux-2.6.31.orig//fs/squashfs/namei.c	2013-01-16 15:10:04.475278520 -0500
++++ linux-2.6.31/fs/squashfs/namei.c	2013-01-16 15:23:20.815278427 -0500
+@@ -57,6 +57,7 @@
+ #include <linux/slab.h>
+ #include <linux/string.h>
+ #include <linux/dcache.h>
++#include <linux/zlib.h>
+ 
+ #include "squashfs_fs.h"
+ #include "squashfs_fs_sb.h"
+diff -Nurp linux-2.6.31.orig//fs/squashfs/squashfs_fs.h linux-2.6.31/fs/squashfs/squashfs_fs.h
+--- linux-2.6.31.orig//fs/squashfs/squashfs_fs.h	2013-01-16 15:10:04.535278520 -0500
++++ linux-2.6.31/fs/squashfs/squashfs_fs.h	2013-01-16 15:23:20.815278427 -0500
+@@ -211,9 +211,8 @@ struct meta_index {
+ /*
+  * definitions for structures on disk
+  */
+-#define ZLIB_COMPRESSION	1
+-#define LZMA_COMPRESSION	2
+-#define LZO_COMPRESSION		3
++#define ZLIB_COMPRESSION	 1
++#define LZMA_COMPRESSION	 2
+ 
+ struct squashfs_super_block {
+ 	__le32			s_magic;
+diff -Nurp linux-2.6.31.orig//fs/squashfs/squashfs_fs_sb.h linux-2.6.31/fs/squashfs/squashfs_fs_sb.h
+--- linux-2.6.31.orig//fs/squashfs/squashfs_fs_sb.h	2013-01-16 15:10:04.535278520 -0500
++++ linux-2.6.31/fs/squashfs/squashfs_fs_sb.h	2013-01-16 15:23:20.815278427 -0500
+@@ -25,6 +25,14 @@
+ 
+ #include "squashfs_fs.h"
+ 
++#ifdef CONFIG_SQUASHFS_MTD
++#include <linux/mtd/mtd.h>
++#include <linux/namei.h>
++#include <linux/mount.h>
++#include <linux/ctype.h>
++#endif
++
++
+ struct squashfs_cache {
+ 	char			*name;
+ 	int			entries;
+@@ -52,26 +60,28 @@ struct squashfs_cache_entry {
+ };
+ 
+ struct squashfs_sb_info {
+-	const struct squashfs_decompressor	*decompressor;
+-	int					devblksize;
+-	int					devblksize_log2;
+-	struct squashfs_cache			*block_cache;
+-	struct squashfs_cache			*fragment_cache;
+-	struct squashfs_cache			*read_page;
+-	int					next_meta_index;
+-	__le64					*id_table;
+-	__le64					*fragment_index;
+-	unsigned int				*fragment_index_2;
+-	struct mutex				read_data_mutex;
+-	struct mutex				meta_index_mutex;
+-	struct meta_index			*meta_index;
+-	void					*stream;
+-	__le64					*inode_lookup_table;
+-	u64					inode_table;
+-	u64					directory_table;
+-	unsigned int				block_size;
+-	unsigned short				block_log;
+-	long long				bytes_used;
+-	unsigned int				inodes;
++	int			devblksize;
++	int			devblksize_log2;
++	struct squashfs_cache	*block_cache;
++	struct squashfs_cache	*fragment_cache;
++	struct squashfs_cache	*read_page;
++#ifdef CONFIG_SQUASHFS_MTD
++	struct mtd_info		*mtd;
++#endif
++	int			next_meta_index;
++	__le64			*id_table;
++	__le64			*fragment_index;
++	unsigned int		*fragment_index_2;
++	struct mutex		read_data_mutex;
++	struct mutex		meta_index_mutex;
++	struct meta_index	*meta_index;
++	struct crypto_pcomp	*tfm;
++	__le64			*inode_lookup_table;
++	u64			inode_table;
++	u64			directory_table;
++	unsigned int		block_size;
++	unsigned short		block_log;
++	long long		bytes_used;
++	unsigned int		inodes;
+ };
+ #endif
+diff -Nurp linux-2.6.31.orig//fs/squashfs/squashfs.h linux-2.6.31/fs/squashfs/squashfs.h
+--- linux-2.6.31.orig//fs/squashfs/squashfs.h	2013-01-16 15:10:04.475278520 -0500
++++ linux-2.6.31/fs/squashfs/squashfs.h	2013-01-16 15:23:20.815278427 -0500
+@@ -51,9 +51,6 @@ extern struct squashfs_cache_entry *squa
+ 				u64, int);
+ extern int squashfs_read_table(struct super_block *, void *, u64, int);
+ 
+-/* decompressor.c */
+-extern const struct squashfs_decompressor *squashfs_lookup_decompressor(int);
+-
+ /* export.c */
+ extern __le64 *squashfs_read_inode_lookup_table(struct super_block *, u64,
+ 				unsigned int);
+@@ -74,7 +71,7 @@ extern struct inode *squashfs_iget(struc
+ extern int squashfs_read_inode(struct inode *, long long);
+ 
+ /*
+- * Inodes, files and decompressor operations
++ * Inodes and files operations
+  */
+ 
+ /* dir.c */
+@@ -91,9 +88,3 @@ extern const struct inode_operations squ
+ 
+ /* symlink.c */
+ extern const struct address_space_operations squashfs_symlink_aops;
+-
+-/* zlib_wrapper.c */
+-extern const struct squashfs_decompressor squashfs_zlib_comp_ops;
+-
+-/* lzma wrapper.c */
+-extern const struct squashfs_decompressor squashfs_lzma_comp_ops;
+diff -Nurp linux-2.6.31.orig//fs/squashfs/super.c linux-2.6.31/fs/squashfs/super.c
+--- linux-2.6.31.orig//fs/squashfs/super.c	2013-01-16 15:10:04.585278520 -0500
++++ linux-2.6.31/fs/squashfs/super.c	2013-01-16 15:23:20.815278427 -0500
+@@ -35,41 +35,102 @@
+ #include <linux/pagemap.h>
+ #include <linux/init.h>
+ #include <linux/module.h>
++#include <linux/zlib.h>
+ #include <linux/magic.h>
+ 
++#include <crypto/compress.h>
++
++#include <net/netlink.h>
++
+ #include "squashfs_fs.h"
+ #include "squashfs_fs_sb.h"
+ #include "squashfs_fs_i.h"
+ #include "squashfs.h"
+-#include "decompressor.h"
++
++
++static int squashfs_setup_zlib(struct squashfs_sb_info *msblk)
++{
++	int err = -EOPNOTSUPP;
++
++#ifdef CONFIG_SQUASHFS_SUPPORT_ZLIB
++	struct {
++		struct nlattr nla;
++		int val;
++	} params = {
++		.nla = {
++			.nla_len	= nla_attr_size(sizeof(int)),
++			.nla_type	= ZLIB_DECOMP_WINDOWBITS,
++		},
++		.val			= DEF_WBITS,
++	};
++
++	msblk->tfm = crypto_alloc_pcomp("zlib", 0,
++					CRYPTO_ALG_ASYNC);
++	if (IS_ERR(msblk->tfm)) {
++		ERROR("Failed to load zlib crypto module\n");
++		return PTR_ERR(msblk->tfm);
++	}
++
++	err = crypto_decompress_setup(msblk->tfm, &params, sizeof(params));
++	if (err) {
++		ERROR("Failed to set up decompression parameters\n");
++		crypto_free_pcomp(msblk->tfm);
++	}
++#endif
++
++	return err;
++}
++
++static int squashfs_setup_lzma(struct squashfs_sb_info *msblk)
++{
++	int err = -EOPNOTSUPP;
++
++#ifdef CONFIG_SQUASHFS_SUPPORT_LZMA
++	struct {
++		struct nlattr nla;
++		int val;
++	} params = {
++		.nla = {
++			.nla_len	= nla_attr_size(sizeof(int)),
++			.nla_type	= UNLZMA_DECOMP_OUT_BUFFERS,
++		},
++		.val = (msblk->block_size / PAGE_CACHE_SIZE) + 1
++	};
++
++	msblk->tfm = crypto_alloc_pcomp("lzma", 0,
++					CRYPTO_ALG_ASYNC);
++	if (IS_ERR(msblk->tfm)) {
++		ERROR("Failed to load lzma crypto module\n");
++		return PTR_ERR(msblk->tfm);
++	}
++
++	err = crypto_decompress_setup(msblk->tfm, &params, sizeof(params));
++	if (err) {
++		ERROR("Failed to set up decompression parameters\n");
++		crypto_free_pcomp(msblk->tfm);
++	}
++#endif
++
++	return err;
++}
+ 
+ static struct file_system_type squashfs_fs_type;
+ static struct super_operations squashfs_super_ops;
+ 
+-static const struct squashfs_decompressor *supported_squashfs_filesystem(short
+-	major, short minor, short id)
++static int supported_squashfs_filesystem(short major, short minor)
+ {
+-	const struct squashfs_decompressor *decompressor;
+-
+ 	if (major < SQUASHFS_MAJOR) {
+ 		ERROR("Major/Minor mismatch, older Squashfs %d.%d "
+ 			"filesystems are unsupported\n", major, minor);
+-		return NULL;
++		return -EINVAL;
+ 	} else if (major > SQUASHFS_MAJOR || minor > SQUASHFS_MINOR) {
+ 		ERROR("Major/Minor mismatch, trying to mount newer "
+ 			"%d.%d filesystem\n", major, minor);
+ 		ERROR("Please update your kernel\n");
+-		return NULL;
+-	}
+-
+-	decompressor = squashfs_lookup_decompressor(id);
+-	if (!decompressor->supported) {
+-		ERROR("Filesystem uses \"%s\" compression. This is not "
+-			"supported\n", decompressor->name);
+-		return NULL;
++		return -EINVAL;
+ 	}
+ 
+-	return decompressor;
++	return 0;
+ }
+ 
+ 
+@@ -77,7 +138,9 @@ static int squashfs_fill_super(struct su
+ {
+ 	struct squashfs_sb_info *msblk;
+ 	struct squashfs_super_block *sblk = NULL;
++#ifdef CONFIG_BLOCK
+ 	char b[BDEVNAME_SIZE];
++#endif
+ 	struct inode *root;
+ 	long long root_inode;
+ 	unsigned short flags;
+@@ -87,20 +150,27 @@ static int squashfs_fill_super(struct su
+ 
+ 	TRACE("Entered squashfs_fill_superblock\n");
+ 
++#if !defined(CONFIG_SQUASHFS_MTD)
+ 	sb->s_fs_info = kzalloc(sizeof(*msblk), GFP_KERNEL);
+ 	if (sb->s_fs_info == NULL) {
+ 		ERROR("Failed to allocate squashfs_sb_info\n");
+ 		return -ENOMEM;
+ 	}
++#endif
+ 	msblk = sb->s_fs_info;
+ 
+ 	sblk = kzalloc(sizeof(*sblk), GFP_KERNEL);
+ 	if (sblk == NULL) {
+ 		ERROR("Failed to allocate squashfs_super_block\n");
++		err = -ENOMEM;
+ 		goto failure;
+ 	}
+ 
++#ifdef CONFIG_SQUASHFS_MTD
++	msblk->devblksize = 1024;
++#else
+ 	msblk->devblksize = sb_min_blocksize(sb, BLOCK_SIZE);
++#endif
+ 	msblk->devblksize_log2 = ffz(~msblk->devblksize);
+ 
+ 	mutex_init(&msblk->read_data_mutex);
+@@ -120,25 +190,49 @@ static int squashfs_fill_super(struct su
+ 		goto failed_mount;
+ 	}
+ 
+-	err = -EINVAL;
+-
+ 	/* Check it is a SQUASHFS superblock */
+ 	sb->s_magic = le32_to_cpu(sblk->s_magic);
+ 	if (sb->s_magic != SQUASHFS_MAGIC) {
+-		if (!silent)
++		if (!silent) {
++#ifdef CONFIG_BLOCK
+ 			ERROR("Can't find a SQUASHFS superblock on %s\n",
+ 						bdevname(sb->s_bdev, b));
++#elif defined CONFIG_SQUASHFS_MTD
++			ERROR("Can't find a SQUASHFS superblock on %s\n",
++						sb->s_mtd->name);
++#endif
++		}
++		err = -EINVAL;
+ 		goto failed_mount;
+ 	}
+ 
+-	/* Check the MAJOR & MINOR versions and lookup compression type */
+-	msblk->decompressor = supported_squashfs_filesystem(
+-			le16_to_cpu(sblk->s_major),
+-			le16_to_cpu(sblk->s_minor),
+-			le16_to_cpu(sblk->compression));
+-	if (msblk->decompressor == NULL)
++	/* Check block size for sanity */
++	msblk->block_size = le32_to_cpu(sblk->block_size);
++	if (msblk->block_size > SQUASHFS_FILE_MAX_SIZE)
++		goto failed_mount;
++
++	/* Check the MAJOR & MINOR versions and compression type */
++	err = supported_squashfs_filesystem(le16_to_cpu(sblk->s_major),
++			le16_to_cpu(sblk->s_minor));
++	if (err < 0)
++		goto failed_mount;
++
++	switch(le16_to_cpu(sblk->compression)) {
++	case ZLIB_COMPRESSION:
++		err = squashfs_setup_zlib(msblk);
++		break;
++	case LZMA_COMPRESSION:
++		err = squashfs_setup_lzma(msblk);
++		break;
++	default:
++		err = -EINVAL;
++		break;
++	}
++	if (err < 0)
+ 		goto failed_mount;
+ 
++	err = -EINVAL;
++
+ 	/*
+ 	 * Check if there's xattrs in the filesystem.  These are not
+ 	 * supported in this version, so warn that they will be ignored.
+@@ -149,13 +243,13 @@ static int squashfs_fill_super(struct su
+ 	/* Check the filesystem does not extend beyond the end of the
+ 	   block device */
+ 	msblk->bytes_used = le64_to_cpu(sblk->bytes_used);
++
++#ifdef CONFIG_SQUASHFS_MTD
++        if(msblk->bytes_used < 0  || msblk->bytes_used > msblk->mtd->size)
++#else
+ 	if (msblk->bytes_used < 0 || msblk->bytes_used >
+ 			i_size_read(sb->s_bdev->bd_inode))
+-		goto failed_mount;
+-
+-	/* Check block size for sanity */
+-	msblk->block_size = le32_to_cpu(sblk->block_size);
+-	if (msblk->block_size > SQUASHFS_FILE_MAX_SIZE)
++#endif
+ 		goto failed_mount;
+ 
+ 	/*
+@@ -182,7 +276,11 @@ static int squashfs_fill_super(struct su
+ 	msblk->inodes = le32_to_cpu(sblk->inodes);
+ 	flags = le16_to_cpu(sblk->flags);
+ 
++#ifdef CONFIG_BLOCK
+ 	TRACE("Found valid superblock on %s\n", bdevname(sb->s_bdev, b));
++#elif defined CONFIG_SQUASHSFS_MTD
++	TRACE("Found valid superblock on %s\n", sb->s_mtd->name);
++#endif
+ 	TRACE("Inodes are %scompressed\n", SQUASHFS_UNCOMPRESSED_INODES(flags)
+ 				? "un" : "");
+ 	TRACE("Data is %scompressed\n", SQUASHFS_UNCOMPRESSED_DATA(flags)
+@@ -205,10 +303,6 @@ static int squashfs_fill_super(struct su
+ 
+ 	err = -ENOMEM;
+ 
+-	msblk->stream = squashfs_decompressor_init(msblk);
+-	if (msblk->stream == NULL)
+-		goto failed_mount;
+-
+ 	msblk->block_cache = squashfs_cache_init("metadata",
+ 			SQUASHFS_CACHED_BLKS, SQUASHFS_METADATA_SIZE);
+ 	if (msblk->block_cache == NULL)
+@@ -293,22 +387,19 @@ allocate_root:
+ 	return 0;
+ 
+ failed_mount:
++	if (msblk->tfm)
++		crypto_free_pcomp(msblk->tfm);
+ 	squashfs_cache_delete(msblk->block_cache);
+ 	squashfs_cache_delete(msblk->fragment_cache);
+ 	squashfs_cache_delete(msblk->read_page);
+-	squashfs_decompressor_free(msblk, msblk->stream);
+ 	kfree(msblk->inode_lookup_table);
+ 	kfree(msblk->fragment_index);
+ 	kfree(msblk->id_table);
+-	kfree(sb->s_fs_info);
+-	sb->s_fs_info = NULL;
+ 	kfree(sblk);
+-	return err;
+-
+ failure:
+ 	kfree(sb->s_fs_info);
+ 	sb->s_fs_info = NULL;
+-	return -ENOMEM;
++	return err;
+ }
+ 
+ 
+@@ -349,10 +440,10 @@ static void squashfs_put_super(struct su
+ 		squashfs_cache_delete(sbi->block_cache);
+ 		squashfs_cache_delete(sbi->fragment_cache);
+ 		squashfs_cache_delete(sbi->read_page);
+-		squashfs_decompressor_free(sbi, sbi->stream);
+ 		kfree(sbi->id_table);
+ 		kfree(sbi->fragment_index);
+ 		kfree(sbi->meta_index);
++		crypto_free_pcomp(sbi->tfm);
+ 		kfree(sb->s_fs_info);
+ 		sb->s_fs_info = NULL;
+ 	}
+@@ -360,13 +451,244 @@ static void squashfs_put_super(struct su
+ 	unlock_kernel();
+ }
+ 
++#ifdef CONFIG_SQUASHFS_MTD
++static void
++squashfs_kill_sb(struct super_block *sb)
++{
++	struct squashfs_sb_info *c = sb->s_fs_info;
++	generic_shutdown_super(sb);
++	put_mtd_device(c->mtd);
++	kfree(c);
++}
++
++static int
++squashfs_sb_compare(struct super_block *sb, void *data)
++{
++	struct squashfs_sb_info *p = (struct squashfs_sb_info *)data;
++	struct squashfs_sb_info *c = sb->s_fs_info;
++
++	/*
++	 * The superblocks are considered to be equivalent if the
++	 * underlying MTD device is the same one
++	 */
++	if (c->mtd == p->mtd) {
++		printk("%s: match on device %d (\"%s\")\n",
++			__func__, p->mtd->index, p->mtd->name);
++		return 1;
++	} else {
++		printk("%s: No match, device %d (\"%s\"), device %d (\"%s\")\n",
++			__func__, c->mtd->index, c->mtd->name,
++			p->mtd->index, p->mtd->name);
++		return 0;
++	}
++}
++
++static int
++squashfs_sb_set(struct super_block *sb, void *data)
++{
++	struct squashfs_sb_info *p = data;
++
++	/*
++	 * For persistence of NFS exports etc. we use the same s_dev
++	 * each time we mount the device, don't just use an anonymous
++	 * device
++	 */
++	TRACE(	"%s(): assigning p to sb->s_fs_info p = 0x%p p->mtd = 0x%p "
++		"p->mtd->name:%s %p\n", __func__, p, p->mtd, p->mtd->name, sb);
++	sb->s_fs_info = p;
++	sb->s_dev = MKDEV(MTD_BLOCK_MAJOR, p->mtd->index);
++
++	return 0;
++}
++
++static struct super_block *
++squashfs_get_sb_mtd(
++	struct file_system_type	*fs_type,
++	int			flags,
++	const char		*dev_name,
++	void			*data,
++	struct mtd_info		*mtd)
++{
++	struct super_block *sb;
++	struct squashfs_sb_info *c;
++	int ret;
++
++	c = kmalloc(sizeof(struct squashfs_sb_info), GFP_KERNEL);
++
++	if (!c)
++		return ERR_PTR(-ENOMEM);
++	memset(c, 0, sizeof(*c));
++
++	c->mtd = mtd;
++
++	TRACE("%s(): c = 0x%p c->mtd = 0x%p\n", __func__, c, c->mtd);
++
++	sb = sget(fs_type, squashfs_sb_compare, squashfs_sb_set, c);
++
++	if (IS_ERR(sb))
++		goto out_put;
++
++	if (sb->s_root) {
++		/* New mountpoint for JFFS2 which is already mounted */
++		printk(	"%s(): Device %d (\"%s\") is already mounted\n",
++			__func__, c->mtd->index, c->mtd->name);
++		goto out_put;
++	}
++
++	printk("%s(): New superblock for device %d (\"%s\")\n",
++		__func__, mtd->index, mtd->name);
++
++	/*
++	 * Initialize squashfs superblock locks, the further initialization
++	 * will be done later
++	 */
++
++	ret = squashfs_fill_super(sb, data, (flags & MS_VERBOSE) ? 1 : 0);
++
++	if (ret) {
++		/* Failure case... */
++		up_write(&sb->s_umount);
++		deactivate_super(sb);
++		return ERR_PTR(ret);
++	}
++
++	sb->s_flags |= MS_ACTIVE;
++	return sb;
++
++out_put:
++	kfree(c);
++	put_mtd_device(mtd);
++	return sb;
++}
++
++static struct super_block *
++squashfs_get_sb_mtdnr(
++	struct file_system_type	*fs_type,
++	int			flags,
++	const char		*dev_name,
++	void			*data,
++	int			mtdnr)
++{
++	struct mtd_info *mtd;
++
++	//printk("%s(): dev_name = %s mtdnr=%d\n", __func__, dev_name, mtdnr);
++	mtd = get_mtd_device(NULL, mtdnr);
++	if (!mtd) {
++		printk(	"%s(): MTD device #%u doesn't appear to exist\n",
++			__func__,  mtdnr);
++		return ERR_PTR(-EINVAL);
++	}
++
++	//printk(	"%s(): calling squashfs_get_sb_mtd, mtd->name: %s "
++	//	"mtd->index: %d\n", __func__, mtd->name, mtd->index);
++	return squashfs_get_sb_mtd(fs_type, flags, dev_name, data, mtd);
++}
++#endif /* CONFIG_SQUASHFS_MTD */
+ 
+ static int squashfs_get_sb(struct file_system_type *fs_type, int flags,
+ 				const char *dev_name, void *data,
+ 				struct vfsmount *mnt)
+ {
++#ifdef CONFIG_SQUASHFS_MTD
++	struct super_block	*sb;
++	int			err, mtdnr;
++	struct nameidata	nd;
++	struct mtd_info		*mtd;
++
++
++	if (dev_name[0] == 'm' && dev_name[1] == 't' && dev_name[2] == 'd') {
++		/* Probably mounting without the blkdev crap */
++		if (dev_name[3] == ':') {
++			for (mtdnr = 0; mtdnr < MAX_MTD_DEVICES; mtdnr++) {
++				mtd = get_mtd_device(NULL, mtdnr);
++				if (mtd) {
++					if (!strcmp(mtd->name, dev_name+4)) {
++						sb = squashfs_get_sb_mtd(
++							fs_type, flags,
++							dev_name, data, mtd);
++						if (!IS_ERR(sb)) {
++							simple_set_mnt(mnt, sb);
++							err = 0;
++						} else {
++							err = -EIO;
++						}
++						put_mtd_device(mtd);
++						return err;
++					}
++					put_mtd_device(mtd);
++				}
++			}
++			printk("%s(): MTD device with name \"%s\" not found.\n",
++				__func__, dev_name+4);
++		} else if (isdigit(dev_name[3])) {
++			/* Mount by MTD device number name */
++			char *endptr;
++
++			mtdnr = simple_strtoul(dev_name+3, &endptr, 0);
++			if (!*endptr) {
++				/* It was a valid number */
++				printk("%s(): mtd%%d, mtdnr %d\n",
++					__func__, mtdnr);
++				sb = squashfs_get_sb_mtdnr(fs_type, flags,
++							dev_name, data, mtdnr);
++				if (!IS_ERR(sb)) {
++					simple_set_mnt(mnt, sb);
++					return 0;
++				} else {
++					return -EIO;
++				}
++			}
++		}
++	}
++
++	/*
++	 * Try the old way - the hack where we allowed users to mount
++         * /dev/mtdblock$(n) but didn't actually _use_ the blkdev
++	 */
++
++	err = path_lookup(dev_name, LOOKUP_FOLLOW, &nd);
++
++	/* printk(KERN_DEBUG "%s(): path_lookup() returned %d, inode %p\n",
++		__func__, err, nd.dentry->d_inode); */
++
++	if (err)
++		return err;
++
++	err = -EINVAL;
++
++	if (!S_ISBLK(nd.path.dentry->d_inode->i_mode))
++		goto out;
++
++	if (nd.path.mnt->mnt_flags & MNT_NODEV) {
++		err = -EACCES;
++		goto out;
++	}
++
++	if (imajor(nd.path.dentry->d_inode) != MTD_BLOCK_MAJOR) {
++		if (!(flags & MS_VERBOSE)) /* Yes I mean this. Strangely */
++			printk(	"Attempt to mount non-MTD device \"%s\" "
++				"as squashfs\n", dev_name);
++		goto out;
++	}
++
++	mtdnr = iminor(nd.path.dentry->d_inode);
++	// not needed for 2.6.31?? path_release(&nd);
++
++	sb = squashfs_get_sb_mtdnr(fs_type, flags, dev_name, data, mtdnr);
++
++	if (!IS_ERR(sb)) {
++		simple_set_mnt(mnt, sb);
++		return 0;
++	} else {
++		return -EIO;
++	}
++out:
++	// not needed for 2.6.31?? path_release(&nd);
++	return err;
++#else
+ 	return get_sb_bdev(fs_type, flags, dev_name, data, squashfs_fill_super,
+ 				mnt);
++#endif
+ }
+ 
+ 
+@@ -438,12 +760,19 @@ static void squashfs_destroy_inode(struc
+ 	kmem_cache_free(squashfs_inode_cachep, squashfs_i(inode));
+ }
+ 
++#ifdef CONFIG_SQUASHFS_MTD
++static void squashfs_kill_sb(struct super_block *sb);
++#endif
+ 
+ static struct file_system_type squashfs_fs_type = {
+ 	.owner = THIS_MODULE,
+ 	.name = "squashfs",
+ 	.get_sb = squashfs_get_sb,
++#ifdef CONFIG_SQUASHFS_MTD
++	.kill_sb = squashfs_kill_sb,
++#else
+ 	.kill_sb = kill_block_super,
++#endif
+ 	.fs_flags = FS_REQUIRES_DEV
+ };
+ 
+diff -Nurp linux-2.6.31.orig//fs/squashfs/symlink.c linux-2.6.31/fs/squashfs/symlink.c
+--- linux-2.6.31.orig//fs/squashfs/symlink.c	2013-01-16 15:10:04.555278520 -0500
++++ linux-2.6.31/fs/squashfs/symlink.c	2013-01-16 15:23:20.815278427 -0500
+@@ -36,6 +36,7 @@
+ #include <linux/slab.h>
+ #include <linux/string.h>
+ #include <linux/pagemap.h>
++#include <linux/zlib.h>
+ 
+ #include "squashfs_fs.h"
+ #include "squashfs_fs_sb.h"
+diff -Nurp linux-2.6.31.orig//fs/squashfs/zlib_wrapper.c linux-2.6.31/fs/squashfs/zlib_wrapper.c
+--- linux-2.6.31.orig//fs/squashfs/zlib_wrapper.c	2013-01-16 15:10:04.495278520 -0500
++++ linux-2.6.31/fs/squashfs/zlib_wrapper.c	1969-12-31 19:00:00.000000000 -0500
+@@ -1,150 +0,0 @@
+-/*
+- * Squashfs - a compressed read only filesystem for Linux
+- *
+- * Copyright (c) 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009
+- * Phillip Lougher <phillip@lougher.demon.co.uk>
+- *
+- * This program is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU General Public License
+- * as published by the Free Software Foundation; either version 2,
+- * or (at your option) any later version.
+- *
+- * This program is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU General Public License for more details.
+- *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+- *
+- * zlib_wrapper.c
+- */
+-
+-
+-#include <linux/mutex.h>
+-#include <linux/buffer_head.h>
+-#include <linux/zlib.h>
+-
+-#include "squashfs_fs.h"
+-#include "squashfs_fs_sb.h"
+-#include "squashfs_fs_i.h"
+-#include "squashfs.h"
+-#include "decompressor.h"
+-
+-static void *zlib_init(struct squashfs_sb_info *dummy)
+-{
+-	z_stream *stream = kmalloc(sizeof(z_stream), GFP_KERNEL);
+-	if (stream == NULL)
+-		goto failed;
+-	stream->workspace = kmalloc(zlib_inflate_workspacesize(),
+-		GFP_KERNEL);
+-	if (stream->workspace == NULL)
+-		goto failed;
+-
+-	return stream;
+-
+-failed:
+-	ERROR("Failed to allocate zlib workspace\n");
+-	kfree(stream);
+-	return NULL;
+-}
+-
+-
+-static void zlib_free(void *strm)
+-{
+-	z_stream *stream = strm;
+-
+-	if (stream)
+-		kfree(stream->workspace);
+-	kfree(stream);
+-}
+-
+-
+-static int zlib_uncompress(struct squashfs_sb_info *msblk, void **buffer,
+-	struct buffer_head **bh, int b, int offset, int length, int srclength,
+-	int pages)
+-{
+-	int zlib_err = 0, zlib_init = 0;
+-	int avail, bytes, k = 0, page = 0;
+-	z_stream *stream = msblk->stream;
+-
+-	mutex_lock(&msblk->read_data_mutex);
+-
+-	stream->avail_out = 0;
+-	stream->avail_in = 0;
+-
+-	bytes = length;
+-	do {
+-		if (stream->avail_in == 0 && k < b) {
+-			avail = min(bytes, msblk->devblksize - offset);
+-			bytes -= avail;
+-			wait_on_buffer(bh[k]);
+-			if (!buffer_uptodate(bh[k]))
+-				goto release_mutex;
+-
+-			if (avail == 0) {
+-				offset = 0;
+-				put_bh(bh[k++]);
+-				continue;
+-			}
+-
+-			stream->next_in = bh[k]->b_data + offset;
+-			stream->avail_in = avail;
+-			offset = 0;
+-		}
+-
+-		if (stream->avail_out == 0 && page < pages) {
+-			stream->next_out = buffer[page++];
+-			stream->avail_out = PAGE_CACHE_SIZE;
+-		}
+-
+-		if (!zlib_init) {
+-			zlib_err = zlib_inflateInit(stream);
+-			if (zlib_err != Z_OK) {
+-				ERROR("zlib_inflateInit returned unexpected "
+-					"result 0x%x, srclength %d\n",
+-					zlib_err, srclength);
+-				goto release_mutex;
+-			}
+-			zlib_init = 1;
+-		}
+-
+-		zlib_err = zlib_inflate(stream, Z_SYNC_FLUSH);
+-
+-		if (stream->avail_in == 0 && k < b)
+-			put_bh(bh[k++]);
+-	} while (zlib_err == Z_OK);
+-
+-	if (zlib_err != Z_STREAM_END) {
+-		ERROR("zlib_inflate error, data probably corrupt\n");
+-		goto release_mutex;
+-	}
+-
+-	zlib_err = zlib_inflateEnd(stream);
+-	if (zlib_err != Z_OK) {
+-		ERROR("zlib_inflate error, data probably corrupt\n");
+-		goto release_mutex;
+-	}
+-
+-	mutex_unlock(&msblk->read_data_mutex);
+-	return stream->total_out;
+-
+-release_mutex:
+-	mutex_unlock(&msblk->read_data_mutex);
+-
+-	for (; k < b; k++)
+-		put_bh(bh[k]);
+-
+-	return -EIO;
+-}
+-
+-const struct squashfs_decompressor squashfs_zlib_comp_ops = {
+-	.init = zlib_init,
+-	.free = zlib_free,
+-	.decompress = zlib_uncompress,
+-	.id = ZLIB_COMPRESSION,
+-	.name = "zlib",
+-	.supported = 1
+-};
+-
+diff -Nurp linux-2.6.31.orig//include/crypto/compress.h linux-2.6.31/include/crypto/compress.h
+--- linux-2.6.31.orig//include/crypto/compress.h	2013-01-16 15:10:22.845278517 -0500
++++ linux-2.6.31/include/crypto/compress.h	2013-01-16 16:21:50.405278006 -0500
+@@ -49,6 +49,12 @@ enum zlib_decomp_params {
+ 
+ #define ZLIB_DECOMP_MAX	(__ZLIB_DECOMP_MAX - 1)
+ 
++enum unlzma_decomp_params {
++	UNLZMA_DECOMP_OUT_BUFFERS = 1, /* naximum number of output buffers */
++	__UNLZMA_DECOMP_MAX,
++};
++#define UNLZMA_DECOMP_MAX	(__UNLZMA_DECOMP_MAX - 1)
++
+ 
+ struct crypto_pcomp {
+ 	struct crypto_tfm base;

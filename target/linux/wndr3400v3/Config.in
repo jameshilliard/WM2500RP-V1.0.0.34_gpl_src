@@ -1,0 +1,48 @@
+config TARGET_LINUX_GIT_TREEISH
+	string
+	prompt "treeish of linux git repository"
+	depends on TARGET_wndr3400v3
+	default "linux-v2.6.31-dni13"
+	help
+           Input the treeish of linux git repository which you want to build
+
+config TARGET_LINUX_GIT_REPOSITORY
+	string
+	prompt "name of linux git repository"
+	depends on TARGET_wndr3400v3
+	default "linux-2.6.git"
+	help
+	   Input the name of linux git repository which you want to build
+
+config TARGET_LINUX_GIT_URL
+	string
+	prompt "URL of linux git repository"
+	depends on TARGET_wndr3400v3
+	default "ssh://dniserver/scm/dnigit/taipei-clones/linux-2.6.git"
+	help
+	   Input the url of linux git repository which you want to build
+
+config TARGET_NETFILTER_GIT_TREEISH
+	string
+	prompt "treeish of netfilter git repository"
+	depends on TARGET_wndr3400v3
+	default "netfilter-v2.6.31-dni13"
+	help
+           Input the treeish of netfilter git repository which you want to build
+
+config TARGET_NETFILTER_GIT_REPOSITORY
+	string
+	prompt "name of netfilter git repository"
+	depends on TARGET_wndr3400v3
+	default "dni-netfilter.git"
+	help
+	   Input the name of netfilter git repository which you want to build
+
+config TARGET_NETFILTER_GIT_URL
+	string
+	prompt "url of netfilter git repository"
+	depends on TARGET_wndr3400v3
+	default "ssh://dniserver/scm/dnigit/taipei-clones/dni-netfilter.git"
+	help
+	   Input the url of netfilter git repository which you want to build
+

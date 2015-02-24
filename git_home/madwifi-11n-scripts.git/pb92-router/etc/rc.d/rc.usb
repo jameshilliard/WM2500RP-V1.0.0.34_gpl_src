@@ -1,0 +1,34 @@
+#!/bin/sh
+
+# This script runs by rcS and initialize the USB subsystem
+
+# Enable USB
+#insmod /lib/modules/2.6.15/usb/usbcore.ko
+#insmod /lib/modules/2.6.15/usb/ehci-hcd.ko
+#insmod /lib/modules/2.6.15/usb/usb-storage.ko
+#insmod /lib/modules/2.6.15/scsi/sd_mod.ko
+
+# Load file system modules for automunt
+#insmod /lib/modules/2.6.15/fs/fat.ko
+#insmod /lib/modules/2.6.15/fs/vfat.ko
+#insmod /lib/modules/2.6.15/fs/autofs4.ko
+
+# Load NLS modules for different charactersets of file system
+insmod /lib/modules/2.6.15/nls/nls_ascii.ko
+insmod /lib/modules/2.6.15/nls/nls_iso8859-1.ko
+insmod /lib/modules/2.6.15/nls/nls_utf8.ko
+insmod /lib/modules/2.6.15/nls/nls_cp936.ko
+insmod /lib/modules/2.6.15/nls/nls_cp950.ko
+
+# Need to enable USB interface
+mount -t usbfs none /proc/bus/usb
+
+# mount sysfs for udev and activate udev
+test -d /sys || mkdir -p /sys
+mount -t sysfs none /sys
+echo "/sbin/udev" > /proc/sys/kernel/hotplug
+
+# we don't use start_udev to make nodes anymore
+#/etc/start_udev
+
+

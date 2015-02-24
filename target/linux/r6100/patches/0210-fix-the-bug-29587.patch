@@ -1,0 +1,14 @@
+diff -Nur linux-2.6.30.org//net/core/dev.c linux-2.6.30/net/core/dev.c
+--- linux-2.6.30.org//net/core/dev.c	2012-03-09 08:28:43.451446576 -0500
++++ linux-2.6.30/net/core/dev.c	2012-03-09 06:11:49.331449631 -0500
+@@ -2294,8 +2294,8 @@
+ #endif
+ 
+ 	#if	defined(CONFIG_RTL_819X)
+-	if (rtl_netif_receive_skb_hooks(&skb)==RTL_PS_HOOKS_RETURN)
+-		return NET_RX_SUCCESS;
++//	if (rtl_netif_receive_skb_hooks(&skb)==RTL_PS_HOOKS_RETURN)
++//		return NET_RX_SUCCESS;
+ 	#endif
+ 
+ 	if (skb->vlan_tci && vlan_hwaccel_do_receive(skb))

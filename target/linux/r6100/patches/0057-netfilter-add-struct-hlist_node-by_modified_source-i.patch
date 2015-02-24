@@ -1,0 +1,28 @@
+From e26b0591d1c4a656000c19af18aea44bfd263fcf Mon Sep 17 00:00:00 2001
+From: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Date: Tue, 16 Nov 2010 20:22:44 +0800
+Subject: [PATCH 057/137] netfilter: add struct hlist_node by_modified_source in struct nf_conn_nat
+
+Define new variables for supporting SNATP2P in conntrack module.
+
+Signed-off-by: Haiyue.Wang <haiyue@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netfilter/nf_nat.h |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/netfilter/nf_nat.h b/include/net/netfilter/nf_nat.h
+index ed8c6c9..9f012fb 100644
+--- a/include/net/netfilter/nf_nat.h
++++ b/include/net/netfilter/nf_nat.h
+@@ -69,6 +69,7 @@ struct nf_conn;
+ struct nf_conn_nat
+ {
+ 	struct hlist_node bysource;
++	struct hlist_node by_modified_source;
+ 	struct nf_nat_seq seq[IP_CT_DIR_MAX];
+ 	struct nf_conn *ct;
+ 	union nf_conntrack_nat_help help;
+-- 
+1.7.4.1
+

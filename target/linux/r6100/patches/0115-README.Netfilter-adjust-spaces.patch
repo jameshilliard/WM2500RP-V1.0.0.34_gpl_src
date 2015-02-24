@@ -1,0 +1,55 @@
+From d8a73291b8082d1c02a7987657ff0e40d5d48067 Mon Sep 17 00:00:00 2001
+From: Jonathan Chang <jonathan@dniserver.dnish.net>
+Date: Thu, 9 Dec 2010 18:23:14 +0800
+Subject: [PATCH 115/137] README.Netfilter: adjust spaces
+
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ README.Netfilter |   14 +++++++-------
+ 1 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/README.Netfilter b/README.Netfilter
+index 55f8eae..838dd89 100644
+--- a/README.Netfilter
++++ b/README.Netfilter
+@@ -1,7 +1,8 @@
+ 		DNI Netfilter configure options and proc entries
+ 
+-This document records all configure options proc entry interface about DNI Netfilter.
+-Project Leader should reference this document to enable or disable features add by DNI.
++This document records all configure options proc entry interface about
++DNI Netfilter. Project Leader should reference this document to enable
++or disable features add by DNI.
+ 
+ configure options
+ =================
+@@ -18,22 +19,21 @@ NF_CONNTRACK_POORMAN_TCP_WINDOW_CHECKING
+ /proc/sys/dni_netfilter/conntrack_refresh_support
+ 
+     Symptom:
+-	Refresh the timer of the FTP control session when the FTP data session is keeping transmitting
+-	data (It is all TCP protocol) by:
++	Refresh the timer of the FTP control session when the FTP data
++	session is keeping transmitting data (It is all TCP protocol) by:
+ 	# echo "1" > /proc/sys/dni_netfilter/conntrack_refresh_support
+ 
+     Default:
+ 	Disable this feature and work just like original Linux netfilter by:
+ 	# echo "0" > /proc/sys/dni_netfilter/conntrack_refresh_support
+ 
+-
+ /proc/sys/dni_netfilter/conntrack_refresh_outbound_only
+ 
+     Symptom:
+-	Supporting established TCP NAT Outbound & UDP NAT Outbound refresh feature by:
++	Supporting established TCP NAT Outbound & UDP NAT Outbound
++	refresh feature by:
+ 	# echo "1" > /proc/sys/dni_netfilter/conntrack_refresh_outbound_only
+ 
+     Default:
+ 	Disable this feature and work just like original Linux netfilter by:
+ 	# echo "0" > /proc/sys/dni_netfilter/conntrack_refresh_outbound_only
+-
+-- 
+1.7.4.1
+

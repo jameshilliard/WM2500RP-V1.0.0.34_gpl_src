@@ -1,0 +1,8 @@
+#!/bin/sh /etc/rc.common
+START=25
+boot() {
+	/sbin/rpt-wlan start
+	#(sleep 3 && wlconf eth2 start)&
+	# generate random ssid and psk
+	/sbin/genr_ssid_key
+}

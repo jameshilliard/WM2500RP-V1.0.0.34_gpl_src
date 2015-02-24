@@ -1,0 +1,10 @@
+--- linux-2.6.31.org/arch/mips/atheros/gpio.c	2012-01-16 18:38:13.266470608 +0800
++++ linux-2.6.31/arch/mips/atheros/gpio.c	2012-01-16 18:39:58.976470271 +0800
+@@ -1087,7 +1087,6 @@
+ 	ath_gpio_out_val(USB_LED_GPIO, LED_OFF);
+ 	ath_gpio_out_val(WPS_AMBER_LED_GPIO, LED_OFF);
+ 	ath_gpio_out_val(WLAN_2G_LED_GPIO, LED_OFF);
+-	ath_gpio_out_val(STATUS_LED_GPIO, LED_OFF);
+ 	ath_gpio_out_val(WPS_GREEN_LED_GPIO, LED_OFF);
+ 	ath_gpio_out_val(WAN_GREEN_LED_GPIO, LED_OFF);
+ 	ath_gpio_out_val(POWER_LED_GPIO, LED_OFF);

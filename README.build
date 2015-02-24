@@ -1,0 +1,32 @@
+===============================
+ WM2500RP Build Instructions
+===============================
+
+Note:
+	* This package has been built successfully on Ubuntu 10.04.3 (Server) with gcc 4.1.3.
+	* Compiling this package on platforms other than Ubuntu 10.04.3 may have unexpected results.
+
+
+
+ Build code
+============
+
+1. uncompress source code file WM2500RP-V1.0.0.XX_gpl_src.tar.gz.bz2
+
+	bzip2 -d WM2500RP-V1.0.0.XX_gpl_src.tar.gz.bz2
+	tar -zxf WM2500RP-V1.0.0.XX_gpl_src.tar.gz
+
+
+2. run following commands to build firmware.
+
+	cd WM2500RP-V1.0.0.XX_gpl_src
+	cp configs/atheros/defconfig-wm2500rp .config
+	GIT_HOME=`pwd`/git_home make V=99
+
+3. the final image is "bin/WM2500RP-V1.0.0.XX.img".
+
+
+
+
+User may upgrade to this image using the WM2500RP GUI "Router Upgrade" page.
+    

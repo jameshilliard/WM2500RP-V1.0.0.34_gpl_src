@@ -1,0 +1,67 @@
+From 7a98441314cab031da5e2d7afb7a8ea64b803b11 Mon Sep 17 00:00:00 2001
+From: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Date: Mon, 28 Mar 2011 16:19:44 +0800
+Subject: [PATCH 123/137] netfilter: add a member called port_forwarding_external_starting_port in struct nf_nat_range
+
+Linux kernel 2.6.31 support new port forwarding function following spec 2.0
+
+Modified for adding the new feature of port forwarding in spec 2.0.
+Support transforming port range to another port range.
+
+Solution: When nat port transforming,make port correspond one by one.
+Adding min match port into target struct, then the increase number
+can be calculated when nat port transforming.
+
+DNI Common Module Patch Review Checklist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Here are some basic things that I (Jonathan Chang) have checked
+in order to ensure the quality of common modules.
+
+1: The syntax and comment are compliant.
+
+2: No memory leak.
+   * memory allocated by malloc() will be freed
+   * memory allocated by calloc() will be freed
+
+3: No deadlock such as
+   * No function call deadlock.
+   * No semaphore deadlock.
+   * No tag or label deadlock.
+
+4: No stack overflow caused by
+   * infinite recursion
+   * too large local array variables
+
+5: coding completeness, such as
+   * conditions completeness
+   * functions completeness
+   * update completeness
+   * memory resources completeness
+   * sessions resources completeness
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Signed-off-by: guoxing.yang <guoxing.yang@dniserver.dnish.net>
+Signed-off-by: Jonathan Chang <jonathan@dniserver.dnish.net>
+---
+ include/net/netfilter/nf_nat.h |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/include/net/netfilter/nf_nat.h b/include/net/netfilter/nf_nat.h
+index 1b23353..579c9f9 100644
+--- a/include/net/netfilter/nf_nat.h
++++ b/include/net/netfilter/nf_nat.h
+@@ -41,6 +41,10 @@ struct nf_nat_range
+ 
+ 	/* Inclusive: network order */
+ 	union nf_conntrack_man_proto min, max;
++
++	/* For port range forwarding to do special handling */
++	/* Inclusive: network order */
++	u_int16_t port_forwarding_external_starting_port;
+ };
+ 
+ /* For backwards compat: don't use in modern code. */
+-- 
+1.7.4.1
+

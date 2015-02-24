@@ -1,0 +1,13 @@
+--- linux-2.6.36.4.org/drivers/net/proxyarp/Makefile	2012-11-20 10:07:44.568158002 -0500
++++ linux-2.6.36.4.new/drivers/net/proxyarp/Makefile	2012-11-20 10:08:02.058154171 -0500
+@@ -20,8 +20,8 @@
+ 
+ obj-${CONFIG_PROXYARP} := proxyarp.o
+ 
+-PROXYARPOSRC := ../../../../../../../src/router/proxyarp
+-PROXYARPCSRC := ../../../../../../../src/proxyarp
++PROXYARPOSRC := ../../../../../router/proxyarp
++PROXYARPCSRC := ../../../../../proxyarp
+ PROXYARPOBJ := $(PROXYARPCSRC)/proxyarp_common.o $(PROXYARPOSRC)/proxyarp_linux.o
+ SYMOBJ := $(PROXYARPCSRC)/proxyarp_common.o
+ 

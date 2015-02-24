@@ -1,0 +1,4 @@
+#!/bin/sh
+# remark dscp
+iptables -t mangle -A MYSHAPER-OUT  -p tcp --dport 80 -j DSCP --set-dscp 10
+iptables -t mangle -A MYSHAPER-OUT  -p udp --dport 5004 -j DSCP --set-dscp 46

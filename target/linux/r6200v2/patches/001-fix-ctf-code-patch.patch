@@ -1,0 +1,11 @@
+--- linux-2.6.36.4.org/drivers/net/ctf/Makefile	2012-11-15 10:36:16.578205367 -0500
++++ linux-2.6.36.4.new/drivers/net/ctf/Makefile	2012-11-15 10:36:36.098206573 -0500
+@@ -20,7 +20,7 @@
+ 
+ obj-${CONFIG_BCM_CTF} := ctf.o
+ 
+-CTFSRC := ../../../../../../../src/router/ctf/
++CTFSRC := ../../../../../router/ctf
+ CTFOBJ := $(CTFSRC)/hndctf.o $(CTFSRC)/hndctf_linux.o
+ SYMOBJ := $(CTFSRC)/hndctf.o
+ 
